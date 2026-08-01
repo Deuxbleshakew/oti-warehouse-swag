@@ -414,6 +414,25 @@
     padding:30px 4px;
     text-align:center;
   }
+
+  /* Phone-width tap targets. Placed at the END of the stylesheet on
+     purpose: CSS gives later same-specificity rules priority over
+     earlier ones regardless of media query — put this anywhere else and
+     the base desktop rules above would silently win even when this
+     query matches. The compact desktop sizing (26px stepper buttons,
+     etc.) is comfortable with a mouse but genuinely hard to hit
+     accurately with a thumb, so this bumps touch targets to the
+     standard ~44px comfort size without touching desktop at all. */
+  @media (max-width:480px){
+    .tag .stepper button{ width:44px; height:44px; font-size:19px; }
+    .tag .stepper .qty{ width:36px; font-size:15px; }
+    .field input, .server-field input{ padding:13px 12px; font-size:16px; }
+    .toolbar input[type=search], .toolbar select{ padding:12px 12px; font-size:16px; }
+    .slip select, .slip textarea{ padding:12px 12px; font-size:16px; }
+    .slip .line button.rm{ font-size:20px; padding:8px 10px; }
+    .btn-primary{ padding:14px; }
+    nav.tabs button{ padding:15px 4px; }
+  }
 </style>
 </head>
 <body>
@@ -429,7 +448,16 @@
    auth (see backend/main.py for the CORS rationale).
    ------------------------------------------------------------------- */
 
-const DEFAULT_API_BASE = "http://localhost:8000";
+// When this page is served BY the backend itself (Render, or any host
+// running main.py), talking to "itself" is exactly right — no manual
+// server address needed at all, which matters most on a phone where
+// typing a URL into a settings field is annoying. Opening the file
+// directly (file://) has no real origin to detect, so that case keeps
+// the old localhost default for local testing.
+const DEFAULT_API_BASE =
+  (location.protocol === "file:" || !location.origin || location.origin === "null")
+    ? "https://oti-warehouse-swag.onrender.com"
+    : location.origin;
 
 const state = {
   apiBase: sessionStorage.getItem("oti_api_base") || DEFAULT_API_BASE,

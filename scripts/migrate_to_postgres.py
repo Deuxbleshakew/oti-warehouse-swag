@@ -37,6 +37,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend.db.session import Base, DATABASE_URL as SOURCE_URL
+from backend.config import normalize_database_url
 from backend.models.models import (
     Role, User, UserRole, Project, Item, ItemImage,
     InventoryTransaction, Order, OrderLine, Approval, AuditLog, AppSetting,
@@ -93,9 +94,7 @@ def main():
         print("Usage: python scripts/migrate_to_postgres.py "
               "\"postgresql://user:pass@host/dbname\"")
         sys.exit(1)
-    target_url = sys.argv[1]
-    if target_url.startswith("postgres://"):
-        target_url = "postgresql://" + target_url[len("postgres://"):]
+    target_url = normalize_database_url(sys.argv[1])
 
     if SOURCE_URL == target_url:
         print("Source and target are the same database — nothing to do.")

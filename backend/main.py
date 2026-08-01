@@ -14,9 +14,14 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 
 from backend.api import auth, catalog, orders, admin
 from backend.config import ASSETS_DIR as _ASSETS_DIR
+
+_FRONTEND_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
+_ORDER_HTML_PATH = os.path.join(_FRONTEND_DIR, "order.html")
 
 app = FastAPI(
     title="Oti-Warehouse Swag API",
@@ -55,3 +60,17 @@ def health():
     """Unauthenticated — just confirms the service is up. Useful for the
     admin app / a load balancer / a quick curl to check it's alive."""
     return {"status": "ok"}
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+def serve_order_page():
+    """Serves the ordering page at the site's own root, so visiting the
+    deployed URL from any device — phone included — is the entire
+    experience. No separate file to carry around or keep updated; the
+    page's own JS defaults its API calls to this same origin (see
+    order.html's DEFAULT_API_BASE), so there's nothing to configure
+    either. Read from disk on every request rather than cached, so it
+    always reflects whatever's currently deployed — this file is tiny,
+    so that cost is negligible."""
+    with open(_ORDER_HTML_PATH, encoding="utf-8") as f:
+        return f.read()
