@@ -119,3 +119,14 @@ yours.
 An always-on service can still be useful when you no longer want cold starts.
 Photo persistence no longer requires a separate disk because uploaded image
 bytes are stored in the database.
+
+## Confirming version 5.4 is actually live
+
+After the deployment finishes:
+
+1. Open your service URL followed by `/health`.
+2. Confirm it shows `"build":"5.4-event-shipping"`.
+3. Return to the main URL and confirm the header shows `v5.4 EVENT SHIPPING`.
+4. The signed-in page must show three tabs: **1. Catalog**, **2. Project & Delivery**, and **My Orders**.
+
+If `/health` does not show that build name, the host is still running older files. Upload the contents from inside the new `swag_system` folder to the repository root, rather than placing a second `swag_system` folder inside the existing one.
