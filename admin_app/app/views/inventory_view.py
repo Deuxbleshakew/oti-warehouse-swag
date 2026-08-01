@@ -312,13 +312,15 @@ class InventoryView(ttk.Frame):
             current = {"images": list(item["images"]),
                        "image_ids": list(item["image_ids"])}
 
-            def load_image(filename):
+            def load_image(filename, image_id):
                 import io
                 import urllib.request
-                url = self.api.base_url + "/assets/" + filename
+                # Image bytes live in the database now, so thumbnails survive
+                # cloud restarts. filename remains only for labels/compatibility.
+                url = self.api.base_url + f"/item-images/{image_id}"
                 from PIL import Image
                 with urllib.request.urlopen(url, timeout=10) as resp:
-                    return Image.open(io.BytesIO(resp.read())).convert("RGB")
+                    return Image.open(io.BytesIO(resp.read())).convert("RGBA")
 
             def add_photos(paths):
                 def work():

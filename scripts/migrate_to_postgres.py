@@ -37,16 +37,18 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend.db.session import Base, DATABASE_URL as SOURCE_URL
+from backend.db.schema_upgrade import ensure_additive_columns
 from backend.config import normalize_database_url
 from backend.models.models import (
-    Role, User, UserRole, Project, Item, ItemImage,
+    Role, User, UserRole, Project, Item, ItemImage, ItemImageBlob,
     InventoryTransaction, Order, OrderLine, Approval, AuditLog, AppSetting,
 )
+from backend.services.item_service import backfill_legacy_image_blobs
 
 # Table order matters: each table must be inserted after everything it
 # has a foreign key to, or the insert fails on a missing reference.
 MODELS_IN_FK_ORDER = [
-    Role, User, UserRole, Project, Item, ItemImage,
+    Role, User, UserRole, Project, Item, ItemImage, ItemImageBlob,
     InventoryTransaction, Order, OrderLine, Approval, AuditLog, AppSetting,
 ]
 
@@ -109,13 +111,21 @@ def main():
 
     source_engine = create_engine(SOURCE_URL, future=True)
     target_engine = create_engine(target_url, future=True)
+    # create_all only adds missing tables. On an upgraded local database this
+    # creates item_image_blobs before we try to copy it.
+    Base.metadata.create_all(source_engine)
     Base.metadata.create_all(target_engine)   # no-op if already migrated
+    ensure_additive_columns(source_engine)
+    ensure_additive_columns(target_engine)
 
     SourceSession = sessionmaker(bind=source_engine, future=True)
     TargetSession = sessionmaker(bind=target_engine, future=True)
     src, tgt = SourceSession(), TargetSession()
 
     try:
+        backed_up = backfill_legacy_image_blobs(src)
+        if backed_up:
+            print(f"  item photos: {backed_up} legacy file(s) stored in the source database")
         for model in MODELS_IN_FK_ORDER:
             n = copy_table(model, src, tgt)
             print(f"  {model.__tablename__}: {n} row(s) copied")

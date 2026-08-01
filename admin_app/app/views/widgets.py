@@ -125,8 +125,8 @@ class PhotoStrip(ttk.Frame):
 
     on_add(paths: list[str])       — user chose local files to upload
     on_remove(image_id: int)       — user removed an existing photo
-    load_image(filename) -> Image  — host resolves a stored filename to a
-                                     PIL image (downloads from /assets)
+    load_image(filename, image_id) -> Image — host downloads the persistent
+                                             DB-backed image endpoint
     """
     THUMB = 84
 
@@ -148,7 +148,7 @@ class PhotoStrip(ttk.Frame):
             cell = tk.Frame(self.row, bg=theme.SURFACE2, bd=0)
             cell.pack(side="left", padx=(0, 8))
             try:
-                pil = self.load_image(filename)
+                pil = self.load_image(filename, image_id)
                 pil.thumbnail((self.THUMB, self.THUMB))
                 tkimg = ImageTk.PhotoImage(pil)
                 self._thumb_refs.append(tkimg)
@@ -156,7 +156,7 @@ class PhotoStrip(ttk.Frame):
                                cursor="hand2")
                 lbl.pack()
                 lbl.bind("<Button-1>",
-                         lambda e, f=filename: self._enlarge(f))
+                         lambda e, f=filename, i=image_id: self._enlarge(f, i))
             except Exception:
                 tk.Label(cell, text="⚠ can't\nload", bg=theme.SURFACE2,
                          fg=theme.MUTED, width=10, height=4).pack()
@@ -178,9 +178,9 @@ class PhotoStrip(ttk.Frame):
         if paths:
             self.on_add(list(paths))
 
-    def _enlarge(self, filename: str):
+    def _enlarge(self, filename: str, image_id: int):
         try:
-            pil = self.load_image(filename)
+            pil = self.load_image(filename, image_id)
         except Exception:
             return
         win = tk.Toplevel(self)

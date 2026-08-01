@@ -38,8 +38,15 @@ def _my_orders_query(db: Session, user_id: int):
 def create_order(body: OrderCreate, db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)):
     order = order_service.create_order(
-        db, requester=user, project_id=body.project_id, notes=body.notes,
-        lines=body.lines, source="browser")
+        db,
+        requester=user,
+        project_id=body.project_id,
+        project_data=(body.new_project.model_dump() if body.new_project else None),
+        save_project=body.save_project,
+        notes=body.notes,
+        lines=body.lines,
+        source="browser",
+    )
     return order_service.to_order_out(order)
 
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Oti-Warehouse Swag — Order</title>
+<title>Oti-Warehouse Swag — Project & Delivery</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -62,6 +62,19 @@
     gap:10px;
   }
   header.bar .brand .crate{ font-size:22px; }
+  .build-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    margin-left:7px;
+    padding:3px 7px;
+    border:1px solid rgba(242,183,5,.55);
+    color:var(--safety);
+    background:rgba(242,183,5,.09);
+    font:500 10px/1 'IBM Plex Mono',monospace;
+    letter-spacing:.04em;
+    white-space:nowrap;
+  }
   header.bar .who{
     display:flex;
     align-items:center;
@@ -120,8 +133,61 @@
     gap:24px;
     align-items:start;
   }
+  main.setup-only{
+    grid-template-columns:minmax(0,760px);
+    justify-content:center;
+  }
+  main.setup-only .slip{
+    position:static;
+    max-height:none;
+    overflow:visible;
+  }
+  .feature-banner{
+    border:1px solid var(--line);
+    border-left:5px solid var(--safety);
+    background:linear-gradient(135deg,rgba(242,183,5,.10),rgba(49,54,59,.72));
+    padding:13px 14px;
+    margin-bottom:16px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+  }
+  .feature-banner strong{
+    display:block;
+    font:600 15px 'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+  .feature-banner span{
+    display:block;
+    margin-top:3px;
+    color:var(--muted);
+    font-size:12px;
+    line-height:1.4;
+  }
+  .feature-banner button{
+    flex:0 0 auto;
+    background:var(--safety);
+    color:var(--safety-ink);
+    border:0;
+    padding:10px 12px;
+    border-radius:var(--radius);
+    font:600 12px 'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+  .setup-empty-warning{
+    border:1px dashed var(--rust);
+    background:rgba(224,98,72,.07);
+    color:var(--ink);
+    padding:10px 11px;
+    font-size:12px;
+    line-height:1.4;
+  }
   @media (max-width:880px){
     main{ grid-template-columns:1fr; }
+    .slip{ position:static; max-height:none; overflow:visible; }
   }
 
   .toolbar{
@@ -234,10 +300,32 @@
   }
   .tag .stepper button:disabled{ opacity:.35; cursor:not-allowed; }
   .tag .stepper .qty{
-    width:32px;
+    width:42px;
+    height:26px;
+    border:0;
+    border-left:1px solid var(--line);
+    border-right:1px solid var(--line);
+    background:var(--paper);
+    color:var(--ink);
     text-align:center;
     font-family:'IBM Plex Mono',monospace;
     font-size:13px;
+    padding:0 3px;
+    -moz-appearance:textfield;
+  }
+  .tag .stepper .qty::-webkit-outer-spin-button,
+  .tag .stepper .qty::-webkit-inner-spin-button{
+    -webkit-appearance:none;
+    margin:0;
+  }
+  .tag .photo-fallback{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+    height:100%;
+    font-size:28px;
+    opacity:.5;
   }
 
   /* ---- order slip (cart) ---- */
@@ -247,6 +335,8 @@
     border-radius:var(--radius);
     position:sticky;
     top:20px;
+    max-height:calc(100vh - 40px);
+    overflow-y:auto;
   }
   .slip .slip-head{
     padding:14px 16px 10px;
@@ -277,7 +367,8 @@
     padding:0 2px;
   }
   .slip .foot{ padding:12px 16px 16px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:10px; }
-  .slip select, .slip textarea{
+  .slip select, .slip textarea, .slip input[type=text],
+  .slip input[type=date], .slip input[type=number]{
     width:100%;
     padding:8px 9px;
     border:1px solid var(--line);
@@ -286,9 +377,107 @@
     color:var(--ink);
     font-size:13px;
     font-family:inherit;
-    resize:vertical;
   }
-  .slip textarea{ min-height:52px; }
+  .slip textarea{ min-height:52px; resize:vertical; }
+  .project-builder{
+    border:1px solid var(--line);
+    background:rgba(20,22,24,.32);
+    padding:10px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .slip .mini-label{
+    display:block;
+    color:var(--muted);
+    font-size:10.5px;
+    margin-bottom:4px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+  }
+  .project-builder .two-col{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+  .project-builder .save-project{
+    display:flex;
+    align-items:flex-start;
+    gap:8px;
+    color:var(--muted);
+    font-size:11.5px;
+    line-height:1.35;
+  }
+  .project-builder .save-project input{
+    width:auto;
+    margin-top:2px;
+    accent-color:var(--safety);
+  }
+  .project-help{
+    color:var(--muted);
+    font-size:11px;
+    line-height:1.35;
+  }
+  .address-box{
+    border-top:1px dashed var(--line);
+    margin-top:2px;
+    padding-top:9px;
+  }
+  .address-box h3{
+    margin:0 0 8px;
+    font:600 13px 'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+  .shipping-plan{
+    border:1px solid var(--line);
+    border-left:4px solid var(--safety);
+    background:var(--surface2);
+    padding:9px 10px;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:7px 10px;
+  }
+  .shipping-plan .plan-item span{
+    display:block;
+    color:var(--muted);
+    font-size:9.5px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+  .shipping-plan .plan-item strong{
+    display:block;
+    margin-top:2px;
+    font:600 12px 'IBM Plex Mono',monospace;
+  }
+  .shipping-plan .plan-wide{ grid-column:1 / -1; }
+  .shipping-plan.due{ border-left-color:var(--rust); }
+  .shipping-note{
+    grid-column:1 / -1;
+    color:var(--muted);
+    font-size:10px;
+    line-height:1.35;
+  }
+  .map-reference summary{
+    cursor:pointer;
+    color:var(--muted);
+    font-size:10.5px;
+  }
+  .map-reference img{
+    display:block;
+    width:100%;
+    margin-top:7px;
+    border:1px solid var(--line);
+    background:#000;
+  }
+  .saved-project-card{
+    border:1px solid var(--line);
+    background:var(--surface2);
+    padding:9px;
+    font-size:11px;
+    line-height:1.5;
+  }
+  .saved-project-card strong{ color:var(--ink); }
   .btn-primary{
     background:var(--safety);
     color:var(--safety-ink);
@@ -332,6 +521,7 @@
   .order-card .top-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
   .order-card .oid{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted); }
   .order-card .proj{ font-size:13px; color:var(--muted); margin-top:2px; }
+  .order-card .proj-meta{ font-size:11.5px; color:var(--muted); margin-top:3px; }
   .stamp{
     font:700 11px 'Oswald',sans-serif;
     text-transform:uppercase;
@@ -425,13 +615,19 @@
      standard ~44px comfort size without touching desktop at all. */
   @media (max-width:480px){
     .tag .stepper button{ width:44px; height:44px; font-size:19px; }
-    .tag .stepper .qty{ width:36px; font-size:15px; }
+    .tag .stepper .qty{ width:52px; height:44px; font-size:16px; }
     .field input, .server-field input{ padding:13px 12px; font-size:16px; }
     .toolbar input[type=search], .toolbar select{ padding:12px 12px; font-size:16px; }
-    .slip select, .slip textarea{ padding:12px 12px; font-size:16px; }
+    .slip select, .slip textarea, .slip input[type=text],
+    .slip input[type=date], .slip input[type=number]{ padding:12px 12px; font-size:16px; }
+    .project-builder .two-col{ grid-template-columns:1fr; }
+    .shipping-plan{ grid-template-columns:1fr; }
+    .shipping-plan .plan-wide, .shipping-note{ grid-column:1; }
     .slip .line button.rm{ font-size:20px; padding:8px 10px; }
     .btn-primary{ padding:14px; }
-    nav.tabs button{ padding:15px 4px; }
+    nav.tabs button{ padding:15px 4px; margin-right:12px; }
+    .feature-banner{ align-items:stretch; flex-direction:column; }
+    .feature-banner button{ width:100%; padding:13px; }
   }
 </style>
 </head>
@@ -454,10 +650,116 @@
 // typing a URL into a settings field is annoying. Opening the file
 // directly (file://) has no real origin to detect, so that case keeps
 // the old localhost default for local testing.
+const APP_VERSION = "5.4";
 const DEFAULT_API_BASE =
   (location.protocol === "file:" || !location.origin || location.origin === "null")
-    ? "https://oti-warehouse-swag.onrender.com"
+    ? "http://localhost:8000"
     : location.origin;
+
+// Conservative state-level defaults transcribed from the supplied UPS Ground
+// outbound map. Several states contain more than one ZIP-level zone, so the
+// requester can adjust the 1–6 day estimate when an exact UPS quote differs.
+const GROUND_DAYS_BY_STATE = {
+  CT:1, DC:1, DE:1, MA:1, MD:1, NJ:1, NY:1, PA:1, RI:1, VT:1,
+  GA:2, IN:2, KY:2, ME:2, MI:2, NC:2, NH:2, OH:2, SC:2, TN:2, VA:2, WV:2,
+  AL:3, AR:3, AZ:3, FL:3, IA:3, IL:3, KS:3, LA:3, MN:3, MO:3, MS:3, NE:3, NM:3, WI:3,
+  CO:4, MT:4, ND:4, OK:4, SD:4, TX:4,
+  AK:5, CA:5, HI:5, ID:5, NV:5, OR:5, PR:5, UT:5, VI:5, WA:5, WY:5,
+};
+const US_STATES = [
+  ["AL","Alabama"],["AK","Alaska"],["AZ","Arizona"],["AR","Arkansas"],
+  ["CA","California"],["CO","Colorado"],["CT","Connecticut"],["DE","Delaware"],
+  ["DC","District of Columbia"],["FL","Florida"],["GA","Georgia"],["HI","Hawaii"],
+  ["ID","Idaho"],["IL","Illinois"],["IN","Indiana"],["IA","Iowa"],
+  ["KS","Kansas"],["KY","Kentucky"],["LA","Louisiana"],["ME","Maine"],
+  ["MD","Maryland"],["MA","Massachusetts"],["MI","Michigan"],["MN","Minnesota"],
+  ["MS","Mississippi"],["MO","Missouri"],["MT","Montana"],["NE","Nebraska"],
+  ["NV","Nevada"],["NH","New Hampshire"],["NJ","New Jersey"],["NM","New Mexico"],
+  ["NY","New York"],["NC","North Carolina"],["ND","North Dakota"],["OH","Ohio"],
+  ["OK","Oklahoma"],["OR","Oregon"],["PA","Pennsylvania"],["PR","Puerto Rico"],
+  ["RI","Rhode Island"],["SC","South Carolina"],["SD","South Dakota"],["TN","Tennessee"],
+  ["TX","Texas"],["UT","Utah"],["VT","Vermont"],["VA","Virginia"],
+  ["VI","U.S. Virgin Islands"],["WA","Washington"],["WV","West Virginia"],
+  ["WI","Wisconsin"],["WY","Wyoming"],
+];
+
+function parseIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) return null;
+  const [y,m,d] = value.split("-").map(Number);
+  const result = new Date(y, m - 1, d, 12, 0, 0);
+  return result.getFullYear() === y && result.getMonth() === m - 1 && result.getDate() === d ? result : null;
+}
+function isoFromDate(value) {
+  const y = value.getFullYear();
+  const m = String(value.getMonth() + 1).padStart(2, "0");
+  const d = String(value.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+function observedFixed(year, monthIndex, day) {
+  const d = new Date(year, monthIndex, day, 12);
+  if (d.getDay() === 6) d.setDate(d.getDate() - 1);
+  else if (d.getDay() === 0) d.setDate(d.getDate() + 1);
+  return d;
+}
+function nthWeekday(year, monthIndex, weekday, n) {
+  const d = new Date(year, monthIndex, 1, 12);
+  d.setDate(1 + ((weekday - d.getDay() + 7) % 7) + (n - 1) * 7);
+  return d;
+}
+function lastWeekday(year, monthIndex, weekday) {
+  const d = new Date(year, monthIndex + 1, 0, 12);
+  d.setDate(d.getDate() - ((d.getDay() - weekday + 7) % 7));
+  return d;
+}
+function federalHolidaySet(year) {
+  return new Set([
+    observedFixed(year,0,1), nthWeekday(year,0,1,3), nthWeekday(year,1,1,3),
+    lastWeekday(year,4,1), observedFixed(year,5,19), observedFixed(year,6,4),
+    nthWeekday(year,8,1,1), nthWeekday(year,9,1,2), observedFixed(year,10,11),
+    nthWeekday(year,10,4,4), observedFixed(year,11,25),
+  ].map(isoFromDate));
+}
+function isBusinessDate(value) {
+  if (value.getDay() === 0 || value.getDay() === 6) return false;
+  const iso = isoFromDate(value);
+  for (const y of [value.getFullYear()-1, value.getFullYear(), value.getFullYear()+1]) {
+    if (federalHolidaySet(y).has(iso)) return false;
+  }
+  return true;
+}
+function previousBusinessDate(value) {
+  const d = new Date(value);
+  do { d.setDate(d.getDate() - 1); } while (!isBusinessDate(d));
+  return d;
+}
+function subtractBusinessDates(value, count) {
+  const d = new Date(value);
+  let left = Number(count) || 0;
+  while (left > 0) {
+    d.setDate(d.getDate() - 1);
+    if (isBusinessDate(d)) left -= 1;
+  }
+  return d;
+}
+function shippingPlanForForm(form) {
+  const event = parseIsoDate(form.eventDate);
+  const stateCode = (form.shippingState || "").toUpperCase();
+  const days = Number(form.upsGroundDays || GROUND_DAYS_BY_STATE[stateCode]);
+  if (!event || !GROUND_DAYS_BY_STATE[stateCode] || !Number.isInteger(days) || days < 1 || days > 6) return null;
+  const delivery = previousBusinessDate(event);
+  const shipBy = subtractBusinessDates(delivery, days);
+  return { deliveryDate: isoFromDate(delivery), shipByDate: isoFromDate(shipBy), days };
+}
+function stateOptions(selected) {
+  return `<option value="">Select state</option>` + US_STATES.map(([code,name]) =>
+    `<option value="${code}" ${selected === code ? "selected" : ""}>${name}</option>`).join("");
+}
+function formattedAddress(project) {
+  if (!project) return "";
+  const street = [project.shipping_address1, project.shipping_address2].filter(Boolean).join(", ");
+  const cityLine = [project.shipping_city, project.shipping_state, project.shipping_postal_code].filter(Boolean).join(" ");
+  return [street, cityLine].filter(Boolean).join(" · ");
+}
 
 const state = {
   apiBase: sessionStorage.getItem("oti_api_base") || DEFAULT_API_BASE,
@@ -467,6 +769,24 @@ const state = {
   catalog: [],
   projects: [],
   cart: {},           // item_id -> qty
+  orderForm: {
+    projectChoice: "new",
+    projectName: "",
+    projectOwner: "",
+    eventDate: "",
+    projectLocation: "",
+    shippingAddress1: "",
+    shippingAddress2: "",
+    shippingCity: "",
+    shippingState: "",
+    shippingPostalCode: "",
+    upsGroundDays: "",
+    groundDaysManual: false,
+    attendees: "",
+    projectDescription: "",
+    saveProject: false,
+    notes: "",
+  },
   myOrders: [],
   search: "",
   category: "",
@@ -516,11 +836,33 @@ function saveSession() {
   sessionStorage.setItem("oti_api_base", state.apiBase);
 }
 
+function blankOrderForm() {
+  return {
+    projectChoice: "new",
+    projectName: "",
+    projectOwner: state.user ? (state.user.full_name || state.user.username || "") : "",
+    eventDate: "",
+    projectLocation: "",
+    shippingAddress1: "",
+    shippingAddress2: "",
+    shippingCity: "",
+    shippingState: "",
+    shippingPostalCode: "",
+    upsGroundDays: "",
+    groundDaysManual: false,
+    attendees: "",
+    projectDescription: "",
+    saveProject: false,
+    notes: "",
+  };
+}
+
 function logout(message) {
   stopPolling();
   state.token = null;
   state.user = null;
   state.cart = {};
+  state.orderForm = blankOrderForm();
   state.myOrders = [];
   sessionStorage.removeItem("oti_token");
   state.loginError = message || "";
@@ -605,21 +947,78 @@ function cartCount() {
   return Object.values(state.cart).reduce((a, b) => a + b, 0);
 }
 function setQty(itemId, qty, max) {
+  qty = Number.isFinite(Number(qty)) ? Math.floor(Number(qty)) : 0;
   qty = Math.max(0, Math.min(qty, max));
   if (qty === 0) delete state.cart[itemId];
   else state.cart[itemId] = qty;
   render();
 }
 
-async function submitOrder(projectId, notes) {
+function buildProjectPayload() {
+  const f = state.orderForm;
+  if (f.projectChoice === "none") return {};
+  if (f.projectChoice.startsWith("saved:")) {
+    return { project_id: Number(f.projectChoice.split(":", 2)[1]) };
+  }
+  if (!f.projectName.trim()) throw new Error("Enter a project or event name for this order.");
+  if (!f.eventDate) throw new Error("Enter the event date.");
+  if (!f.shippingAddress1.trim()) throw new Error("Enter the delivery street address.");
+  if (!f.shippingCity.trim()) throw new Error("Enter the delivery city.");
+  if (!f.shippingState) throw new Error("Select the delivery state.");
+  if (!f.shippingPostalCode.trim()) throw new Error("Enter the delivery ZIP code.");
+
+  const plan = shippingPlanForForm(f);
+  if (!plan) throw new Error("Complete the event date, state, and UPS Ground transit time.");
+  const attendees = f.attendees === "" ? null : Number(f.attendees);
+  if (attendees != null && (!Number.isInteger(attendees) || attendees < 0)) {
+    throw new Error("Attendees must be a whole number of zero or more.");
+  }
+  return {
+    new_project: {
+      name: f.projectName.trim(),
+      owner: f.projectOwner.trim(),
+      event_date: f.eventDate,
+      delivery_date: plan.deliveryDate,
+      ship_by_date: plan.shipByDate,
+      location: f.projectLocation.trim(),
+      shipping_address1: f.shippingAddress1.trim(),
+      shipping_address2: f.shippingAddress2.trim(),
+      shipping_city: f.shippingCity.trim(),
+      shipping_state: f.shippingState,
+      shipping_postal_code: f.shippingPostalCode.trim(),
+      shipping_service: "UPS Ground",
+      ups_ground_days: plan.days,
+      attendees: attendees,
+      description: f.projectDescription.trim(),
+    },
+    save_project: Boolean(f.saveProject),
+  };
+}
+
+async function submitOrder() {
   const lines = Object.entries(state.cart).map(([item_id, qty]) => ({ item_id: Number(item_id), qty }));
   if (!lines.length) return;
+  let projectPayload;
+  try {
+    projectPayload = buildProjectPayload();
+  } catch (e) {
+    toast(e.message, true);
+    return;
+  }
   try {
     const order = await api("/orders", {
       method: "POST",
-      body: JSON.stringify({ project_id: projectId ? Number(projectId) : null, notes: notes || "", lines }),
+      body: JSON.stringify(Object.assign({
+        notes: state.orderForm.notes.trim(),
+        lines,
+      }, projectPayload)),
     });
+    const savedForReuse = Boolean(projectPayload.save_project);
     state.cart = {};
+    state.orderForm = blankOrderForm();
+    if (savedForReuse) {
+      try { state.projects = await api("/projects"); } catch (_) {}
+    }
     toast("Order #" + order.id + " submitted — pending approval.");
     state.tab = "orders";
     await loadMyOrders();
@@ -645,6 +1044,7 @@ async function doLogin(username, password) {
     const data = await res.json();
     state.token = data.token;
     state.user = data.user;
+    state.orderForm = blankOrderForm();
     saveSession();
     await Promise.all([loadCatalog(), loadMyOrders()]);
     pollLoop();
@@ -664,15 +1064,30 @@ function esc(s) {
 }
 
 function imgUrl(item) {
-  if (item.images && item.images.length) return state.apiBase + "/assets/" + item.images[0];
-  return null;
+  if (!item.images || !item.images.length) return null;
+  // The item endpoint skips stale legacy records and serves the first photo
+  // whose bytes still exist, including DB-backed uploads.
+  return state.apiBase + "/catalog/" + encodeURIComponent(item.id) + "/image";
+}
+
+function handleImageError(img) {
+  const holder = img && img.closest ? img.closest(".photo") : null;
+  if (!holder) return;
+  img.remove();
+  if (!holder.querySelector(".photo-fallback")) {
+    const fallback = document.createElement("span");
+    fallback.className = "photo-fallback";
+    fallback.textContent = "📦";
+    fallback.title = "Photo file is missing from the server";
+    holder.prepend(fallback);
+  }
 }
 
 function renderLogin() {
   return `
   <div class="login-wrap">
     <div class="login-card">
-      <div class="brand"><span>📦</span> Oti-Warehouse Swag</div>
+      <div class="brand"><span>📦</span> Oti-Warehouse Swag <span class="build-badge">v${APP_VERSION} EVENT SHIPPING</span></div>
       <div class="sub">Sign in to browse the catalog and place an order.</div>
       <form id="login-form">
         <div class="field">
@@ -703,7 +1118,7 @@ function renderTagCard(item) {
   const photo = imgUrl(item);
   return `
   <div class="tag">
-    <div class="photo">${photo ? `<img src="${esc(photo)}" alt="${esc(item.name)}">` : `<span style="font-size:28px;opacity:.5;">📦</span>`}${item.color ? `<span class="colordot" style="background:${esc(item.color)}" title="${esc(item.color_name || item.color)}"></span>` : ""}</div>
+    <div class="photo">${photo ? `<img src="${esc(photo)}" alt="${esc(item.name)}" loading="lazy" onerror="handleImageError(this)">` : `<span class="photo-fallback">📦</span>`}${item.color ? `<span class="colordot" style="background:${esc(item.color)}" title="${esc(item.color_name || item.color)}"></span>` : ""}</div>
     <div class="perf"></div>
     <div class="body">
       <div class="code mono">${esc(item.code)}</div>
@@ -712,8 +1127,8 @@ function renderTagCard(item) {
       <div class="row-bottom">
         <div class="stock ${low ? "low" : ""}">${out ? "OUT OF STOCK" : "QTY ON HAND: " + item.qty_on_hand}</div>
         <div class="stepper">
-          <button data-act="dec" data-id="${item.id}" ${inCart <= 0 ? "disabled" : ""}>−</button>
-          <span class="qty">${inCart}</span>
+          <button data-act="dec" data-id="${item.id}" data-max="${item.qty_on_hand}" ${inCart <= 0 ? "disabled" : ""}>−</button>
+          <input class="qty qty-input" type="number" inputmode="numeric" min="0" max="${item.qty_on_hand}" step="1" value="${inCart}" data-qty-id="${item.id}" data-max="${item.qty_on_hand}" aria-label="Quantity for ${esc(item.name)}" ${out ? "disabled" : ""}>
           <button data-act="inc" data-id="${item.id}" data-max="${item.qty_on_hand}" ${out || inCart >= item.qty_on_hand ? "disabled" : ""}>+</button>
         </div>
       </div>
@@ -766,6 +1181,13 @@ function renderCatalogTab() {
       </div>`).join("");
   }
   return `
+    <div class="feature-banner">
+      <div>
+        <strong>Project & delivery setup is now a separate step</strong>
+        <span>Enter item quantities here, then add the event date and complete delivery address. The app calculates delivery for the business day before the event and the latest UPS Ground ship date.</span>
+      </div>
+      <button id="open-order-setup" type="button">Open Project & Delivery (${cartCount()})</button>
+    </div>
     <div class="toolbar">
       <input type="search" id="search" placeholder="Search item name or code…" value="${esc(state.search)}">
       <select id="category-filter">
@@ -785,12 +1207,24 @@ function renderCatalogTab() {
 function renderOrdersTab() {
   if (state.loadingOrders && !state.myOrders.length) return `<div class="loading">Loading your orders…</div>`;
   if (!state.myOrders.length) return `<div class="empty-state">No orders yet — build one from the Catalog tab.</div>`;
-  return `<div class="orders-list">${state.myOrders.map(o => `
+  return `<div class="orders-list">${state.myOrders.map(o => {
+    const p = o.project_details;
+    const address = formattedAddress(p);
+    return `
     <div class="order-card">
       <div class="top-row">
         <div>
           <div class="oid">ORDER #${o.id}</div>
           ${o.project ? `<div class="proj">${esc(o.project)}</div>` : ""}
+          ${p ? `<div class="proj-meta">${[
+            p.event_date ? "Event: " + p.event_date : "",
+            p.delivery_date ? "Deliver: " + p.delivery_date : "",
+            p.ship_by_date ? "Ship by: " + p.ship_by_date : "",
+            p.ups_ground_days ? "UPS Ground: " + p.ups_ground_days + " business day" + (p.ups_ground_days === 1 ? "" : "s") : "",
+            p.location ? "Venue: " + p.location : "",
+            address ? "Ship to: " + address : "",
+            p.attendees != null ? p.attendees + " attendees" : "",
+          ].filter(Boolean).map(esc).join(" · ")}</div>` : ""}
         </div>
         <div class="stamp ${o.status}">${esc(o.status)}</div>
       </div>
@@ -798,38 +1232,172 @@ function renderOrdersTab() {
         ${o.lines.map(l => `<div><span>${esc(l.item_name)} <span class="mono" style="color:var(--muted);font-size:11px;">${esc(l.item_code)}</span></span><span class="mono">${l.qty_approved != null ? l.qty_approved + " / " : ""}${l.qty_requested}</span></div>`).join("")}
       </div>
       ${o.notes ? `<div class="notes">"${esc(o.notes)}"</div>` : ""}
-    </div>
-  `).join("")}</div>`;
+    </div>`;
+  }).join("")}</div>`;
 }
 
-function renderSlip() {
-  const lines = Object.entries(state.cart).map(([id, qty]) => {
+function cartLinesData() {
+  return Object.entries(state.cart).map(([id, qty]) => {
     const item = state.catalog.find(i => i.id === Number(id));
     return item ? { item, qty } : null;
   }).filter(Boolean);
+}
+
+function cartLinesHtml(lines) {
+  return lines.length ? lines.map(({ item, qty }) => `
+    <div class="line">
+      <div class="nm">${esc(item.name)}<span class="cd">${esc(item.code)}</span></div>
+      <div class="mono">×${qty}</div>
+      <button class="rm" data-rm="${item.id}" title="Remove">✕</button>
+    </div>
+  `).join("") : `<div class="empty">Add items from the catalog to build an order.</div>`;
+}
+
+function wireRemoveButtons() {
+  document.querySelectorAll(".rm").forEach(btn => {
+    btn.addEventListener("click", () => {
+      delete state.cart[Number(btn.dataset.rm)];
+      render();
+    });
+  });
+}
+
+function refreshCartPreview() {
+  const lines = cartLinesData();
+  const holder = document.querySelector(".slip .lines");
+  if (holder) {
+    holder.innerHTML = cartLinesHtml(lines);
+    wireRemoveButtons();
+  }
   const count = cartCount();
+  const total = document.querySelector(".slip .total-count");
+  if (total) total.textContent = count + " item" + (count === 1 ? "" : "s") + " in this order";
+  const submit = document.getElementById("submit-order");
+  if (submit) submit.disabled = !lines.length;
+}
+
+function renderSlip() {
+  const lines = cartLinesData();
+  const count = cartCount();
+  const f = state.orderForm;
+  const isNewProject = f.projectChoice === "new";
+  const selectedSaved = f.projectChoice.startsWith("saved:")
+    ? state.projects.find(p => p.id === Number(f.projectChoice.split(":", 2)[1]))
+    : null;
+  const plan = isNewProject ? shippingPlanForForm(f) : null;
+  const todayIso = isoFromDate(new Date());
+  const shipDateReached = plan && plan.shipByDate <= todayIso;
+  const mapUrl = state.apiBase + "/assets/ups_ground_tat.png";
   return `
   <div class="slip">
     <div class="slip-head">
-      <div class="label">Order Slip</div>
-      <h2>Your Cart</h2>
+      <div class="label">${state.tab === "setup" ? "Step 2 of 2" : "Order Slip"}</div>
+      <h2>${state.tab === "setup" ? "Project, Delivery & Cart" : "Your Cart"}</h2>
     </div>
-    <div class="lines">
-      ${lines.length ? lines.map(({ item, qty }) => `
-        <div class="line">
-          <div class="nm">${esc(item.name)}<span class="cd">${esc(item.code)}</span></div>
-          <div class="mono">×${qty}</div>
-          <button class="rm" data-rm="${item.id}" title="Remove">✕</button>
-        </div>
-      `).join("") : `<div class="empty">Add items from the catalog to build an order.</div>`}
-    </div>
+    ${state.tab === "setup" && !lines.length ? `<div class="setup-empty-warning">No items have been added yet. You can complete the event details now, then return to the Catalog to enter quantities.</div>` : ""}
+    <div class="lines">${cartLinesHtml(lines)}</div>
     <div class="foot">
       <div class="total-count">${count} item${count === 1 ? "" : "s"} in this order</div>
-      <select id="slip-project">
-        <option value="">No project / event</option>
-        ${state.projects.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}
-      </select>
-      <textarea id="slip-notes" placeholder="Notes for the approver (optional)"></textarea>
+      <div>
+        <label class="mini-label" for="project-choice">Project / event</label>
+        <select id="project-choice">
+          <option value="new" ${f.projectChoice === "new" ? "selected" : ""}>＋ Create for this order</option>
+          <option value="none" ${f.projectChoice === "none" ? "selected" : ""}>No project / event</option>
+          ${state.projects.length ? `<optgroup label="Saved projects">${state.projects.map(p => `<option value="saved:${p.id}" ${f.projectChoice === "saved:" + p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</optgroup>` : ""}
+        </select>
+      </div>
+      ${isNewProject ? `
+        <div class="project-builder">
+          <div>
+            <label class="mini-label" for="project-name">Project / event name *</label>
+            <input id="project-name" type="text" maxlength="200" value="${esc(f.projectName)}" placeholder="Example: Pediatric Seminar — Newark">
+          </div>
+          <div>
+            <label class="mini-label" for="project-owner">Owner / requester</label>
+            <input id="project-owner" type="text" value="${esc(f.projectOwner)}" placeholder="Person responsible">
+          </div>
+          <div class="two-col">
+            <div>
+              <label class="mini-label" for="project-event-date">Event date *</label>
+              <input id="project-event-date" type="date" value="${esc(f.eventDate)}">
+            </div>
+            <div>
+              <label class="mini-label" for="project-location">Event venue / location</label>
+              <input id="project-location" type="text" value="${esc(f.projectLocation)}" placeholder="Optional venue or building">
+            </div>
+          </div>
+
+          <div class="address-box">
+            <h3>Delivery address</h3>
+            <div>
+              <label class="mini-label" for="shipping-address1">Street address *</label>
+              <input id="shipping-address1" type="text" autocomplete="shipping address-line1" value="${esc(f.shippingAddress1)}" placeholder="Street and number">
+            </div>
+            <div style="margin-top:8px;">
+              <label class="mini-label" for="shipping-address2">Suite / floor / attention</label>
+              <input id="shipping-address2" type="text" autocomplete="shipping address-line2" value="${esc(f.shippingAddress2)}" placeholder="Optional">
+            </div>
+            <div class="two-col" style="margin-top:8px;">
+              <div>
+                <label class="mini-label" for="shipping-city">City *</label>
+                <input id="shipping-city" type="text" autocomplete="shipping address-level2" value="${esc(f.shippingCity)}">
+              </div>
+              <div>
+                <label class="mini-label" for="shipping-state">State *</label>
+                <select id="shipping-state" autocomplete="shipping address-level1">${stateOptions(f.shippingState)}</select>
+              </div>
+            </div>
+            <div class="two-col" style="margin-top:8px;">
+              <div>
+                <label class="mini-label" for="shipping-postal-code">ZIP code *</label>
+                <input id="shipping-postal-code" type="text" inputmode="numeric" autocomplete="shipping postal-code" maxlength="20" value="${esc(f.shippingPostalCode)}">
+              </div>
+              <div>
+                <label class="mini-label" for="ups-ground-days">UPS Ground transit *</label>
+                <select id="ups-ground-days">
+                  <option value="">Select days</option>
+                  ${[1,2,3,4,5,6].map(d => `<option value="${d}" ${Number(f.upsGroundDays) === d ? "selected" : ""}>${d} business day${d === 1 ? "" : "s"}</option>`).join("")}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          ${plan ? `<div class="shipping-plan ${shipDateReached ? "due" : ""}">
+            <div class="plan-item"><span>Event</span><strong>${esc(f.eventDate)}</strong></div>
+            <div class="plan-item"><span>Deliver by</span><strong>${esc(plan.deliveryDate)}</strong></div>
+            <div class="plan-item"><span>UPS Ground</span><strong>${plan.days} business day${plan.days === 1 ? "" : "s"}</strong></div>
+            <div class="plan-item"><span>Ship no later than</span><strong>${esc(plan.shipByDate)}</strong></div>
+            <div class="shipping-note">${shipDateReached ? "⚠ The calculated ship date is today or has passed. Review another service level before submitting." : "Delivery is planned for the business day before the event. Weekends and common observed U.S. holidays are skipped."}</div>
+          </div>` : `<div class="project-help">Enter the event date and destination state to calculate the delivery and latest ship dates.</div>`}
+
+          <details class="map-reference">
+            <summary>View the UPS Ground transit map used for the estimate</summary>
+            <img src="${esc(mapUrl)}" alt="UPS Ground outbound transit-day map">
+            <div class="project-help" style="margin-top:5px;">The map contains ZIP-level pockets inside some states. Adjust the transit-day field when the exact UPS quote differs.</div>
+          </details>
+
+          <div>
+            <label class="mini-label" for="project-attendees">Estimated attendees</label>
+            <input id="project-attendees" type="number" inputmode="numeric" min="0" step="1" value="${esc(f.attendees)}" placeholder="Optional">
+          </div>
+          <div>
+            <label class="mini-label" for="project-description">Project details</label>
+            <textarea id="project-description" placeholder="Purpose or quick description">${esc(f.projectDescription)}</textarea>
+          </div>
+          <label class="save-project">
+            <input id="save-project" type="checkbox" ${f.saveProject ? "checked" : ""}>
+            <span>Save this project so it can be selected again later. Leave unchecked for one-time events.</span>
+          </label>
+        </div>
+      ` : f.projectChoice === "none" ? `<div class="project-help">This order will not be linked to a project or event, so no event shipping deadline will be calculated.</div>` : selectedSaved ? `<div class="saved-project-card">
+          <strong>${esc(selectedSaved.name)}</strong><br>
+          ${selectedSaved.event_date ? `Event: ${esc(selectedSaved.event_date)}<br>` : ""}
+          ${selectedSaved.delivery_date ? `Deliver by: ${esc(selectedSaved.delivery_date)}<br>` : ""}
+          ${selectedSaved.ship_by_date ? `Ship by: ${esc(selectedSaved.ship_by_date)}<br>` : ""}
+          ${selectedSaved.ups_ground_days ? `UPS Ground: ${selectedSaved.ups_ground_days} business day${selectedSaved.ups_ground_days === 1 ? "" : "s"}<br>` : ""}
+          ${formattedAddress(selectedSaved) ? `Ship to: ${esc(formattedAddress(selectedSaved))}` : "No saved delivery address."}
+        </div>` : `<div class="project-help">This order will be added to the selected saved project.</div>`}
+      <textarea id="slip-notes" placeholder="Notes for the approver (optional)">${esc(f.notes)}</textarea>
       <button class="btn-primary" id="submit-order" ${!lines.length ? "disabled" : ""}>Submit Order</button>
     </div>
   </div>`;
@@ -844,7 +1412,7 @@ function render() {
   }
   app.innerHTML = `
     <header class="bar">
-      <div class="brand"><span class="crate">📦</span> Oti-Warehouse Swag</div>
+      <div class="brand"><span class="crate">📦</span> Oti-Warehouse Swag <span class="build-badge">v${APP_VERSION} EVENT SHIPPING</span></div>
       <div class="who">
         <span>${esc(state.user ? state.user.full_name || state.user.username : "")}</span>
         ${state.user && state.user.roles.length ? `<span class="roles">${state.user.roles.join(", ").toUpperCase()}</span>` : ""}
@@ -852,12 +1420,13 @@ function render() {
       </div>
     </header>
     <nav class="tabs">
-      <button data-tab="catalog" class="${state.tab === "catalog" ? "active" : ""}">Catalog</button>
+      <button data-tab="catalog" class="${state.tab === "catalog" ? "active" : ""}">1. Catalog</button>
+      <button data-tab="setup" class="${state.tab === "setup" ? "active" : ""}">2. Project & Delivery (${cartCount()})</button>
       <button data-tab="orders" class="${state.tab === "orders" ? "active" : ""}">My Orders</button>
     </nav>
-    <main>
-      <section>${state.tab === "catalog" ? renderCatalogTab() : renderOrdersTab()}</section>
-      ${state.tab === "catalog" ? renderSlip() : "<div></div>"}
+    <main class="${state.tab === "setup" ? "setup-only" : ""}">
+      <section>${state.tab === "catalog" ? renderCatalogTab() : state.tab === "setup" ? renderSlip() : renderOrdersTab()}</section>
+      ${state.tab === "catalog" ? renderSlip() : ""}
     </main>
   `;
   wireApp();
@@ -893,6 +1462,13 @@ function wireApp() {
     });
   });
 
+  const openOrderSetup = document.getElementById("open-order-setup");
+  if (openOrderSetup) openOrderSetup.addEventListener("click", () => {
+    state.tab = "setup";
+    render();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
   const searchEl = document.getElementById("search");
   if (searchEl) {
     searchEl.addEventListener("input", (e) => { state.search = e.target.value; render(); });
@@ -913,21 +1489,87 @@ function wireApp() {
     });
   });
 
-  document.querySelectorAll(".rm").forEach(btn => {
-    btn.addEventListener("click", () => {
-      delete state.cart[Number(btn.dataset.rm)];
-      render();
+  document.querySelectorAll(".qty-input").forEach(input => {
+    const commitWithoutRerender = () => {
+      const id = Number(input.dataset.qtyId);
+      const max = Number(input.dataset.max || 0);
+      let requested = input.value === "" ? 0 : Number(input.value);
+      if (!Number.isFinite(requested) || requested < 0) requested = 0;
+      requested = Math.floor(requested);
+      if (requested > max) {
+        requested = max;
+        toast("Only " + max + " are currently available.", true);
+      }
+      input.value = requested === 0 && input.value === "" ? "" : String(requested);
+      if (requested === 0) delete state.cart[id];
+      else state.cart[id] = requested;
+
+      const stepper = input.closest(".stepper");
+      if (stepper) {
+        const dec = stepper.querySelector('[data-act="dec"]');
+        const inc = stepper.querySelector('[data-act="inc"]');
+        if (dec) dec.disabled = requested <= 0;
+        if (inc) inc.disabled = requested >= max;
+      }
+      refreshCartPreview();
+    };
+    input.addEventListener("input", commitWithoutRerender);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        input.blur();
+      }
     });
   });
 
-  const submitBtn = document.getElementById("submit-order");
-  if (submitBtn) {
-    submitBtn.addEventListener("click", () => {
-      const projectId = document.getElementById("slip-project").value;
-      const notes = document.getElementById("slip-notes").value;
-      submitOrder(projectId, notes);
+  wireRemoveButtons();
+
+  const bindFormValue = (id, key, eventName = "input") => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(eventName, (e) => { state.orderForm[key] = e.target.value; });
+  };
+  const projectChoice = document.getElementById("project-choice");
+  if (projectChoice) {
+    projectChoice.addEventListener("change", (e) => {
+      state.orderForm.projectChoice = e.target.value;
+      render();
     });
   }
+  bindFormValue("project-name", "projectName");
+  bindFormValue("project-owner", "projectOwner");
+  const eventDate = document.getElementById("project-event-date");
+  if (eventDate) eventDate.addEventListener("change", (e) => {
+    state.orderForm.eventDate = e.target.value;
+    render();
+  });
+  bindFormValue("project-location", "projectLocation");
+  bindFormValue("shipping-address1", "shippingAddress1");
+  bindFormValue("shipping-address2", "shippingAddress2");
+  bindFormValue("shipping-city", "shippingCity");
+  bindFormValue("shipping-postal-code", "shippingPostalCode");
+  const shippingState = document.getElementById("shipping-state");
+  if (shippingState) shippingState.addEventListener("change", (e) => {
+    state.orderForm.shippingState = e.target.value;
+    state.orderForm.upsGroundDays = e.target.value ? String(GROUND_DAYS_BY_STATE[e.target.value] || "") : "";
+    state.orderForm.groundDaysManual = false;
+    render();
+  });
+  const groundDays = document.getElementById("ups-ground-days");
+  if (groundDays) groundDays.addEventListener("change", (e) => {
+    state.orderForm.upsGroundDays = e.target.value;
+    state.orderForm.groundDaysManual = true;
+    render();
+  });
+  bindFormValue("project-attendees", "attendees");
+  bindFormValue("project-description", "projectDescription");
+  bindFormValue("slip-notes", "notes");
+  const saveProject = document.getElementById("save-project");
+  if (saveProject) {
+    saveProject.addEventListener("change", (e) => { state.orderForm.saveProject = e.target.checked; });
+  }
+
+  const submitBtn = document.getElementById("submit-order");
+  if (submitBtn) submitBtn.addEventListener("click", submitOrder);
 }
 
 // ---- boot -------------------------------------------------------------------
@@ -935,6 +1577,7 @@ function wireApp() {
   if (state.token) {
     try {
       state.user = await api("/me");
+      state.orderForm = blankOrderForm();
       await Promise.all([loadCatalog(), loadMyOrders()]);
       pollLoop();
     } catch (e) {

@@ -139,21 +139,39 @@ class ProjectOut(BaseModel):
     owner: str
     event_date: str
     delivery_date: str
+    ship_by_date: str = ""
     location: str
+    shipping_address1: str = ""
+    shipping_address2: str = ""
+    shipping_city: str = ""
+    shipping_state: str = ""
+    shipping_postal_code: str = ""
+    shipping_service: str = "UPS Ground"
+    ups_ground_days: Optional[int] = None
     attendees: Optional[int]
     budget: Optional[float]
     status: str
 
 
 class ProjectCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=200)
     description: str = ""
     purpose: str = ""
     owner: str = ""
     customer: str = ""
     event_date: str = ""
+    # Calculated by the backend from the event date and transit time. Kept in
+    # the request model for compatibility with older clients, but overwritten.
     delivery_date: str = ""
+    ship_by_date: str = ""
     location: str = ""
+    shipping_address1: str = ""
+    shipping_address2: str = ""
+    shipping_city: str = ""
+    shipping_state: str = ""
+    shipping_postal_code: str = ""
+    shipping_service: str = "UPS Ground"
+    ups_ground_days: Optional[int] = Field(default=None, ge=1, le=6)
     attendees: Optional[int] = None
     budget: Optional[float] = None
     status: str = "planning"
@@ -167,7 +185,12 @@ class OrderLineIn(BaseModel):
 
 
 class OrderCreate(BaseModel):
+    # Choose an existing reusable project OR create a one-time/new project as
+    # part of this order. Most events happen once, so new projects default to
+    # not appearing in the reusable picker unless save_project is true.
     project_id: Optional[int] = None
+    new_project: Optional[ProjectCreate] = None
+    save_project: bool = False
     notes: str = ""
     lines: List[OrderLineIn] = Field(min_length=1)
 
@@ -187,6 +210,7 @@ class OrderOut(BaseModel):
     requester: str
     project: Optional[str]
     project_id: Optional[int]
+    project_details: Optional[ProjectOut] = None
     notes: str
     created_at: datetime
     updated_at: datetime

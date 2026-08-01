@@ -14,12 +14,14 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.db.session import engine, Base, DATABASE_URL
+from backend.db.schema_upgrade import ensure_additive_columns
 from backend.models import models  # noqa: F401 — import registers all tables
 
 
 def main():
     print(f"Creating tables at: {DATABASE_URL}")
     Base.metadata.create_all(bind=engine)
+    ensure_additive_columns(engine)
     table_names = sorted(Base.metadata.tables.keys())
     print(f"Created/verified {len(table_names)} tables:")
     for t in table_names:

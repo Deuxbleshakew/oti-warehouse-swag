@@ -79,7 +79,8 @@ class OrdersView(ttk.Frame):
         self.detail_head = ttk.Label(right, text="Select an order",
                                      style="Surface.TLabel", font=theme.FONT_HEAD)
         self.detail_head.grid(row=0, column=0, sticky="w", padx=14, pady=(14, 2))
-        self.detail_sub = ttk.Label(right, text="", style="SurfaceMuted.TLabel")
+        self.detail_sub = ttk.Label(right, text="", style="SurfaceMuted.TLabel",
+                                    wraplength=460, justify="left")
         self.detail_sub.grid(row=1, column=0, sticky="w", padx=14)
 
         # lines area (scrollable canvas holding per-line qty spinboxes)
@@ -183,6 +184,32 @@ class OrdersView(ttk.Frame):
 
         self.detail_head.configure(text=f"Order #{order['id']} — {order['requester']}")
         sub = order.get("project") or "No project"
+        project = order.get("project_details") or {}
+        project_bits = []
+        if project.get("event_date"):
+            project_bits.append(f"Event {project['event_date']}")
+        if project.get("delivery_date"):
+            project_bits.append(f"Deliver {project['delivery_date']}")
+        if project.get("ship_by_date"):
+            project_bits.append(f"SHIP BY {project['ship_by_date']}")
+        if project.get("ups_ground_days"):
+            days = project["ups_ground_days"]
+            project_bits.append(f"UPS Ground {days} business day{'s' if days != 1 else ''}")
+        address = ", ".join(part for part in (
+            project.get("shipping_address1"),
+            project.get("shipping_address2"),
+            " ".join(part for part in (
+                project.get("shipping_city"), project.get("shipping_state"),
+                project.get("shipping_postal_code")) if part),
+        ) if part)
+        if address:
+            project_bits.append(f"Ship to {address}")
+        if project.get("location"):
+            project_bits.append(f"Venue {project['location']}")
+        if project.get("attendees") is not None:
+            project_bits.append(f"{project['attendees']} attendees")
+        if project_bits:
+            sub += "  ·  " + "  ·  ".join(project_bits)
         if order.get("notes"):
             sub += f'  ·  "{order["notes"]}"'
         self.detail_sub.configure(text=sub)

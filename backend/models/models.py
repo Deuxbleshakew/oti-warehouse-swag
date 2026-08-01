@@ -10,7 +10,8 @@ through the backend service layer that sits on top of these models.
 from datetime import datetime, timezone
 
 from sqlalchemy import (Column, Integer, String, Float, Boolean, Text,
-                         ForeignKey, DateTime, UniqueConstraint, Index)
+                         ForeignKey, DateTime, UniqueConstraint, Index,
+                         LargeBinary)
 from sqlalchemy.orm import relationship
 
 from backend.db.session import Base
@@ -92,9 +93,17 @@ class Project(Base):
     purpose = Column(String(255), default="")
     owner = Column(String(120), default="")
     customer = Column(String(120), default="")
-    event_date = Column(String(20), default="")       # YYYY-MM-DD, free text
-    delivery_date = Column(String(20), default="")
-    location = Column(String(255), default="")
+    event_date = Column(String(20), default="")       # YYYY-MM-DD
+    delivery_date = Column(String(20), default="")    # business day before event
+    ship_by_date = Column(String(20), default="")     # latest warehouse ship date
+    location = Column(String(255), default="")        # event venue / internal location
+    shipping_address1 = Column(String(255), default="")
+    shipping_address2 = Column(String(255), default="")
+    shipping_city = Column(String(120), default="")
+    shipping_state = Column(String(2), default="")
+    shipping_postal_code = Column(String(20), default="")
+    shipping_service = Column(String(40), default="UPS Ground")
+    ups_ground_days = Column(Integer, nullable=True)
     attendees = Column(Integer, nullable=True)
     budget = Column(Float, nullable=True)
     status = Column(String(30), nullable=False, default="planning")
@@ -152,6 +161,29 @@ class ItemImage(Base):
     position = Column(Integer, nullable=False, default=0)
 
     item = relationship("Item", back_populates="images")
+    blob = relationship("ItemImageBlob", back_populates="image",
+                        cascade="all, delete-orphan", uselist=False)
+
+
+class ItemImageBlob(Base):
+    """Persistent image bytes stored in the database.
+
+    The original app stored only a filename in ItemImage and wrote the bytes to
+    local disk. That works on one permanent PC, but ephemeral cloud services can
+    erase local files during a restart. Keeping the bytes in a separate one-to-
+    one table preserves existing ItemImage IDs and lets create_all add this table
+    to an existing database without rewriting the original table.
+    """
+    __tablename__ = "item_image_blobs"
+
+    image_id = Column(Integer, ForeignKey("item_images.id", ondelete="CASCADE"),
+                      primary_key=True)
+    content = Column(LargeBinary, nullable=False)
+    content_type = Column(String(80), nullable=False,
+                          default="application/octet-stream")
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+
+    image = relationship("ItemImage", back_populates="blob")
 
 
 class InventoryTransaction(Base):

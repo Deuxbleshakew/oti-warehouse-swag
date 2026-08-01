@@ -77,17 +77,83 @@ def adjust_inventory(db: Session, *, item_id: int, delta: int, reason: str,
 
 
 # ---- item photos -------------------------------------------------------------
-# Files land in frontend/assets (the same dir main.py serves at /assets) with
-# a collision-proof name; DB rows in item_images keep the ordering.
+# Files are kept in frontend/assets as a local compatibility/cache copy, while
+# the authoritative bytes live in item_image_blobs so cloud restarts cannot
+# erase them. DB rows in item_images keep ordering and filenames.
 import os
 import re
 import secrets
 
-from backend.models.models import ItemImage
+from backend.models.models import ItemImage, ItemImageBlob
 from backend.config import ASSETS_DIR
 
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 MAX_IMAGE_BYTES = 8 * 1024 * 1024   # phone photos are ~2-4MB; 8 is headroom
+
+
+def image_content_type(filename: str) -> str:
+    ext = os.path.splitext(filename or "")[1].lower()
+    return {
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+        ".gif": "image/gif", ".webp": "image/webp",
+    }.get(ext, "application/octet-stream")
+
+
+def resolve_stored_image_path(stored_value: str) -> str | None:
+    """Resolve current filenames and legacy path-shaped values inside assets."""
+    from urllib.parse import urlparse
+
+    raw = (stored_value or "").strip()
+    if not raw:
+        return None
+    normalized = raw.replace("\\", "/")
+    parsed = urlparse(normalized)
+    if parsed.scheme in ("http", "https"):
+        normalized = parsed.path
+    marker = "/assets/"
+    if marker in normalized:
+        normalized = normalized.split(marker, 1)[1]
+    normalized = normalized.lstrip("/")
+
+    root = os.path.realpath(ASSETS_DIR)
+    candidates = [os.path.join(root, normalized),
+                  os.path.join(root, os.path.basename(normalized))]
+    if os.path.isabs(raw):
+        candidates.insert(0, os.path.realpath(raw))
+    for candidate in candidates:
+        real = os.path.realpath(candidate)
+        try:
+            inside_root = os.path.commonpath([root, real]) == root
+        except ValueError:
+            inside_root = False
+        if inside_root and os.path.isfile(real):
+            return real
+    return None
+
+
+def backfill_legacy_image_blobs(db: Session) -> int:
+    """Copy surviving legacy disk photos into persistent database storage."""
+    images = (db.query(ItemImage)
+              .outerjoin(ItemImageBlob, ItemImageBlob.image_id == ItemImage.id)
+              .filter(ItemImageBlob.image_id.is_(None)).all())
+    added = 0
+    for image in images:
+        path = resolve_stored_image_path(image.filename)
+        if not path:
+            continue
+        try:
+            with open(path, "rb") as fh:
+                content = fh.read()
+        except OSError:
+            continue
+        if not content or len(content) > MAX_IMAGE_BYTES:
+            continue
+        db.add(ItemImageBlob(image_id=image.id, content=content,
+                             content_type=image_content_type(path)))
+        added += 1
+    if added:
+        db.commit()
+    return added
 
 
 def add_item_image(db: Session, *, item_id: int, filename: str,
@@ -114,6 +180,10 @@ def add_item_image(db: Session, *, item_id: int, filename: str,
     position = (db.query(ItemImage).filter_by(item_id=item.id).count())
     img = ItemImage(item_id=item.id, filename=stored_name, position=position)
     db.add(img)
+    db.flush()  # image ID is the one-to-one key for the persistent blob
+    content_type = image_content_type(stored_name)
+    db.add(ItemImageBlob(image_id=img.id, content=content,
+                         content_type=content_type))
     log_action(db, user_id=actor.id, action="item.image_add",
               object_type="item", object_id=item.id,
               new_value=stored_name, source=source)

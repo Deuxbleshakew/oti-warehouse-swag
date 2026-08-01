@@ -15,11 +15,10 @@ from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
 APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Set this env var to a mounted persistent disk's path in production
-# (e.g. Render's disk mount point). Most cloud platforms wipe local files
-# on every redeploy or restart, silently deleting every uploaded photo —
-# defaults to a path next to the repo for local dev, where that risk
-# doesn't apply.
+# Optional local compatibility/cache directory for item photos. The current
+# build stores authoritative image bytes in the database, so temporary cloud
+# files can disappear without losing newly uploaded photos. This directory is
+# still used to read and backfill images created by older builds.
 ASSETS_DIR = os.environ.get("ASSETS_DIR") or os.path.join(
     APP_DIR, "frontend", "assets")
 os.makedirs(ASSETS_DIR, exist_ok=True)

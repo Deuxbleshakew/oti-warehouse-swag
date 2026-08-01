@@ -58,12 +58,20 @@ def main():
             description="Outreach booth for veterans",
             purpose="Recruiting + awareness",
             owner="Fabiana", event_date="2027-03-15",
-            delivery_date="2027-03-10", location="Newark VA Hospital",
+            delivery_date="2027-03-12", ship_by_date="2027-03-11",
+            location="Newark VA Hospital",
+            shipping_address1="385 Tremont Avenue", shipping_city="East Orange",
+            shipping_state="NJ", shipping_postal_code="07018",
+            shipping_service="UPS Ground", ups_ground_days=1,
             attendees=300, budget=500.0, status="planning")
         retail = Project(
             name="Retail Trade Show", description="Convention booth",
             owner="Albert", event_date="2027-05-01",
-            location="Convention Center", attendees=150, budget=1200.0,
+            delivery_date="2027-04-30", ship_by_date="2027-04-29",
+            location="Convention Center", shipping_address1="100 Convention Blvd",
+            shipping_city="Philadelphia", shipping_state="PA",
+            shipping_postal_code="19107", shipping_service="UPS Ground",
+            ups_ground_days=1, attendees=150, budget=1200.0,
             status="planning")
         db.add_all([gov_services, retail])
         db.flush()
