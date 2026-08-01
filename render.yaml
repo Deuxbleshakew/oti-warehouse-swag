@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: oti-warehouse-swag
+    runtime: python
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: "pip install -r requirements.txt && python scripts/init_db.py"
+    startCommand: "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: oti-warehouse-swag-db
+          property: connectionString
+
+databases:
+  - name: oti-warehouse-swag-db
+    databaseName: oti_warehouse_swag
+    plan: free
+    region: oregon
+
+# ---------------------------------------------------------------------------
+# NOTE on item photos + the free plan:
+# Render's free web services don't support persistent disks — see
+# https://render.com/docs/free. Without a disk, uploaded photos live on
+# local storage that Render can wipe on any restart (which can happen at
+# any time, even on the free plan). Photos will work but aren't reliable
+# storage while on Free.
+#
+# When you're ready to upgrade to Starter ($7/mo, always-on, no cold
+# starts), add this to the web service above:
+#
+#   plan: starter
+#   disk:
+#     name: swag-assets
+#     mountPath: /var/data/assets
+#     sizeGB: 1
+#   envVars:
+#     - key: ASSETS_DIR
+#       value: /var/data/assets
+#     - key: DATABASE_URL
+#       fromDatabase:
+#         name: oti-warehouse-swag-db
+#         property: connectionString
+#
+# Then push the change and re-apply the Blueprint from the Render
+# dashboard — existing data and the database itself aren't affected.
+# ---------------------------------------------------------------------------

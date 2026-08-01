@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oti-Warehouse Swag — Order</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#E8E5DC;
+    --paper:#1E2124;
+    --surface:#282C30;
+    --surface2:#31363B;
+    --bar:#141618;
+    --safety:#F2B705;
+    --safety-ink:#3A2E00;
+    --rust:#E06248;
+    --ok:#6FBF8A;
+    --line:#3D4349;
+    --muted:#9A958A;
+    --radius:3px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .label{
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+  }
+  code, .mono{ font-family:'IBM Plex Mono',monospace; }
+
+  a, button{ font-family:inherit; }
+  button{ cursor:pointer; }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible{
+    outline:3px solid var(--safety);
+    outline-offset:1px;
+  }
+
+  /* ---- top bar ---- */
+  header.bar{
+    background:var(--bar);
+    color:var(--ink);
+    padding:14px 20px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:5px solid var(--safety);
+  }
+  header.bar .brand{
+    font:600 20px/1 'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  header.bar .brand .crate{ font-size:22px; }
+  header.bar .who{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    font-size:13px;
+    color:var(--muted);
+  }
+  header.bar .who .roles{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    background:rgba(242,183,5,.14);
+    color:var(--safety);
+    padding:2px 7px;
+    border-radius:2px;
+    letter-spacing:.03em;
+  }
+  header.bar button.link{
+    background:none;
+    border:none;
+    color:var(--ink);
+    text-decoration:underline;
+    font-size:13px;
+    padding:0;
+  }
+
+  /* ---- tabs ---- */
+  nav.tabs{
+    display:flex;
+    gap:2px;
+    background:var(--surface);
+    border-bottom:1px solid var(--line);
+    padding:0 20px;
+  }
+  nav.tabs button{
+    background:none;
+    border:none;
+    padding:13px 4px;
+    margin-right:22px;
+    font:600 13px/1 'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--muted);
+    border-bottom:3px solid transparent;
+  }
+  nav.tabs button.active{
+    color:var(--ink);
+    border-bottom-color:var(--safety);
+  }
+
+  main{
+    max-width:1180px;
+    margin:0 auto;
+    padding:22px 20px 80px;
+    display:grid;
+    grid-template-columns:1fr 320px;
+    gap:24px;
+    align-items:start;
+  }
+  @media (max-width:880px){
+    main{ grid-template-columns:1fr; }
+  }
+
+  .toolbar{
+    display:flex;
+    gap:10px;
+    margin-bottom:16px;
+    flex-wrap:wrap;
+  }
+  .toolbar input[type=search], .toolbar select{
+    padding:9px 11px;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    background:var(--surface2);
+    font-size:13px;
+    color:var(--ink);
+  }
+  .toolbar input[type=search]{ flex:1; min-width:180px; }
+
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
+    gap:14px;
+  }
+
+  /* ---- item tag card ---- */
+  .tag{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    position:relative;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
+  .tag .perf{
+    height:0;
+    border-top:2px dashed var(--line);
+    margin:0 14px;
+    position:relative;
+    top:14px;
+  }
+  .tag .photo{
+    height:120px;
+    background:var(--surface2);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:var(--line);
+    border-bottom:1px solid var(--line);
+  }
+  .tag .photo img{ width:100%; height:100%; object-fit:cover; }
+  .tag .colordot{
+    position:absolute;
+    top:8px;
+    right:8px;
+    width:16px;
+    height:16px;
+    border-radius:50%;
+    border:2px solid var(--ink);
+    box-shadow:0 0 0 2px var(--bar);
+  }
+  .cat-section{ margin-bottom:22px; }
+  .cat-head{
+    font:600 13px 'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--safety);
+    border-bottom:1px solid var(--line);
+    padding-bottom:6px;
+    margin-bottom:12px;
+    display:flex;
+    justify-content:space-between;
+  }
+  .cat-head .n{ color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:11px; }
+  .tag .body{ padding:12px 14px 14px; display:flex; flex-direction:column; gap:6px; flex:1; }
+  .tag .code{
+    font-size:11px;
+    color:var(--muted);
+    letter-spacing:.03em;
+  }
+  .tag .name{ font-weight:600; font-size:14.5px; line-height:1.3; }
+  .tag .meta{ font-size:12px; color:var(--muted); }
+  .tag .row-bottom{
+    margin-top:auto;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+  }
+  .tag .stock{
+    font-size:11px;
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .tag .stock.low{ color:var(--rust); }
+  .tag .stepper{
+    display:flex;
+    align-items:center;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    overflow:hidden;
+  }
+  .tag .stepper button{
+    background:var(--surface2);
+    color:var(--ink);
+    border:none;
+    width:26px;
+    height:26px;
+    font-size:15px;
+    line-height:1;
+  }
+  .tag .stepper button:disabled{ opacity:.35; cursor:not-allowed; }
+  .tag .stepper .qty{
+    width:32px;
+    text-align:center;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+  }
+
+  /* ---- order slip (cart) ---- */
+  .slip{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    position:sticky;
+    top:20px;
+  }
+  .slip .slip-head{
+    padding:14px 16px 10px;
+    border-bottom:2px dashed var(--line);
+  }
+  .slip .slip-head .label{ font-size:12px; color:var(--muted); }
+  .slip .slip-head h2{
+    margin:2px 0 0;
+    font:600 18px 'Oswald',sans-serif;
+    text-transform:uppercase;
+  }
+  .slip .lines{ padding:10px 16px; display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto; }
+  .slip .empty{ color:var(--muted); font-size:13px; padding:8px 0; }
+  .slip .line{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-size:13px;
+    gap:8px;
+  }
+  .slip .line .nm{ flex:1; }
+  .slip .line .nm .cd{ display:block; font-size:10.5px; color:var(--muted); font-family:'IBM Plex Mono',monospace; }
+  .slip .line button.rm{
+    background:none;
+    border:none;
+    color:var(--rust);
+    font-size:16px;
+    padding:0 2px;
+  }
+  .slip .foot{ padding:12px 16px 16px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:10px; }
+  .slip select, .slip textarea{
+    width:100%;
+    padding:8px 9px;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    background:var(--surface2);
+    color:var(--ink);
+    font-size:13px;
+    font-family:inherit;
+    resize:vertical;
+  }
+  .slip textarea{ min-height:52px; }
+  .btn-primary{
+    background:var(--safety);
+    color:var(--safety-ink);
+    border:none;
+    padding:11px;
+    border-radius:var(--radius);
+    font:600 13px 'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+  }
+  .btn-primary:disabled{ opacity:.4; cursor:not-allowed; }
+  .total-count{ font-size:12px; color:var(--muted); }
+
+  /* ---- toast ---- */
+  #toast{
+    position:fixed;
+    left:50%;
+    bottom:24px;
+    transform:translateX(-50%);
+    background:var(--bar);
+    color:var(--ink);
+    padding:12px 18px;
+    border-radius:var(--radius);
+    border-left:4px solid var(--safety);
+    font-size:13px;
+    max-width:420px;
+    box-shadow:0 6px 20px rgba(0,0,0,.25);
+    display:none;
+    z-index:50;
+  }
+  #toast.err{ border-left-color:var(--rust); }
+
+  /* ---- orders tab ---- */
+  .orders-list{ display:flex; flex-direction:column; gap:10px; }
+  .order-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:14px 16px;
+  }
+  .order-card .top-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+  .order-card .oid{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted); }
+  .order-card .proj{ font-size:13px; color:var(--muted); margin-top:2px; }
+  .stamp{
+    font:700 11px 'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    padding:4px 9px;
+    border:2px solid currentColor;
+    border-radius:2px;
+    transform:rotate(-2deg);
+    white-space:nowrap;
+  }
+  .stamp.pending{ color:var(--muted); }
+  .stamp.approved{ color:var(--ok); }
+  .stamp.rejected{ color:var(--rust); }
+  .stamp.fulfilled{ color:var(--ink); }
+  .order-card .lines-mini{ margin-top:10px; font-size:12.5px; color:var(--ink); }
+  .order-card .lines-mini div{ display:flex; justify-content:space-between; padding:2px 0; border-bottom:1px dotted var(--line); }
+  .order-card .lines-mini div:last-child{ border-bottom:none; }
+  .order-card .notes{ margin-top:8px; font-size:12.5px; color:var(--muted); font-style:italic; }
+
+  /* ---- login screen ---- */
+  .login-wrap{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+  .login-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    width:340px;
+    max-width:100%;
+    padding:26px 24px 24px;
+  }
+  .login-card .brand{
+    font:600 22px 'Oswald',sans-serif;
+    text-transform:uppercase;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:4px;
+  }
+  .login-card .sub{ font-size:12.5px; color:var(--muted); margin-bottom:20px; }
+  .field{ margin-bottom:14px; }
+  .field label{ display:block; font-size:12px; color:var(--muted); margin-bottom:5px; }
+  .field input{
+    width:100%;
+    padding:10px 11px;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    background:var(--surface2);
+    color:var(--ink);
+    font-size:14px;
+  }
+  .server-field input{
+    width:100%;
+    padding:8px 10px;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    background:var(--surface2);
+    color:var(--ink);
+    font-size:12.5px;
+  }
+  .err-line{ color:var(--rust); font-size:12.5px; margin:-6px 0 14px; }
+  .server-toggle{
+    font-size:11.5px;
+    color:var(--muted);
+    background:none;
+    border:none;
+    text-decoration:underline;
+    padding:0;
+    margin-top:14px;
+  }
+  .server-field{ margin-top:10px; }
+
+  .loading, .empty-state{
+    color:var(--muted);
+    font-size:13px;
+    padding:30px 4px;
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+<div id="toast"></div>
+
+<script>
+/* ---------------------------------------------------------------------
+   Oti-Warehouse Swag — ordering frontend.
+   Static file, no build step — open it from the shared drive or host it
+   next to the backend. Talks to the FastAPI backend over bearer-token
+   auth (see backend/main.py for the CORS rationale).
+   ------------------------------------------------------------------- */
+
+const DEFAULT_API_BASE = "http://localhost:8000";
+
+const state = {
+  apiBase: sessionStorage.getItem("oti_api_base") || DEFAULT_API_BASE,
+  token: sessionStorage.getItem("oti_token") || null,
+  user: null,
+  tab: "catalog",
+  catalog: [],
+  projects: [],
+  cart: {},           // item_id -> qty
+  myOrders: [],
+  search: "",
+  category: "",
+  sort: "name",
+  loadingCatalog: false,
+  loadingOrders: false,
+  loginError: "",
+  showServerField: false,
+  polling: false,
+  lastPollTime: null,
+};
+
+let pollAbort = null;
+
+// ---- fetch helper --------------------------------------------------------
+async function api(path, opts = {}) {
+  const headers = Object.assign({}, opts.headers || {});
+  if (opts.body) headers["Content-Type"] = "application/json";
+  if (state.token) headers["Authorization"] = "Bearer " + state.token;
+
+  let res;
+  try {
+    res = await fetch(state.apiBase + path, Object.assign({}, opts, { headers }));
+  } catch (e) {
+    throw new Error("Couldn't reach the server at " + state.apiBase + ". Check the server address and that the backend is running.");
+  }
+
+  if (res.status === 401) {
+    logout("Your session expired. Log in again.");
+    throw new Error("Session expired.");
+  }
+
+  if (!res.ok) {
+    let detail = "Request failed (" + res.status + ").";
+    try {
+      const body = await res.json();
+      if (body && body.detail) detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+    } catch (_) {}
+    throw new Error(detail);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+function saveSession() {
+  if (state.token) sessionStorage.setItem("oti_token", state.token);
+  sessionStorage.setItem("oti_api_base", state.apiBase);
+}
+
+function logout(message) {
+  stopPolling();
+  state.token = null;
+  state.user = null;
+  state.cart = {};
+  state.myOrders = [];
+  sessionStorage.removeItem("oti_token");
+  state.loginError = message || "";
+  render();
+}
+
+// ---- toast ----------------------------------------------------------------
+let toastTimer = null;
+function toast(message, isErr) {
+  const el = document.getElementById("toast");
+  el.textContent = message;
+  el.className = isErr ? "err" : "";
+  el.style.display = "block";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.style.display = "none"; }, 4200);
+}
+
+// ---- data loading -----------------------------------------------------------
+async function loadCatalog() {
+  state.loadingCatalog = true; render();
+  try {
+    const [items, projects] = await Promise.all([
+      api("/catalog"),
+      api("/projects"),
+    ]);
+    state.catalog = items;
+    state.projects = projects;
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    state.loadingCatalog = false; render();
+  }
+}
+
+async function loadMyOrders() {
+  state.loadingOrders = true; render();
+  try {
+    const orders = await api("/orders/my");
+    state.myOrders = orders;
+    state.lastPollTime = new Date().toISOString();
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    state.loadingOrders = false; render();
+  }
+}
+
+function stopPolling() {
+  state.polling = false;
+  if (pollAbort) pollAbort.aborted = true;
+}
+
+async function pollLoop() {
+  if (state.polling) return;
+  state.polling = true;
+  const myGate = { aborted: false };
+  pollAbort = myGate;
+  while (!myGate.aborted && state.token) {
+    try {
+      const since = encodeURIComponent(state.lastPollTime || new Date().toISOString());
+      const res = await api("/orders/updates?since=" + since);
+      if (myGate.aborted) break;
+      state.lastPollTime = res.server_time;
+      if (res.orders && res.orders.length) {
+        const byId = Object.fromEntries(state.myOrders.map(o => [o.id, o]));
+        res.orders.forEach(o => { byId[o.id] = o; });
+        state.myOrders = Object.values(byId).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        if (state.tab === "orders") render();
+        res.orders.forEach(o => {
+          toast("Order #" + o.id + " is now " + o.status + ".");
+        });
+      }
+    } catch (e) {
+      if (myGate.aborted) break;
+      await new Promise(r => setTimeout(r, 4000));
+    }
+  }
+}
+
+// ---- cart -------------------------------------------------------------------
+function cartCount() {
+  return Object.values(state.cart).reduce((a, b) => a + b, 0);
+}
+function setQty(itemId, qty, max) {
+  qty = Math.max(0, Math.min(qty, max));
+  if (qty === 0) delete state.cart[itemId];
+  else state.cart[itemId] = qty;
+  render();
+}
+
+async function submitOrder(projectId, notes) {
+  const lines = Object.entries(state.cart).map(([item_id, qty]) => ({ item_id: Number(item_id), qty }));
+  if (!lines.length) return;
+  try {
+    const order = await api("/orders", {
+      method: "POST",
+      body: JSON.stringify({ project_id: projectId ? Number(projectId) : null, notes: notes || "", lines }),
+    });
+    state.cart = {};
+    toast("Order #" + order.id + " submitted — pending approval.");
+    state.tab = "orders";
+    await loadMyOrders();
+  } catch (e) {
+    toast(e.message, true);
+    render();
+  }
+}
+
+// ---- auth -------------------------------------------------------------------
+async function doLogin(username, password) {
+  state.loginError = "";
+  try {
+    const res = await fetch(state.apiBase + "/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail || "Invalid username or password.");
+    }
+    const data = await res.json();
+    state.token = data.token;
+    state.user = data.user;
+    saveSession();
+    await Promise.all([loadCatalog(), loadMyOrders()]);
+    pollLoop();
+  } catch (e) {
+    state.loginError = e.message.includes("fetch") || e.message.includes("reach")
+      ? "Couldn't reach the server at " + state.apiBase + ". Check the server address."
+      : e.message;
+  }
+  render();
+}
+
+// ---- rendering ----------------------------------------------------------------
+function esc(s) {
+  const d = document.createElement("div");
+  d.textContent = s == null ? "" : String(s);
+  return d.innerHTML;
+}
+
+function imgUrl(item) {
+  if (item.images && item.images.length) return state.apiBase + "/assets/" + item.images[0];
+  return null;
+}
+
+function renderLogin() {
+  return `
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="brand"><span>📦</span> Oti-Warehouse Swag</div>
+      <div class="sub">Sign in to browse the catalog and place an order.</div>
+      <form id="login-form">
+        <div class="field">
+          <label for="f-user">Username</label>
+          <input id="f-user" name="username" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="f-pass">Password</label>
+          <input id="f-pass" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        ${state.loginError ? `<div class="err-line">${esc(state.loginError)}</div>` : ""}
+        <button class="btn-primary" style="width:100%" type="submit">Log in</button>
+      </form>
+      <button class="server-toggle" id="toggle-server">${state.showServerField ? "Hide" : "Change"} server address</button>
+      ${state.showServerField ? `
+        <div class="server-field">
+          <input id="f-server" value="${esc(state.apiBase)}" placeholder="http://192.168.1.20:8000">
+        </div>
+      ` : ""}
+    </div>
+  </div>`;
+}
+
+function renderTagCard(item) {
+  const inCart = state.cart[item.id] || 0;
+  const out = item.qty_on_hand <= 0;
+  const low = item.qty_on_hand > 0 && item.qty_on_hand <= item.reorder_threshold;
+  const photo = imgUrl(item);
+  return `
+  <div class="tag">
+    <div class="photo">${photo ? `<img src="${esc(photo)}" alt="${esc(item.name)}">` : `<span style="font-size:28px;opacity:.5;">📦</span>`}${item.color ? `<span class="colordot" style="background:${esc(item.color)}" title="${esc(item.color_name || item.color)}"></span>` : ""}</div>
+    <div class="perf"></div>
+    <div class="body">
+      <div class="code mono">${esc(item.code)}</div>
+      <div class="name">${esc(item.name)}</div>
+      <div class="meta">${[item.category, item.measures].filter(Boolean).map(esc).join(" · ")}</div>
+      <div class="row-bottom">
+        <div class="stock ${low ? "low" : ""}">${out ? "OUT OF STOCK" : "QTY ON HAND: " + item.qty_on_hand}</div>
+        <div class="stepper">
+          <button data-act="dec" data-id="${item.id}" ${inCart <= 0 ? "disabled" : ""}>−</button>
+          <span class="qty">${inCart}</span>
+          <button data-act="inc" data-id="${item.id}" data-max="${item.qty_on_hand}" ${out || inCart >= item.qty_on_hand ? "disabled" : ""}>+</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function filteredCatalog() {
+  const q = state.search.trim().toLowerCase();
+  const items = state.catalog.filter(i => {
+    if (state.category && i.category !== state.category) return false;
+    if (!q) return true;
+    return (i.name + " " + i.code + " " + i.description).toLowerCase().includes(q);
+  });
+  const by = state.sort;
+  items.sort((a, b) => {
+    if (by === "code") return a.code.localeCompare(b.code);
+    if (by === "stock") return a.qty_on_hand - b.qty_on_hand;
+    return a.name.localeCompare(b.name);
+  });
+  return items;
+}
+
+function groupByCategory(items) {
+  const groups = new Map();
+  items.forEach(i => {
+    const key = i.category || "Uncategorized";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(i);
+  });
+  return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function renderCatalogTab() {
+  const items = filteredCatalog();
+  const categories = [...new Set(state.catalog.map(i => i.category).filter(Boolean))];
+  let body;
+  if (state.loadingCatalog) {
+    body = `<div class="loading">Loading catalog…</div>`;
+  } else if (!items.length) {
+    body = `<div class="empty-state">No items match. Try clearing the search or category filter.</div>`;
+  } else if (state.category) {
+    // a single category is already one section — plain grid, no headers
+    body = `<div class="grid">${items.map(renderTagCard).join("")}</div>`;
+  } else {
+    body = groupByCategory(items).map(([cat, list]) => `
+      <div class="cat-section">
+        <div class="cat-head"><span>${esc(cat)}</span><span class="n">${list.length} item${list.length === 1 ? "" : "s"}</span></div>
+        <div class="grid">${list.map(renderTagCard).join("")}</div>
+      </div>`).join("");
+  }
+  return `
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="Search item name or code…" value="${esc(state.search)}">
+      <select id="category-filter">
+        <option value="">All categories</option>
+        ${categories.map(c => `<option value="${esc(c)}" ${state.category === c ? "selected" : ""}>${esc(c)}</option>`).join("")}
+      </select>
+      <select id="sort-by">
+        <option value="name" ${state.sort === "name" ? "selected" : ""}>Sort: Name</option>
+        <option value="code" ${state.sort === "code" ? "selected" : ""}>Sort: Code</option>
+        <option value="stock" ${state.sort === "stock" ? "selected" : ""}>Sort: Stock (low first)</option>
+      </select>
+    </div>
+    ${body}
+  `;
+}
+
+function renderOrdersTab() {
+  if (state.loadingOrders && !state.myOrders.length) return `<div class="loading">Loading your orders…</div>`;
+  if (!state.myOrders.length) return `<div class="empty-state">No orders yet — build one from the Catalog tab.</div>`;
+  return `<div class="orders-list">${state.myOrders.map(o => `
+    <div class="order-card">
+      <div class="top-row">
+        <div>
+          <div class="oid">ORDER #${o.id}</div>
+          ${o.project ? `<div class="proj">${esc(o.project)}</div>` : ""}
+        </div>
+        <div class="stamp ${o.status}">${esc(o.status)}</div>
+      </div>
+      <div class="lines-mini">
+        ${o.lines.map(l => `<div><span>${esc(l.item_name)} <span class="mono" style="color:var(--muted);font-size:11px;">${esc(l.item_code)}</span></span><span class="mono">${l.qty_approved != null ? l.qty_approved + " / " : ""}${l.qty_requested}</span></div>`).join("")}
+      </div>
+      ${o.notes ? `<div class="notes">"${esc(o.notes)}"</div>` : ""}
+    </div>
+  `).join("")}</div>`;
+}
+
+function renderSlip() {
+  const lines = Object.entries(state.cart).map(([id, qty]) => {
+    const item = state.catalog.find(i => i.id === Number(id));
+    return item ? { item, qty } : null;
+  }).filter(Boolean);
+  const count = cartCount();
+  return `
+  <div class="slip">
+    <div class="slip-head">
+      <div class="label">Order Slip</div>
+      <h2>Your Cart</h2>
+    </div>
+    <div class="lines">
+      ${lines.length ? lines.map(({ item, qty }) => `
+        <div class="line">
+          <div class="nm">${esc(item.name)}<span class="cd">${esc(item.code)}</span></div>
+          <div class="mono">×${qty}</div>
+          <button class="rm" data-rm="${item.id}" title="Remove">✕</button>
+        </div>
+      `).join("") : `<div class="empty">Add items from the catalog to build an order.</div>`}
+    </div>
+    <div class="foot">
+      <div class="total-count">${count} item${count === 1 ? "" : "s"} in this order</div>
+      <select id="slip-project">
+        <option value="">No project / event</option>
+        ${state.projects.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}
+      </select>
+      <textarea id="slip-notes" placeholder="Notes for the approver (optional)"></textarea>
+      <button class="btn-primary" id="submit-order" ${!lines.length ? "disabled" : ""}>Submit Order</button>
+    </div>
+  </div>`;
+}
+
+function render() {
+  const app = document.getElementById("app");
+  if (!state.token) {
+    app.innerHTML = renderLogin();
+    wireLogin();
+    return;
+  }
+  app.innerHTML = `
+    <header class="bar">
+      <div class="brand"><span class="crate">📦</span> Oti-Warehouse Swag</div>
+      <div class="who">
+        <span>${esc(state.user ? state.user.full_name || state.user.username : "")}</span>
+        ${state.user && state.user.roles.length ? `<span class="roles">${state.user.roles.join(", ").toUpperCase()}</span>` : ""}
+        <button class="link" id="logout-btn">Log out</button>
+      </div>
+    </header>
+    <nav class="tabs">
+      <button data-tab="catalog" class="${state.tab === "catalog" ? "active" : ""}">Catalog</button>
+      <button data-tab="orders" class="${state.tab === "orders" ? "active" : ""}">My Orders</button>
+    </nav>
+    <main>
+      <section>${state.tab === "catalog" ? renderCatalogTab() : renderOrdersTab()}</section>
+      ${state.tab === "catalog" ? renderSlip() : "<div></div>"}
+    </main>
+  `;
+  wireApp();
+}
+
+// ---- event wiring ---------------------------------------------------------------
+function wireLogin() {
+  document.getElementById("login-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    doLogin(fd.get("username"), fd.get("password"));
+  });
+  document.getElementById("toggle-server").addEventListener("click", () => {
+    state.showServerField = !state.showServerField;
+    render();
+  });
+  const serverField = document.getElementById("f-server");
+  if (serverField) {
+    serverField.addEventListener("change", (e) => {
+      state.apiBase = e.target.value.trim().replace(/\/$/, "") || DEFAULT_API_BASE;
+    });
+  }
+}
+
+function wireApp() {
+  document.getElementById("logout-btn").addEventListener("click", () => logout());
+
+  document.querySelectorAll("nav.tabs button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      state.tab = btn.dataset.tab;
+      render();
+      if (state.tab === "orders") loadMyOrders();
+    });
+  });
+
+  const searchEl = document.getElementById("search");
+  if (searchEl) {
+    searchEl.addEventListener("input", (e) => { state.search = e.target.value; render(); });
+    searchEl.focus();
+    searchEl.selectionStart = searchEl.selectionEnd = searchEl.value.length;
+  }
+  const catEl = document.getElementById("category-filter");
+  if (catEl) catEl.addEventListener("change", (e) => { state.category = e.target.value; render(); });
+  const sortEl = document.getElementById("sort-by");
+  if (sortEl) sortEl.addEventListener("change", (e) => { state.sort = e.target.value; render(); });
+
+  document.querySelectorAll(".stepper button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = Number(btn.dataset.id);
+      const cur = state.cart[id] || 0;
+      const max = Number(btn.dataset.max || 999999);
+      setQty(id, btn.dataset.act === "inc" ? cur + 1 : cur - 1, max);
+    });
+  });
+
+  document.querySelectorAll(".rm").forEach(btn => {
+    btn.addEventListener("click", () => {
+      delete state.cart[Number(btn.dataset.rm)];
+      render();
+    });
+  });
+
+  const submitBtn = document.getElementById("submit-order");
+  if (submitBtn) {
+    submitBtn.addEventListener("click", () => {
+      const projectId = document.getElementById("slip-project").value;
+      const notes = document.getElementById("slip-notes").value;
+      submitOrder(projectId, notes);
+    });
+  }
+}
+
+// ---- boot -------------------------------------------------------------------
+(async function boot() {
+  if (state.token) {
+    try {
+      state.user = await api("/me");
+      await Promise.all([loadCatalog(), loadMyOrders()]);
+      pollLoop();
+    } catch (e) {
+      // logout() already called by api() on 401; other errors just show login
+    }
+  }
+  render();
+})();
+</script>
+</body>
+</html>
