@@ -88,8 +88,8 @@ changed. Safe to run again later if you ever need to.
 
 ## Step 6 — Point your apps at the new URL
 
-- **Web ordering page**: open `order.html`, click **Change server
-  address**, enter your Render URL instead of `localhost:8000`.
+- **Web ordering page**: open the Render service URL itself. The ordering
+  page is served at `/` and automatically talks to the same backend.
 - **Admin app**: on the login screen, put the Render URL in the
   **Server** field instead of `localhost:8000`.
 
@@ -103,20 +103,19 @@ yours.
 - **Cold starts**: if nobody's used it in 15 minutes, the next request
   takes 30–60 seconds while it wakes back up. After that it's normal
   speed until it goes idle again.
-- **Photos aren't fully reliable yet**: the free plan can't attach
-  persistent storage, so uploaded photos can disappear if the service
-  restarts (Render can restart free services at any time). This isn't a
-  bug — it's a free-tier limitation, and it's solved by upgrading (next
-  section).
+- **Photos are database-backed**: new uploads are stored with the item data,
+  so they no longer depend on the web server's temporary local files. Photos
+  uploaded with an older build may need to be uploaded one more time if their
+  original file has already disappeared.
+- **Event shipping dates are automatic**: enter the event date and complete
+  delivery address. The page targets delivery for the previous business day,
+  applies the supplied UPS Ground map estimate, and stores the latest ship date
+  with the order. Exact ZIP quotes can override the 1–6 day estimate.
 - **Free database**: your Postgres database itself doesn't expire on
   its own, but keep an eye on Render's dashboard for any usage limits.
 
 ## Upgrading to always-on later
 
-When the cold starts or photo persistence start to bother you, open
-`render.yaml`, follow the commented instructions at the bottom (switch
-`plan: free` to `plan: starter` and add the `disk:` block), push the
-change to GitHub, and re-apply the Blueprint from the Render dashboard.
-Runs about $13-15/month total (web service + database). Nothing about
-your data or setup changes — it just stops sleeping and photos start
-persisting properly.
+An always-on service can still be useful when you no longer want cold starts.
+Photo persistence no longer requires a separate disk because uploaded image
+bytes are stored in the database.
