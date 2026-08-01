@@ -1410,6 +1410,16 @@ function render() {
     wireLogin();
     return;
   }
+  // Remember focus state BEFORE the innerHTML swap destroys the old
+  // search box — otherwise wireApp() has no way to tell "user was
+  // mid-search" apart from "render happened to run for some other
+  // reason" (tapping a qty stepper, switching tabs, a live-poll update),
+  // and would force focus onto search every single time regardless.
+  const searchHadFocus = document.activeElement &&
+    document.activeElement.id === "search";
+  const searchCursorPos = searchHadFocus
+    ? document.activeElement.selectionStart : null;
+
   app.innerHTML = `
     <header class="bar">
       <div class="brand"><span class="crate">📦</span> Oti-Warehouse Swag <span class="build-badge">v${APP_VERSION} EVENT SHIPPING</span></div>
@@ -1429,7 +1439,7 @@ function render() {
       ${state.tab === "catalog" ? renderSlip() : ""}
     </main>
   `;
-  wireApp();
+  wireApp(searchHadFocus, searchCursorPos);
 }
 
 // ---- event wiring ---------------------------------------------------------------
@@ -1451,7 +1461,7 @@ function wireLogin() {
   }
 }
 
-function wireApp() {
+function wireApp(searchHadFocus, searchCursorPos) {
   document.getElementById("logout-btn").addEventListener("click", () => logout());
 
   document.querySelectorAll("nav.tabs button").forEach(btn => {
@@ -1472,8 +1482,11 @@ function wireApp() {
   const searchEl = document.getElementById("search");
   if (searchEl) {
     searchEl.addEventListener("input", (e) => { state.search = e.target.value; render(); });
-    searchEl.focus();
-    searchEl.selectionStart = searchEl.selectionEnd = searchEl.value.length;
+    if (searchHadFocus) {
+      searchEl.focus();
+      searchEl.selectionStart = searchEl.selectionEnd =
+        searchCursorPos ?? searchEl.value.length;
+    }
   }
   const catEl = document.getElementById("category-filter");
   if (catEl) catEl.addEventListener("change", (e) => { state.category = e.target.value; render(); });
