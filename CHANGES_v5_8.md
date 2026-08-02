@@ -1,91 +1,24 @@
-"""Small additive schema upgrades for installs that already have a database.
+# Oti-Warehouse Swag v5.8 Full Queue
 
-SQLAlchemy's ``create_all`` creates new tables but does not add columns to
-existing ones.  These ALTER TABLE statements are intentionally additive and
-nullable or have safe defaults, so older SQLite and PostgreSQL installs can be
-upgraded in place.
+## Ordering website
+- Sticky header and workflow tabs remain visible while the catalog scrolls.
+- New desktop workspace with a collapsible filter rail, responsive 2/3-column catalog, and sticky cart/readiness panel.
+- Product photos use a consistent contained image area so the full item remains visible.
+- Explicit **Add to Cart / Update Cart** workflow with manual quantities and estimated-quantity state.
+- Quick filters for low stock, open recount requests, frequently ordered items, recently viewed items, and categories.
+- Order-readiness summary shows pending project, event, address, estimates, and UPS Ground ship-by information.
+- Mobile layout uses one-column cards, a filter drawer, large touch targets, and a fixed Review Order button.
+- Deleted orders are removed from live requester updates cleanly.
 
-Keep the DDL dialect-aware.  SQLite accepts ``DATETIME`` and numeric boolean
-defaults, while PostgreSQL requires a timestamp type and boolean literals.
-"""
-from sqlalchemy import inspect, text
+## Admin application
+- Any non-current user can be removed from active user management while historical records retain a **Deleted User** label.
+- Any catalog part can be removed from active use while order and inventory history retain its original part number and a **Deleted Item** label.
+- Any order can be removed from order views without returning already consumed stock. Tracking records and proof photos are removed, while the audit tombstone remains.
+- Related stock-ledger rows are relabeled **Deleted Order #...** after order deletion.
+- Inventory-history rows can be deleted. Manual adjustments are reversed automatically; order-generated rows do not alter current stock.
+- Pressing **Pick Order** opens a printable location-sorted warehouse pick slip, with missing locations grouped last.
 
-
-def _table_columns_for_dialect(dialect_name: str) -> dict[str, dict[str, str]]:
-    """Return portable column definitions for the active SQL dialect."""
-    is_postgres = dialect_name == "postgresql"
-    datetime_type = "TIMESTAMP WITHOUT TIME ZONE" if is_postgres else "DATETIME"
-    false_literal = "FALSE" if is_postgres else "0"
-
-    return {
-        "projects": {
-            "shipping_address1": "VARCHAR(255) DEFAULT ''",
-            "shipping_address2": "VARCHAR(255) DEFAULT ''",
-            "shipping_city": "VARCHAR(120) DEFAULT ''",
-            "shipping_state": "VARCHAR(2) DEFAULT ''",
-            "shipping_postal_code": "VARCHAR(20) DEFAULT ''",
-            "shipping_service": "VARCHAR(40) DEFAULT 'UPS Ground'",
-            "ups_ground_days": "INTEGER",
-            "ship_by_date": "VARCHAR(20) DEFAULT ''",
-        },
-        "users": {
-            "deleted_at": datetime_type,
-        },
-        "items": {
-            "deleted_at": datetime_type,
-        },
-        "orders": {
-            "picking_started_at": datetime_type,
-            "fulfilled_at": datetime_type,
-            "deleted_at": datetime_type,
-        },
-        "order_lines": {
-            "qty_estimated": (
-                f"BOOLEAN NOT NULL DEFAULT {false_literal}"
-            ),
-        },
-        "inventory_transactions": {
-            "updated_at": datetime_type,
-        },
-    }
-
-
-def ensure_additive_columns(engine) -> None:
-    """Add missing workflow columns without rewriting or deleting existing data."""
-    wanted_columns = _table_columns_for_dialect(engine.dialect.name)
-
-    with engine.begin() as connection:
-        inspector = inspect(connection)
-        tables = set(inspector.get_table_names())
-        quote = connection.dialect.identifier_preparer.quote
-
-        for table_name, wanted in wanted_columns.items():
-            if table_name not in tables:
-                continue
-
-            existing = {
-                column["name"]
-                for column in inspect(connection).get_columns(table_name)
-            }
-            for name, ddl in wanted.items():
-                if name in existing:
-                    continue
-                connection.execute(text(
-                    f"ALTER TABLE {quote(table_name)} "
-                    f"ADD COLUMN {quote(name)} {ddl}"
-                ))
-
-        # Existing transaction rows predate updated_at. Populate them once so
-        # response models can treat the value as non-null on both databases.
-        if "inventory_transactions" in tables:
-            cols = {
-                column["name"]
-                for column in inspect(connection).get_columns(
-                    "inventory_transactions"
-                )
-            }
-            if "updated_at" in cols:
-                connection.execute(text(
-                    "UPDATE inventory_transactions "
-                    "SET updated_at = created_at WHERE updated_at IS NULL"
-                ))
+## Database and deployment
+- Additive `deleted_at` columns are migrated automatically on SQLite and PostgreSQL.
+- PostgreSQL migrations retain the v5.7.1 Render-safe timestamp and boolean syntax.
+- Existing databases and historical records are preserved during upgrade.
