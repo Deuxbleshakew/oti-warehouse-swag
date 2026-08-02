@@ -5,7 +5,7 @@ Run from the swag_system folder:
     python admin_app\\main.py          (Windows)
     python admin_app/main.py           (elsewhere)
 
-Login window -> tabbed main window (Pending Orders, Inventory). Talks to
+Login window -> tabbed main window (Orders, Inventory, History, Users). Talks to
 the backend API only — it never opens the database file, so it can run on
 any machine that can reach the backend, exactly like the browser frontend.
 The server address is remembered in a small settings file next to this
@@ -14,6 +14,7 @@ script.
 import json
 import os
 import sys
+import threading
 import tkinter as tk
 from tkinter import ttk
 
@@ -25,6 +26,8 @@ from admin_app.app.views import theme  # noqa: E402
 from admin_app.app.views.orders_view import OrdersView  # noqa: E402
 from admin_app.app.views.inventory_view import InventoryView  # noqa: E402
 from admin_app.app.views.users_view import UsersView  # noqa: E402
+from admin_app.app.views.inventory_history_view import InventoryHistoryView  # noqa: E402
+from admin_app.app.views.widgets import SpinnerLabel  # noqa: E402
 
 SETTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                              "settings.json")
@@ -92,6 +95,9 @@ class LoginWindow(ttk.Frame):
                                     command=self._login)
         self.login_btn.grid(row=6, column=0, columnspan=2, sticky="ew",
                             pady=(14, 0))
+        self.login_spinner = SpinnerLabel(self, text="Signing in",
+                                          style="Muted.TLabel")
+        self.login_spinner.grid(row=7, column=0, columnspan=2, pady=(7, 0))
 
         (user_entry if not self.user_var.get() else pass_entry).focus_set()
         root.bind("<Return>", lambda e: self._login())
@@ -105,25 +111,41 @@ class LoginWindow(ttk.Frame):
             return
         self.err_lbl.configure(text="")
         self.login_btn.configure(state="disabled")
-        self.root.update_idletasks()
+        self.login_spinner.start("Signing in")
 
-        api = ApiClient(server)
-        try:
-            user = api.login(username, password)
-        except ApiError as e:
-            self.err_lbl.configure(text=str(e))
-            self.login_btn.configure(state="normal")
+        def work():
+            api = ApiClient(server)
+            try:
+                user = api.login(username, password)
+            except ApiError as exc:
+                self.after(0, lambda: self._login_failed(str(exc)))
+                return
+            if not api.has_role("admin", "approver"):
+                try:
+                    api.logout()
+                except Exception:
+                    pass
+                message = (f"'{username}' can order from the catalog, but this "
+                           "app needs the approver or admin role.")
+                self.after(0, lambda: self._login_failed(message))
+                return
+            self.after(0, lambda: self._login_succeeded(
+                api, user, server, username))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _login_failed(self, message: str):
+        if not self.winfo_exists():
             return
+        self.err_lbl.configure(text=message)
+        self.login_btn.configure(state="normal")
+        self.login_spinner.stop()
 
-        if not api.has_role("admin", "approver"):
-            self.err_lbl.configure(
-                text=f"'{username}' can order from the catalog, but this "
-                     "app needs the approver or admin role.")
-            self.login_btn.configure(state="normal")
-            api.logout()
+    def _login_succeeded(self, api, user, server: str, username: str):
+        if not self.winfo_exists():
             return
-
         save_settings({"server": server, "username": username})
+        self.login_spinner.stop()
         self.root.unbind("<Return>")
         self.on_success(api, user)
 
@@ -157,15 +179,22 @@ class MainWindow(ttk.Frame):
         nb.pack(fill="both", expand=True)
         self.orders_view = OrdersView(nb, api)
         self.inventory_view = InventoryView(nb, api)
-        nb.add(self.orders_view, text="  Pending Orders  ")
+        nb.add(self.orders_view, text="  Orders  ")
         nb.add(self.inventory_view, text="  Inventory  ")
         if api.has_role("admin"):
+            self.inventory_history_view = InventoryHistoryView(nb, api)
+            nb.add(self.inventory_history_view, text="  Inventory History  ")
             self.users_view = UsersView(nb, api)
             nb.add(self.users_view, text="  Users  ")
 
         # approving an order changes stock — keep the inventory tab honest
         self.orders_view.bind("<<InventoryChanged>>",
                               lambda e: self.inventory_view.refresh())
+        if api.has_role("admin"):
+            self.orders_view.bind("<<InventoryChanged>>",
+                                  lambda e: self.inventory_history_view.refresh())
+            self.inventory_history_view.bind("<<InventoryChanged>>",
+                                             lambda e: self.inventory_view.refresh())
 
         # a dead session anywhere bounces the whole app back to login
         api.on_session_expired = lambda: self.after(0, self._logout)

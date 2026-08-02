@@ -23,6 +23,60 @@ LOUPE_SIZE = 120         # on-screen loupe box, px
 LOUPE_CAPTURE = 15       # screen pixels sampled into the loupe (odd number)
 
 
+class SpinnerLabel(ttk.Label):
+    """Tiny non-blocking spinner for network activity."""
+    FRAMES = ("◐", "◓", "◑", "◒")
+
+    def __init__(self, parent, text="Loading", **kwargs):
+        super().__init__(parent, text="", **kwargs)
+        self.base_text = text
+        self._index = 0
+        self._job = None
+
+    def start(self, text=None):
+        if text is not None:
+            self.base_text = text
+        if self._job is None:
+            self._tick()
+
+    def _tick(self):
+        if not self.winfo_exists():
+            return
+        self.configure(text=f"{self.FRAMES[self._index]} {self.base_text}")
+        self._index = (self._index + 1) % len(self.FRAMES)
+        self._job = self.after(110, self._tick)
+
+    def stop(self, text=""):
+        if self._job is not None:
+            try:
+                self.after_cancel(self._job)
+            except tk.TclError:
+                pass
+        self._job = None
+        self.configure(text=text)
+
+
+def fade_in(window: tk.Toplevel, duration_ms: int = 140):
+    """Best-effort dialog fade. Unsupported window managers simply show it."""
+    try:
+        window.attributes("-alpha", 0.0)
+    except tk.TclError:
+        return
+    steps = max(1, duration_ms // 16)
+
+    def step(index=0):
+        if not window.winfo_exists():
+            return
+        alpha = min(1.0, (index + 1) / steps)
+        try:
+            window.attributes("-alpha", alpha)
+        except tk.TclError:
+            return
+        if alpha < 1.0:
+            window.after(16, step, index + 1)
+    window.after_idle(step)
+
+
 class EyedropperOverlay(tk.Toplevel):
     def __init__(self, parent, on_pick):
         super().__init__(parent)

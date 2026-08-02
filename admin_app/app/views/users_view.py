@@ -1,17 +1,17 @@
 """
 admin_app/app/views/users_view.py — the Users tab (admin role only).
 
-Create users, edit their roles, reset passwords, and deactivate accounts.
-Deactivation instead of deletion on purpose — the backend has no delete
-route because a user's orders, approvals, and audit entries must keep
-pointing at a real person forever. Same threading rules as the other
-views.
+Create users, edit roles, reset passwords, deactivate accounts, and safely
+remove unused accounts. Accounts with order, approval, inventory, recount,
+or audit history must be deactivated so their records remain attributable.
+Same threading rules as the other views.
 """
 import threading
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 
 from . import theme
+from .widgets import SpinnerLabel, fade_in
 from ..services.api_client import ApiClient, ApiError, SessionExpired
 
 ALL_ROLES = ["requester", "approver", "admin"]
@@ -40,12 +40,19 @@ class UsersView(ttk.Frame):
         ttk.Label(top, text="USERS", style="Head.TLabel").pack(side="left")
         self.count_lbl = ttk.Label(top, text="", style="Muted.TLabel")
         self.count_lbl.pack(side="left", padx=10)
+        self.spinner = SpinnerLabel(top, text="Loading", style="Muted.TLabel")
+        self.spinner.pack(side="left")
         ttk.Button(top, text="Refresh", command=self.refresh).pack(side="right")
+        self.delete_btn = ttk.Button(top, text="Delete", style="Danger.TButton",
+                                     command=self._delete_user, state="disabled")
+        self.delete_btn.pack(side="right", padx=6)
         self.edit_btn = ttk.Button(top, text="Edit…", command=self._edit_dialog,
                                    state="disabled")
         self.edit_btn.pack(side="right", padx=6)
         ttk.Button(top, text="New User…", style="Primary.TButton",
                    command=self._new_dialog).pack(side="right", padx=6)
+        ttk.Label(top, text="Passwords are hidden after save; use Edit to reset.",
+                  style="Muted.TLabel").pack(side="right", padx=12)
 
         wrap = ttk.Frame(self)
         wrap.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 12))
@@ -72,13 +79,15 @@ class UsersView(ttk.Frame):
 
     # ---- data ---------------------------------------------------------------
     def refresh(self):
+        self.spinner.start("Loading users")
         def work():
             try:
                 users = self.api.list_users()
             except SessionExpired:
                 return
             except ApiError as e:
-                self.after(0, lambda: theme.show_error(self, "Load failed", str(e)))
+                self.after(0, lambda: (self.spinner.stop(),
+                                       theme.show_error(self, "Load failed", str(e))))
                 return
             self.after(0, lambda: self._set_users(users))
         threading.Thread(target=work, daemon=True).start()
@@ -86,6 +95,7 @@ class UsersView(ttk.Frame):
     def _set_users(self, users: list[dict]):
         if not self.winfo_exists():
             return
+        self.spinner.stop()
         self.users = users
         keep = self.tree.selection()
         self.tree.delete(*self.tree.get_children())
@@ -109,8 +119,38 @@ class UsersView(ttk.Frame):
         return next((u for u in self.users if u["id"] == uid), None)
 
     def _on_select(self, _evt=None):
-        self.edit_btn.configure(
-            state="normal" if self.tree.selection() else "disabled")
+        state = "normal" if self.tree.selection() else "disabled"
+        self.edit_btn.configure(state=state)
+        selected = self._selected_user()
+        is_self = bool(selected and self.api.user and selected["id"] == self.api.user["id"])
+        self.delete_btn.configure(state="disabled" if is_self else state)
+
+    def _delete_user(self):
+        user = self._selected_user()
+        if not user:
+            return
+        if self.api.user and user["id"] == self.api.user["id"]:
+            theme.show_error(self, "Delete blocked", "You cannot delete your own account.")
+            return
+        if not messagebox.askyesno(
+                "Delete user",
+                f"Permanently delete {user['username']}?\n\n"
+                "This only works for unused accounts. If the person has any "
+                "history, the server will require deactivation instead.", parent=self):
+            return
+        self.spinner.start("Deleting user")
+
+        def work():
+            try:
+                self.api.delete_user(user["id"])
+            except SessionExpired:
+                return
+            except ApiError as exc:
+                self.after(0, lambda: (self.spinner.stop(),
+                                       theme.show_error(self, "Delete blocked", str(exc))))
+                return
+            self.after(0, self.refresh)
+        threading.Thread(target=work, daemon=True).start()
 
     # ---- dialogs -------------------------------------------------------------
     def _new_dialog(self):
@@ -259,3 +299,4 @@ class UsersView(ttk.Frame):
         win.bind("<Return>", lambda e: save())
         win.bind("<Escape>", lambda e: win.destroy())
         (user_ent if user is None else frm).focus_set()
+        fade_in(win)

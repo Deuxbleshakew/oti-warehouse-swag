@@ -7,8 +7,10 @@ logged InventoryTransaction.
 """
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from datetime import datetime, timezone
 
-from backend.models.models import Item, InventoryTransaction, User
+from backend.models.models import (Item, InventoryTransaction, User, OrderLine,
+                                    CountRequest)
 from backend.services.audit_service import log_action
 
 
@@ -209,3 +211,108 @@ def delete_item_image(db: Session, *, item_id: int, image_id: int,
         os.remove(path)
     except OSError:
         pass
+
+
+# ---- safe deletion / history editing / recount requests ---------------------
+def delete_item(db: Session, *, item_id: int, actor: User, source="api") -> None:
+    item = db.query(Item).filter_by(id=item_id).first()
+    if not item:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Item not found.")
+    has_order_history = db.query(OrderLine.id).filter_by(item_id=item_id).first()
+    has_inventory_history = (db.query(InventoryTransaction.id)
+                             .filter_by(item_id=item_id).first())
+    has_count_history = db.query(CountRequest.id).filter_by(item_id=item_id).first()
+    if has_order_history or has_inventory_history or has_count_history:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This item has history and cannot be permanently deleted. "
+            "Turn off Active instead so old orders and audit records stay intact.")
+    old = {"code": item.code, "name": item.name}
+    db.delete(item)
+    log_action(db, user_id=actor.id, action="item.delete", object_type="item",
+               object_id=item_id, old_value=old, source=source)
+    db.commit()
+
+
+def update_inventory_transaction(db: Session, *, transaction_id: int,
+                                 delta: int, reason: str, allow_negative: bool,
+                                 actor: User, source="admin_app") -> InventoryTransaction:
+    reason = (reason or "").strip()
+    if not reason:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "A reason is required.")
+    tx = db.query(InventoryTransaction).filter_by(id=transaction_id).first()
+    if not tx:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            "Inventory transaction not found.")
+    difference = int(delta) - tx.delta
+    resulting = tx.item.qty_on_hand + difference
+    if resulting < 0 and not (allow_negative and actor.has_role("admin")):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"This edit would take {tx.item.code} to {resulting}. "
+            "Enable the admin negative-stock override only when intentional.")
+    old = {"delta": tx.delta, "reason": tx.reason,
+           "qty_on_hand": tx.item.qty_on_hand}
+    tx.item.qty_on_hand = resulting
+    tx.delta = int(delta)
+    tx.reason = reason
+    tx.updated_at = datetime.now(timezone.utc)
+    log_action(db, user_id=actor.id, action="inventory.transaction_edit",
+               object_type="inventory_transaction", object_id=tx.id,
+               old_value=old, new_value={"delta": tx.delta,
+                                         "reason": tx.reason,
+                                         "qty_on_hand": resulting},
+               source=source)
+    db.commit()
+    db.refresh(tx)
+    return tx
+
+
+def create_count_request(db: Session, *, item_id: int, requester: User,
+                         note: str, source="browser") -> CountRequest:
+    item = db.query(Item).filter_by(id=item_id, active=True).first()
+    if not item:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Item not found.")
+    existing = (db.query(CountRequest)
+                .filter_by(item_id=item_id, requester_user_id=requester.id,
+                           status="open").first())
+    if existing:
+        existing.note = (note or "").strip()[:255]
+        existing.created_at = datetime.now(timezone.utc)
+        row = existing
+        action = "count_request.refresh"
+    else:
+        row = CountRequest(item_id=item_id, requester_user_id=requester.id,
+                           note=(note or "").strip()[:255], status="open")
+        db.add(row)
+        db.flush()
+        action = "count_request.create"
+    log_action(db, user_id=requester.id, action=action,
+               object_type="count_request", object_id=row.id,
+               new_value={"item_id": item_id, "note": row.note}, source=source)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def resolve_count_request(db: Session, *, request_id: int, actor: User,
+                          resolution_note: str, source="admin_app") -> CountRequest:
+    row = db.query(CountRequest).filter_by(id=request_id).first()
+    if not row:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            "Count request not found.")
+    if row.status != "open":
+        return row
+    row.status = "resolved"
+    row.resolved_by_user_id = actor.id
+    row.resolution_note = (resolution_note or "").strip()[:255]
+    row.resolved_at = datetime.now(timezone.utc)
+    log_action(db, user_id=actor.id, action="count_request.resolve",
+               object_type="count_request", object_id=row.id,
+               old_value={"status": "open"},
+               new_value={"status": "resolved",
+                          "resolution_note": row.resolution_note}, source=source)
+    db.commit()
+    db.refresh(row)
+    return row

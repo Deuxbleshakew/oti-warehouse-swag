@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import urllib.request
 import urllib.error
+import urllib.parse
 from typing import Any, Callable, Optional
 
 
@@ -132,13 +133,19 @@ class ApiClient:
     def pending_orders(self) -> list[dict]:
         return self._get("/admin/orders/pending")
 
+    def all_orders(self, status: str = "all") -> list[dict]:
+        return self._get("/admin/orders?status=" + urllib.parse.quote(status))
+
+    def edit_order(self, order_id: int, data: dict) -> dict:
+        return self._put(f"/admin/orders/{order_id}", data)
+
     def pending_orders_updates(self, since: Optional[str]) -> dict:
-        """Long-polls the backend for pending-order changes. Blocks up to
-        ~25s server-side — run in a background thread. `since` is the
+        """Long-polls the backend for order changes across every status.
+        Blocks up to ~25s server-side; run in a background thread. `since` is the
         server_time from the previous call (None to bootstrap)."""
         path = "/admin/orders/updates"
         if since:
-            path += "?since=" + urllib.request.quote(since)
+            path += "?since=" + urllib.parse.quote(since)
         # server holds up to 25s; give the socket headroom past that
         return self._get(path, timeout=35.0)
 
@@ -154,6 +161,58 @@ class ApiClient:
     def reject_order(self, order_id: int, reason: str) -> dict:
         return self._post(f"/admin/orders/{order_id}/reject",
                           {"reason": reason})
+
+    def pick_order(self, order_id: int) -> dict:
+        return self._post(f"/admin/orders/{order_id}/pick", {})
+
+    def fulfill_order(self, order_id: int, tracking_numbers: list[str],
+                      photo_paths: list[str]) -> dict:
+        import mimetypes
+        import os
+        import secrets
+        boundary = "----otiswagproof" + secrets.token_hex(8)
+        parts: list[bytes] = []
+        parts.append((f"--{boundary}\r\n"
+                      'Content-Disposition: form-data; name="tracking_numbers"\r\n\r\n'
+                      + json.dumps(tracking_numbers) + "\r\n").encode())
+        for path in photo_paths:
+            with open(path, "rb") as fh:
+                content = fh.read()
+            filename = os.path.basename(path)
+            ctype = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+            parts.append((f"--{boundary}\r\n"
+                          f'Content-Disposition: form-data; name="files"; filename="{filename}"\r\n'
+                          f"Content-Type: {ctype}\r\n\r\n").encode()
+                         + content + b"\r\n")
+        parts.append(f"--{boundary}--\r\n".encode())
+        body = b"".join(parts)
+        headers = {"Accept": "application/json",
+                   "Content-Type": f"multipart/form-data; boundary={boundary}"}
+        if self.token:
+            headers["Authorization"] = "Bearer " + self.token
+        req = urllib.request.Request(
+            self.base_url + f"/admin/orders/{order_id}/fulfill",
+            data=body, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=60.0) as resp:
+                return json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            detail = f"Request failed ({e.code})."
+            try:
+                payload = json.loads(e.read())
+                if isinstance(payload.get("detail"), str):
+                    detail = payload["detail"]
+            except Exception:
+                pass
+            if e.code == 401 and self.token is not None:
+                self.token = None
+                self.user = None
+                if self.on_session_expired:
+                    self.on_session_expired()
+                raise SessionExpired(detail) from None
+            raise ApiError(e.code, detail) from None
+        except urllib.error.URLError as e:
+            raise ApiError(0, f"Can't reach the server ({e.reason}).") from None
 
     # ---- items / inventory --------------------------------------------------
     def all_items(self) -> list[dict]:
@@ -222,6 +281,28 @@ class ApiClient:
         return self._request(
             "DELETE", f"/admin/items/{item_id}/images/{image_id}")
 
+    def delete_item(self, item_id: int) -> None:
+        self._request("DELETE", f"/admin/items/{item_id}")
+
+    def inventory_transactions(self) -> list[dict]:
+        return self._get("/admin/inventory/transactions")
+
+    def update_inventory_transaction(self, transaction_id: int, delta: int,
+                                     reason: str,
+                                     allow_negative: bool = False) -> dict:
+        return self._put(f"/admin/inventory/transactions/{transaction_id}",
+                         {"delta": delta, "reason": reason,
+                          "allow_negative": allow_negative})
+
+    def count_requests(self, status: str = "open") -> list[dict]:
+        return self._get("/admin/count-requests?status="
+                         + urllib.parse.quote(status))
+
+    def resolve_count_request(self, request_id: int,
+                              resolution_note: str = "") -> dict:
+        return self._post(f"/admin/count-requests/{request_id}/resolve",
+                          {"resolution_note": resolution_note})
+
     # ---- users (admin only) -------------------------------------------------
     def list_users(self) -> list[dict]:
         return self._get("/admin/users")
@@ -234,3 +315,6 @@ class ApiClient:
 
     def update_user(self, user_id: int, **fields) -> dict:
         return self._put(f"/admin/users/{user_id}", fields)
+
+    def delete_user(self, user_id: int) -> None:
+        self._request("DELETE", f"/admin/users/{user_id}")

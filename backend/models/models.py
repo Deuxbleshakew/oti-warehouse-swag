@@ -198,6 +198,8 @@ class InventoryTransaction(Base):
     source = Column(String(20), nullable=False, default="admin_app")
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow,
+                        nullable=False)
 
     item = relationship("Item", back_populates="transactions")
     user = relationship("User")
@@ -217,8 +219,10 @@ class Order(Base):
     requester_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
     status = Column(String(20), nullable=False, default="pending")
-    # pending -> approved|rejected -> fulfilled (fulfilled is optional/manual)
+    # pending -> approved|rejected; approved -> picking -> fulfilled
     notes = Column(Text, default="")
+    picking_started_at = Column(DateTime, nullable=True)
+    fulfilled_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utcnow, nullable=False)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow,
                         nullable=False)
@@ -229,6 +233,12 @@ class Order(Base):
                          cascade="all, delete-orphan")
     approvals = relationship("Approval", back_populates="order",
                              cascade="all, delete-orphan")
+    tracking_numbers = relationship("OrderTracking", back_populates="order",
+                                    cascade="all, delete-orphan",
+                                    order_by="OrderTracking.id")
+    proof_photos = relationship("OrderProofPhoto", back_populates="order",
+                                cascade="all, delete-orphan",
+                                order_by="OrderProofPhoto.id")
 
     __table_args__ = (
         Index("ix_orders_status", "status"),
@@ -244,10 +254,59 @@ class OrderLine(Base):
                       nullable=False)
     item_id = Column(Integer, ForeignKey("items.id"), nullable=False)
     qty_requested = Column(Integer, nullable=False)
+    qty_estimated = Column(Boolean, nullable=False, default=False)
     qty_approved = Column(Integer, nullable=True)   # set only on approval
 
     order = relationship("Order", back_populates="lines")
     item = relationship("Item")
+
+
+class OrderTracking(Base):
+    __tablename__ = "order_tracking"
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"),
+                      nullable=False, index=True)
+    tracking_number = Column(String(120), nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+
+    order = relationship("Order", back_populates="tracking_numbers")
+
+
+class OrderProofPhoto(Base):
+    __tablename__ = "order_proof_photos"
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"),
+                      nullable=False, index=True)
+    filename = Column(String(255), nullable=False, default="proof.jpg")
+    content_type = Column(String(80), nullable=False, default="image/jpeg")
+    content = Column(LargeBinary, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+
+    order = relationship("Order", back_populates="proof_photos")
+
+
+class CountRequest(Base):
+    __tablename__ = "count_requests"
+
+    id = Column(Integer, primary_key=True)
+    item_id = Column(Integer, ForeignKey("items.id"), nullable=False, index=True)
+    requester_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    note = Column(String(255), default="")
+    status = Column(String(20), nullable=False, default="open")
+    resolved_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    resolution_note = Column(String(255), default="")
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    resolved_at = Column(DateTime, nullable=True)
+
+    item = relationship("Item")
+    requester = relationship("User", foreign_keys=[requester_user_id])
+    resolved_by = relationship("User", foreign_keys=[resolved_by_user_id])
+
+    __table_args__ = (
+        Index("ix_count_requests_status_item", "status", "item_id"),
+    )
 
 
 class Approval(Base):

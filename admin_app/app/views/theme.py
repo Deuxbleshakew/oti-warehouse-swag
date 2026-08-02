@@ -68,15 +68,21 @@ def apply_theme(root: tk.Misc) -> ttk.Style:
 
     style.configure("TButton", padding=(12, 6), background=SURFACE2,
                     foreground=INK, bordercolor=LINE)
-    style.map("TButton", background=[("active", "#3D4349")])
+    style.map("TButton", background=[("active", "#3D4349"),
+                                     ("pressed", BAR)],
+              relief=[("pressed", "sunken"), ("!pressed", "flat")])
     style.configure("Primary.TButton", background=SAFETY,
                     foreground=SAFETY_INK, font=FONT_BOLD)
     style.map("Primary.TButton",
-              background=[("active", "#E0A904"), ("disabled", "#5C5747")],
-              foreground=[("disabled", "#8C8878")])
+              background=[("pressed", "#C79604"), ("active", "#E0A904"),
+                          ("disabled", "#5C5747")],
+              foreground=[("disabled", "#8C8878")],
+              relief=[("pressed", "sunken"), ("!pressed", "flat")])
     style.configure("Danger.TButton", background=RUST, foreground="#2B0F08",
                     font=FONT_BOLD)
-    style.map("Danger.TButton", background=[("active", "#C9553E")])
+    style.map("Danger.TButton",
+              background=[("pressed", "#A94432"), ("active", "#C9553E")],
+              relief=[("pressed", "sunken"), ("!pressed", "flat")])
 
     style.configure("TEntry", padding=4, foreground=INK)
     style.configure("TSpinbox", arrowcolor=INK, foreground=INK)
@@ -92,8 +98,8 @@ def apply_theme(root: tk.Misc) -> ttk.Style:
 
 
 def status_color(status: str) -> str:
-    return {"pending": MUTED, "approved": OK, "rejected": RUST,
-            "fulfilled": INK}.get(status, INK)
+    return {"pending": MUTED, "approved": OK, "picking": SAFETY,
+            "rejected": RUST, "fulfilled": INK}.get(status, INK)
 
 
 def show_error(parent, title: str, message: str):

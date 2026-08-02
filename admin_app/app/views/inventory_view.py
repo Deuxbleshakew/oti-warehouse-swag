@@ -10,10 +10,11 @@ transaction. Same threading rules as orders_view.
 import os
 import threading
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 
 from . import theme
-from .widgets import EyedropperOverlay, PhotoStrip, suggest_code
+from .widgets import (EyedropperOverlay, PhotoStrip, suggest_code,
+                      SpinnerLabel, fade_in)
 from ..services.api_client import ApiClient, ApiError, SessionExpired
 
 BRANDS = [("Oticon", "OT"), ("Government Services", "GS"),
@@ -51,8 +52,17 @@ class InventoryView(ttk.Frame):
         ttk.Label(top, text="INVENTORY", style="Head.TLabel").pack(side="left")
         self.count_lbl = ttk.Label(top, text="", style="Muted.TLabel")
         self.count_lbl.pack(side="left", padx=10)
+        self.spinner = SpinnerLabel(top, text="Loading", style="Muted.TLabel")
+        self.spinner.pack(side="left")
 
         ttk.Button(top, text="Refresh", command=self.refresh).pack(side="right")
+        self.delete_btn = ttk.Button(top, text="Delete", style="Danger.TButton",
+                                     command=self._delete_item, state="disabled")
+        self.delete_btn.pack(side="right", padx=6)
+        self.count_btn = ttk.Button(top, text="Resolve Count…",
+                                    command=self._resolve_count_dialog,
+                                    state="disabled")
+        self.count_btn.pack(side="right", padx=6)
         self.adjust_btn = ttk.Button(top, text="Adjust Stock…",
                                      command=self._adjust_dialog,
                                      state="disabled")
@@ -72,16 +82,17 @@ class InventoryView(ttk.Frame):
         wrap.rowconfigure(0, weight=1)
         wrap.columnconfigure(0, weight=1)
 
-        cols = ("code", "name", "category", "qty", "reorder", "location", "active")
+        cols = ("code", "name", "category", "qty", "reorder", "count", "location", "active")
         self.tree = ttk.Treeview(wrap, columns=cols, show="headings",
                                  selectmode="browse")
         headings = {"code": ("Code", 120), "name": ("Name", 220),
                     "category": ("Category", 140), "qty": ("On hand", 70),
                     "reorder": ("Reorder at", 80),
+                    "count": ("Count", 70),
                     "location": ("Bin", 90), "active": ("Active", 60)}
         for c, (label, width) in headings.items():
             self.tree.heading(c, text=label)
-            anchor = "e" if c in ("qty", "reorder") else "w"
+            anchor = "e" if c in ("qty", "reorder", "count") else "w"
             self.tree.column(c, width=width, anchor=anchor)
         self.tree.grid(row=0, column=0, sticky="nsew")
         sb = ttk.Scrollbar(wrap, orient="vertical", command=self.tree.yview)
@@ -95,13 +106,15 @@ class InventoryView(ttk.Frame):
 
     # ---- data ---------------------------------------------------------------
     def refresh(self):
+        self.spinner.start("Loading inventory")
         def work():
             try:
                 items = self.api.all_items()
             except SessionExpired:
                 return
             except ApiError as e:
-                self.after(0, lambda: theme.show_error(self, "Load failed", str(e)))
+                self.after(0, lambda: (self.spinner.stop(),
+                                       theme.show_error(self, "Load failed", str(e))))
                 return
             self.after(0, lambda: self._set_items(items))
         threading.Thread(target=work, daemon=True).start()
@@ -109,6 +122,7 @@ class InventoryView(ttk.Frame):
     def _set_items(self, items: list[dict]):
         if not self.winfo_exists():
             return
+        self.spinner.stop()
         self.items = items
         keep = self.tree.selection()
         self.tree.delete(*self.tree.get_children())
@@ -126,12 +140,16 @@ class InventoryView(ttk.Frame):
                 tags.append("low")
             self.tree.insert("", "end", iid=str(it["id"]), values=(
                 it["code"], it["name"], it["category"], it["qty_on_hand"],
-                it["reorder_threshold"], it["location"],
-                "yes" if it["active"] else "no"), tags=tags)
+                it["reorder_threshold"],
+                it.get("open_count_requests", 0) or "",
+                it["location"], "yes" if it["active"] else "no"), tags=tags)
         txt = f"{len(show)} of {len(items)} items" \
             if self.low_only.get() else f"{len(items)} items"
         if low_count:
             txt += f" · {low_count} at/below reorder point"
+        count_requests = sum(it.get("open_count_requests", 0) for it in items)
+        if count_requests:
+            txt += f" · {count_requests} recount request{'s' if count_requests != 1 else ''}"
         self.count_lbl.configure(text=txt)
         if keep and self.tree.exists(keep[0]):
             self.tree.selection_set(keep[0])
@@ -150,6 +168,9 @@ class InventoryView(ttk.Frame):
         state = "normal" if has else "disabled"
         self.edit_btn.configure(state=state)
         self.adjust_btn.configure(state=state)
+        self.delete_btn.configure(state=state)
+        item = self._selected_item()
+        self.count_btn.configure(state="normal" if item and item.get("open_count_requests", 0) else "disabled")
 
     # ---- dialogs -------------------------------------------------------------
     def _new_dialog(self):
@@ -474,6 +495,94 @@ class InventoryView(ttk.Frame):
                    command=save).pack(side="right")
         win.bind("<Return>", lambda e: save())
         win.bind("<Escape>", lambda e: win.destroy())
+        fade_in(win)
+
+    def _delete_item(self):
+        item = self._selected_item()
+        if not item:
+            return
+        if not messagebox.askyesno(
+                "Delete item",
+                f"Permanently delete {item['code']} · {item['name']}?\n\n"
+                "This only works for unused test/mistake items. Items with any "
+                "history must be deactivated instead.", parent=self):
+            return
+        self.spinner.start("Deleting item")
+
+        def work():
+            try:
+                self.api.delete_item(item["id"])
+            except SessionExpired:
+                return
+            except ApiError as exc:
+                self.after(0, lambda: (self.spinner.stop(),
+                                       theme.show_error(self, "Delete blocked", str(exc))))
+                return
+            self.after(0, self.refresh)
+        threading.Thread(target=work, daemon=True).start()
+
+    def _resolve_count_dialog(self):
+        item = self._selected_item()
+        if not item or not item.get("open_count_requests"):
+            return
+        win = tk.Toplevel(self)
+        win.title(f"Recount requests — {item['code']}")
+        win.configure(bg=theme.PAPER)
+        win.transient(self.winfo_toplevel())
+        win.grab_set()
+        frm = ttk.Frame(win, padding=16)
+        frm.pack(fill="both", expand=True)
+        ttk.Label(frm, text=f"{item['name']} ({item['code']})",
+                  font=theme.FONT_BOLD).pack(anchor="w")
+        body = ttk.Label(frm, text="Loading request notes…", style="Muted.TLabel",
+                         wraplength=420, justify="left")
+        body.pack(anchor="w", pady=(5, 10))
+        ttk.Label(frm, text="Resolution note (optional)").pack(anchor="w")
+        note = tk.StringVar(value="Physical recount completed")
+        ttk.Entry(frm, textvariable=note, width=48).pack(fill="x", pady=(3, 10))
+        buttons = ttk.Frame(frm)
+        buttons.pack(fill="x")
+        resolve_btn = ttk.Button(buttons, text="Mark Recounted",
+                                 style="Primary.TButton", state="disabled")
+        resolve_btn.pack(side="right")
+        ttk.Button(buttons, text="Cancel", command=win.destroy).pack(side="right", padx=(0, 8))
+        requests = []
+
+        def loaded(rows):
+            requests[:] = [row for row in rows if row["item_id"] == item["id"]]
+            if requests:
+                lines = [f"• {row['requester']}: {row['note'] or 'No note'}"
+                         for row in requests]
+                body.configure(text="\n".join(lines))
+                resolve_btn.configure(state="normal")
+            else:
+                body.configure(text="No open requests remain.")
+
+        def load():
+            try:
+                rows = self.api.count_requests("open")
+            except (SessionExpired, ApiError) as exc:
+                self.after(0, lambda: body.configure(text=str(exc)))
+                return
+            self.after(0, lambda: loaded(rows))
+        threading.Thread(target=load, daemon=True).start()
+
+        def resolve():
+            resolve_btn.configure(state="disabled")
+            def work():
+                try:
+                    for row in requests:
+                        self.api.resolve_count_request(row["id"], note.get().strip())
+                except SessionExpired:
+                    return
+                except ApiError as exc:
+                    self.after(0, lambda: (body.configure(text=str(exc)),
+                                           resolve_btn.configure(state="normal")))
+                    return
+                self.after(0, lambda: (win.destroy(), self.refresh()))
+            threading.Thread(target=work, daemon=True).start()
+        resolve_btn.configure(command=resolve)
+        fade_in(win)
 
     def _adjust_dialog(self):
         item = self._selected_item()
@@ -549,3 +658,4 @@ class InventoryView(ttk.Frame):
         delta_ent.focus_set()
         win.bind("<Return>", lambda e: apply())
         win.bind("<Escape>", lambda e: win.destroy())
+        fade_in(win)

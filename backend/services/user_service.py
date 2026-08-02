@@ -4,7 +4,8 @@ backend/services/user_service.py — admin user management.
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from backend.models.models import User, Role
+from backend.models.models import (User, Role, Order, Approval,
+                                    InventoryTransaction, AuditLog, CountRequest)
 from backend.auth.security import hash_password
 from backend.services.audit_service import log_action
 
@@ -63,3 +64,30 @@ def update_user(db: Session, *, user_id: int, full_name=None, active=None,
     db.commit()
     db.refresh(user)
     return user
+
+
+def delete_user(db: Session, *, user_id: int, actor: User, source="api") -> None:
+    if user_id == actor.id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "You cannot delete the account you are currently using.")
+    user = db.query(User).filter_by(id=user_id).first()
+    if not user:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found.")
+    history_checks = (
+        db.query(Order.id).filter_by(requester_user_id=user_id).first(),
+        db.query(Approval.id).filter_by(approver_user_id=user_id).first(),
+        db.query(InventoryTransaction.id).filter_by(user_id=user_id).first(),
+        db.query(AuditLog.id).filter_by(user_id=user_id).first(),
+        db.query(CountRequest.id).filter_by(requester_user_id=user_id).first(),
+        db.query(CountRequest.id).filter_by(resolved_by_user_id=user_id).first(),
+    )
+    if any(history_checks):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This user has order, approval, inventory, recount, or audit history "
+            "and cannot be deleted. Turn off Active instead to preserve records.")
+    old = {"username": user.username, "full_name": user.full_name}
+    db.delete(user)
+    log_action(db, user_id=actor.id, action="user.delete", object_type="user",
+               object_id=user_id, old_value=old, source=source)
+    db.commit()

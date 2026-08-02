@@ -1,11 +1,4 @@
-"""
-backend/schemas/schemas.py — Pydantic request/response models.
-
-These are the API's public contract — what a client sends and receives.
-Kept separate from the SQLAlchemy models (backend/models/models.py) on
-purpose: the database shape and the API shape are allowed to drift from
-each other over time without one forcing a change in the other.
-"""
+"""Pydantic request/response models for the API contract."""
 from datetime import datetime
 from typing import List, Optional, Dict
 
@@ -49,7 +42,7 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     active: Optional[bool] = None
     roles: Optional[List[str]] = None
-    password: Optional[str] = None    # set to reset
+    password: Optional[str] = None
 
 
 # ---- Items / catalog ---------------------------------------------------------
@@ -70,11 +63,13 @@ class ItemOut(BaseModel):
     cost: float
     active: bool
     images: List[str] = []
-    image_ids: List[int] = []   # parallel to images; needed for deletes
+    image_ids: List[int] = []
+    open_count_requests: int = 0
 
     @classmethod
-    def from_orm_item(cls, item, include_sensitive=True):
-        d = dict(
+    def from_orm_item(cls, item, include_sensitive=True,
+                      open_count_requests: int = 0):
+        return cls(
             id=item.id, code=item.code, name=item.name,
             description=item.description, category=item.category,
             brand=item.brand, color=item.color, color_name=item.color_name,
@@ -85,8 +80,8 @@ class ItemOut(BaseModel):
             active=item.active,
             images=[img.filename for img in item.images],
             image_ids=[img.id for img in item.images],
+            open_count_requests=open_count_requests,
         )
-        return cls(**d)
 
 
 class ItemCreate(BaseModel):
@@ -117,20 +112,35 @@ class ItemUpdate(BaseModel):
     reorder_threshold: Optional[int] = None
     cost: Optional[float] = None
     active: Optional[bool] = None
-    # qty_on_hand deliberately NOT editable here — stock changes must go
-    # through /admin/inventory/adjust so every change gets a reason + a
-    # logged transaction. Editing it directly here would create silent,
-    # unexplained stock changes with no audit trail.
 
 
 class InventoryAdjustRequest(BaseModel):
     item_id: int
-    delta: int                       # positive = add stock, negative = remove
-    reason: str                      # required, per spec
-    allow_negative: bool = False      # only meaningful for admins; see service
+    delta: int
+    reason: str
+    allow_negative: bool = False
 
 
-# ---- Projects -----------------------------------------------------------------
+class InventoryTransactionOut(BaseModel):
+    id: int
+    item_id: int
+    item_code: str
+    item_name: str
+    delta: int
+    reason: str
+    source: str
+    user: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+
+class InventoryTransactionUpdate(BaseModel):
+    delta: int
+    reason: str = Field(min_length=1, max_length=255)
+    allow_negative: bool = False
+
+
+# ---- Projects ----------------------------------------------------------------
 class ProjectOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -160,8 +170,6 @@ class ProjectCreate(BaseModel):
     owner: str = ""
     customer: str = ""
     event_date: str = ""
-    # Calculated by the backend from the event date and transit time. Kept in
-    # the request model for compatibility with older clients, but overwritten.
     delivery_date: str = ""
     ship_by_date: str = ""
     location: str = ""
@@ -171,28 +179,57 @@ class ProjectCreate(BaseModel):
     shipping_state: str = ""
     shipping_postal_code: str = ""
     shipping_service: str = "UPS Ground"
-    ups_ground_days: Optional[int] = Field(default=None, ge=1, le=6)
+    # accepted for old clients but ignored; transit is map-driven by state
+    ups_ground_days: Optional[int] = None
     attendees: Optional[int] = None
     budget: Optional[float] = None
     status: str = "planning"
     notes: str = ""
 
 
+class ProjectEdit(BaseModel):
+    name: Optional[str] = Field(default=None, max_length=200)
+    description: Optional[str] = None
+    owner: Optional[str] = None
+    event_date: Optional[str] = None
+    location: Optional[str] = None
+    shipping_address1: Optional[str] = None
+    shipping_address2: Optional[str] = None
+    shipping_city: Optional[str] = None
+    shipping_state: Optional[str] = None
+    shipping_postal_code: Optional[str] = None
+    attendees: Optional[int] = None
+
+
 # ---- Orders -------------------------------------------------------------------
 class OrderLineIn(BaseModel):
     item_id: int
     qty: int = Field(gt=0)
+    estimated: bool = False
+
+
+class OrderEditLine(BaseModel):
+    item_id: int
+    qty: int = Field(gt=0)
+    estimated: bool = False
 
 
 class OrderCreate(BaseModel):
-    # Choose an existing reusable project OR create a one-time/new project as
-    # part of this order. Most events happen once, so new projects default to
-    # not appearing in the reusable picker unless save_project is true.
     project_id: Optional[int] = None
     new_project: Optional[ProjectCreate] = None
     save_project: bool = False
     notes: str = ""
     lines: List[OrderLineIn] = Field(min_length=1)
+
+
+class PendingOrderUpdate(BaseModel):
+    notes: Optional[str] = None
+    project: Optional[ProjectEdit] = None
+    lines: Optional[List[OrderEditLine]] = Field(default=None, min_length=1)
+
+
+class AdminOrderUpdate(PendingOrderUpdate):
+    pass
 
 
 class OrderLineOut(BaseModel):
@@ -201,6 +238,7 @@ class OrderLineOut(BaseModel):
     item_code: str
     item_name: str
     qty_requested: int
+    qty_estimated: bool = False
     qty_approved: Optional[int]
 
 
@@ -214,15 +252,20 @@ class OrderOut(BaseModel):
     notes: str
     created_at: datetime
     updated_at: datetime
+    picking_started_at: Optional[datetime] = None
+    fulfilled_at: Optional[datetime] = None
+    incomplete: bool = False
+    incomplete_reasons: List[str] = []
+    can_self_edit: bool = False
+    tracking_numbers: List[str] = []
+    proof_photo_ids: List[int] = []
     lines: List[OrderLineOut]
 
 
 class ApproveRequest(BaseModel):
     reason: str = ""
-    # per-line overrides for partial approval: {item_id: approved_qty}.
-    # Omit entirely to approve every line at its full requested quantity.
     line_overrides: Optional[Dict[int, int]] = None
-    allow_negative: bool = False      # admin-only, enforced in the service
+    allow_negative: bool = False
 
 
 class RejectRequest(BaseModel):
@@ -232,6 +275,28 @@ class RejectRequest(BaseModel):
 class OrdersUpdateResponse(BaseModel):
     server_time: datetime
     orders: List[OrderOut]
+
+
+# ---- Count requests ----------------------------------------------------------
+class CountRequestCreate(BaseModel):
+    note: str = Field(default="", max_length=255)
+
+
+class CountRequestResolve(BaseModel):
+    resolution_note: str = Field(default="", max_length=255)
+
+
+class CountRequestOut(BaseModel):
+    id: int
+    item_id: int
+    item_code: str
+    item_name: str
+    requester: str
+    note: str
+    status: str
+    resolution_note: str
+    created_at: datetime
+    resolved_at: Optional[datetime]
 
 
 # ---- Audit --------------------------------------------------------------------

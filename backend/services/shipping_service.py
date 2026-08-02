@@ -1,9 +1,8 @@
 """UPS Ground planning helpers used by both API validation and order output.
 
 The transit-day defaults are a conservative, state-level transcription of the
-UPS Ground outbound map supplied with this project. The original map contains
-ZIP-level pockets inside several states, so the browser lets the requester
-adjust the estimate from 1–6 days when an exact UPS quote says otherwise.
+UPS Ground outbound map supplied with this project. Transit time is calculated
+automatically from the destination state and cannot be manually overridden.
 
 Dates are planned in business days. Weekends and common observed U.S. federal
 holidays are skipped. Carrier-specific closure dates can still vary, so the
@@ -146,12 +145,11 @@ def subtract_business_days(value: date, days: int) -> date:
 
 def build_shipping_plan(*, event_date: str, shipping_state: str,
                         ups_ground_days: Optional[int] = None) -> ShippingPlan:
+    # ups_ground_days remains in the signature for backward compatibility with
+    # older clients, but the authoritative value always comes from the map.
     event = _parse_iso_date(event_date, "Event date")
     state = normalize_state(shipping_state)
-    transit_days = (UPS_GROUND_DAYS_BY_STATE[state]
-                    if ups_ground_days is None else int(ups_ground_days))
-    if transit_days < 1 or transit_days > 6:
-        raise ShippingPlanError("UPS Ground transit time must be between 1 and 6 business days.")
+    transit_days = UPS_GROUND_DAYS_BY_STATE[state]
 
     delivery = previous_business_day(event)
     ship_by = subtract_business_days(delivery, transit_days)

@@ -1,26 +1,26 @@
-"""
-backend/services/order_service.py — order creation, approval, rejection.
+"""Order creation, editing, approval and fulfillment workflow."""
+from __future__ import annotations
 
-This is where the core business rules live:
-  - stock is never deducted on request, only on approval
-  - approval never allows stock to go negative unless an admin explicitly
-    opts in per-request (allow_negative)
-  - every approval/rejection is a permanent Approval record, separate from
-    the order's own mutable status field
-  - every stock change gets its own InventoryTransaction row with a
-    required reason
-"""
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from typing import Optional, Dict
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
-from backend.models.models import (Order, OrderLine, Item, Approval,
-                                    InventoryTransaction, User, Project)
+from backend.models.models import (
+    Order, OrderLine, Item, Approval, InventoryTransaction, User, Project,
+    OrderTracking, OrderProofPhoto,
+)
+from backend.schemas.schemas import OrderOut, OrderLineOut, ProjectOut
 from backend.services.audit_service import log_action
-from backend.services.shipping_service import build_shipping_plan, ShippingPlanError
+from backend.services.shipping_service import (
+    build_shipping_plan, ShippingPlanError, previous_business_day,
+)
+
+
+MAX_PROOF_IMAGE_BYTES = 10 * 1024 * 1024
+ALLOWED_PROOF_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
 
 class OrderError(HTTPException):
@@ -29,16 +29,9 @@ class OrderError(HTTPException):
 
 
 def _unique_project_name(db: Session, requested_name: str) -> str:
-    """Return a display-friendly name that satisfies Project.name uniqueness.
-
-    One-time events can legitimately reuse a human name (for example,
-    "Summer Seminar"). The database's original schema made names unique, so
-    add a small numeric suffix rather than failing the whole order.
-    """
     base = " ".join((requested_name or "").split()).strip()
     if not base:
         raise OrderError("A project/event name is required.")
-
     candidate = base[:200]
     n = 2
     while (db.query(Project.id)
@@ -47,6 +40,116 @@ def _unique_project_name(db: Session, requested_name: str) -> str:
         candidate = base[:200 - len(suffix)] + suffix
         n += 1
     return candidate
+
+
+def _clean_project_fields(data: dict) -> dict:
+    clean = dict(data)
+    text_fields = (
+        "name", "description", "purpose", "owner", "customer", "event_date",
+        "location", "shipping_address1", "shipping_address2", "shipping_city",
+        "shipping_state", "shipping_postal_code", "notes",
+    )
+    for field in text_fields:
+        if field in clean and clean[field] is not None:
+            clean[field] = str(clean[field]).strip()
+    if clean.get("shipping_state"):
+        clean["shipping_state"] = clean["shipping_state"].upper()
+    clean["shipping_service"] = "UPS Ground"
+    clean.pop("ups_ground_days", None)  # always map-driven
+    clean.pop("delivery_date", None)
+    clean.pop("ship_by_date", None)
+    return clean
+
+
+def _calculate_project_dates(data: dict) -> dict:
+    event_date = (data.get("event_date") or "").strip()
+    state_code = (data.get("shipping_state") or "").strip().upper()
+    data["delivery_date"] = ""
+    data["ship_by_date"] = ""
+    data["ups_ground_days"] = None
+    if not event_date:
+        return data
+    try:
+        event = date.fromisoformat(event_date)
+    except ValueError as exc:
+        raise OrderError("Event date must be a valid date.") from exc
+    data["delivery_date"] = previous_business_day(event).isoformat()
+    if state_code:
+        try:
+            plan = build_shipping_plan(event_date=event_date,
+                                       shipping_state=state_code)
+        except ShippingPlanError as exc:
+            raise OrderError(str(exc)) from exc
+        data.update(plan.as_dict())
+    return data
+
+
+def _project_dict(project: Project) -> dict:
+    return {key: getattr(project, key) for key in (
+        "name", "description", "purpose", "owner", "customer", "event_date",
+        "delivery_date", "ship_by_date", "location", "shipping_address1",
+        "shipping_address2", "shipping_city", "shipping_state",
+        "shipping_postal_code", "shipping_service", "ups_ground_days",
+        "attendees", "budget", "status", "notes",
+    )}
+
+
+def _ensure_private_project(db: Session, order: Order) -> Project:
+    """Avoid editing a reusable project template shared by other orders."""
+    if order.project is None:
+        project = Project(
+            name=_unique_project_name(db, f"Order {order.id} delivery"),
+            owner=order.requester.full_name or order.requester.username,
+            active=False,
+        )
+        db.add(project)
+        db.flush()
+        order.project_id = project.id
+        order.project = project
+        return project
+    if not order.project.active:
+        return order.project
+    source = order.project
+    data = _project_dict(source)
+    data["name"] = _unique_project_name(db, f"{source.name} - Order {order.id}")
+    clone = Project(**data, active=False)
+    db.add(clone)
+    db.flush()
+    order.project_id = clone.id
+    order.project = clone
+    return clone
+
+
+def incomplete_reasons(order: Order) -> list[str]:
+    reasons: list[str] = []
+    project = order.project
+    if project is None:
+        reasons.append("Delivery address pending")
+    else:
+        if not (project.event_date or "").strip():
+            reasons.append("Event date pending")
+        required_address = (
+            project.shipping_address1, project.shipping_city,
+            project.shipping_state, project.shipping_postal_code,
+        )
+        if any(not (value or "").strip() for value in required_address):
+            reasons.append("Delivery address pending")
+        elif not project.ship_by_date or project.ups_ground_days is None:
+            reasons.append("UPS Ground timing pending")
+    if any(bool(line.qty_estimated) for line in order.lines):
+        reasons.append("Estimated quantities need confirmation")
+    return reasons
+
+
+def _load_order(db: Session, order_id: int) -> Order:
+    order = (db.query(Order).options(
+        joinedload(Order.lines).joinedload(OrderLine.item),
+        joinedload(Order.project), joinedload(Order.requester),
+        joinedload(Order.tracking_numbers), joinedload(Order.proof_photos),
+    ).filter_by(id=order_id).first())
+    if not order:
+        raise OrderError("Order not found.", status.HTTP_404_NOT_FOUND)
+    return order
 
 
 def create_order(db: Session, *, requester: User, project_id: Optional[int],
@@ -63,190 +166,323 @@ def create_order(db: Session, *, requester: User, project_id: Optional[int],
         if not linked_project:
             raise OrderError("The selected saved project/event no longer exists.")
     elif project_data is not None:
-        clean = dict(project_data)
+        clean = _clean_project_fields(project_data)
         clean["name"] = _unique_project_name(db, clean.get("name", ""))
-        if not (clean.get("owner") or "").strip():
+        if not clean.get("event_date"):
+            raise OrderError("An event date is required.")
+        if not clean.get("owner"):
             clean["owner"] = requester.full_name or requester.username
-
-        # Every one-time event gets a real ship-to address and an authoritative
-        # shipping deadline. The browser previews the same calculation, but the
-        # API repeats it so a modified/older client cannot save inconsistent
-        # dates. Exact UPS ZIP quotes may override the map estimate by sending
-        # ups_ground_days (1–6).
-        required_shipping = {
-            "shipping_address1": "Delivery street address",
-            "shipping_city": "Delivery city",
-            "shipping_state": "Delivery state",
-            "shipping_postal_code": "Delivery ZIP code",
-        }
-        for field, label in required_shipping.items():
-            clean[field] = (clean.get(field) or "").strip()
-            if not clean[field]:
-                raise OrderError(f"{label} is required.")
-        clean["shipping_address2"] = (clean.get("shipping_address2") or "").strip()
-        clean["location"] = (clean.get("location") or "").strip()
-        try:
-            plan = build_shipping_plan(
-                event_date=clean.get("event_date", ""),
-                shipping_state=clean.get("shipping_state", ""),
-                ups_ground_days=clean.get("ups_ground_days"),
-            )
-        except ShippingPlanError as exc:
-            raise OrderError(str(exc)) from exc
-        clean.update(plan.as_dict())
-
+        _calculate_project_dates(clean)
         linked_project = Project(**clean, active=bool(save_project))
         db.add(linked_project)
         db.flush()
-        log_action(
-            db,
-            user_id=requester.id,
-            action="project.create",
-            object_type="project",
-            object_id=linked_project.id,
-            new_value={**clean, "active": bool(save_project)},
-            source=source,
-        )
+        log_action(db, user_id=requester.id, action="project.create",
+                   object_type="project", object_id=linked_project.id,
+                   new_value={**clean, "active": bool(save_project)},
+                   source=source)
 
-    order = Order(
-        requester_user_id=requester.id,
-        project_id=linked_project.id if linked_project else None,
-        status="pending",
-        notes=notes,
-    )
+    order = Order(requester_user_id=requester.id,
+                  project_id=linked_project.id if linked_project else None,
+                  status="pending", notes=(notes or "").strip())
     db.add(order)
-    db.flush()   # assigns order.id without committing
+    db.flush()
 
+    seen = set()
     for ln in lines:
+        if ln.item_id in seen:
+            raise OrderError("Each item can appear only once in an order.")
+        seen.add(ln.item_id)
         item = db.query(Item).filter_by(id=ln.item_id, active=True).first()
         if not item:
             raise OrderError(f"Item {ln.item_id} not found or inactive.")
         if ln.qty <= 0:
             raise OrderError(f"Quantity for item {ln.item_id} must be positive.")
         db.add(OrderLine(order_id=order.id, item_id=item.id,
-                         qty_requested=ln.qty))
-        # NOTE: no stock change here — deliberately. Requesting is not
-        # approving.
+                         qty_requested=ln.qty,
+                         qty_estimated=bool(getattr(ln, "estimated", False))))
 
     log_action(db, user_id=requester.id, action="order.create",
-              object_type="order", object_id=order.id,
-              new_value={"lines": [{"item_id": l.item_id, "qty": l.qty}
-                                    for l in lines],
-                         "project_id": linked_project.id if linked_project else None,
-                         "new_project": project_data is not None,
-                         "save_project": bool(save_project),
-                         "ship_by_date": (linked_project.ship_by_date
-                                          if linked_project else ""),
-                         "delivery_date": (linked_project.delivery_date
-                                           if linked_project else "")},
-              source=source)
+               object_type="order", object_id=order.id,
+               new_value={
+                   "lines": [{"item_id": l.item_id, "qty": l.qty,
+                              "estimated": bool(getattr(l, "estimated", False))}
+                             for l in lines],
+                   "project_id": linked_project.id if linked_project else None,
+                   "save_project": bool(save_project),
+               }, source=source)
     db.commit()
-    db.refresh(order)
-    return order
+    return _load_order(db, order.id)
+
+
+def _apply_project_edit(db: Session, order: Order, project_data: Optional[dict]):
+    if project_data is None:
+        return
+    project = _ensure_private_project(db, order)
+    old = _project_dict(project)
+    clean = _clean_project_fields(project_data)
+    if "name" in clean and not clean["name"]:
+        raise OrderError("A project/event name is required.")
+    for key, value in clean.items():
+        if hasattr(project, key) and value is not None:
+            setattr(project, key, value)
+    calculated = _calculate_project_dates(_project_dict(project))
+    for key in ("event_date", "delivery_date", "ship_by_date",
+                "shipping_state", "shipping_service", "ups_ground_days"):
+        setattr(project, key, calculated.get(key))
+    log_action(db, user_id=None, action="project.update_from_order",
+               object_type="project", object_id=project.id,
+               old_value=old, new_value=_project_dict(project), source="api")
+
+
+def _validate_edit_lines(db: Session, lines: list) -> list[tuple[Item, int, bool]]:
+    result = []
+    seen = set()
+    for entry in lines:
+        if entry.item_id in seen:
+            raise OrderError("Each item can appear only once in an order.")
+        seen.add(entry.item_id)
+        item = db.query(Item).filter_by(id=entry.item_id).first()
+        if not item:
+            raise OrderError(f"Item {entry.item_id} no longer exists.")
+        if entry.qty <= 0:
+            raise OrderError("Every order quantity must be greater than zero.")
+        result.append((item, int(entry.qty), bool(entry.estimated)))
+    if not result:
+        raise OrderError("An order needs at least one item.")
+    return result
+
+
+def edit_order(db: Session, *, order_id: int, actor: User,
+               notes: Optional[str], project_data: Optional[dict],
+               lines: Optional[list], owner_only_pending: bool,
+               source: str = "api") -> Order:
+    order = _load_order(db, order_id)
+    if owner_only_pending:
+        if order.requester_user_id != actor.id:
+            raise OrderError("Not your order.", status.HTTP_403_FORBIDDEN)
+        if order.status != "pending":
+            raise OrderError("This order can no longer be edited because it has already been reviewed.")
+
+    old_snapshot = {
+        "notes": order.notes,
+        "status": order.status,
+        "lines": [{"item_id": l.item_id, "qty": l.qty_requested,
+                   "approved": l.qty_approved, "estimated": l.qty_estimated}
+                  for l in order.lines],
+        "project": _project_dict(order.project) if order.project else None,
+    }
+    if notes is not None:
+        order.notes = notes.strip()
+    if project_data is not None:
+        _apply_project_edit(db, order, project_data)
+
+    if lines is not None:
+        planned = _validate_edit_lines(db, lines)
+        stock_affecting = order.status in {"approved", "picking", "fulfilled"}
+        existing = {line.item_id: line for line in order.lines}
+        desired_ids = {item.id for item, _, _ in planned}
+
+        # Validate stock changes before mutating anything.
+        if stock_affecting:
+            for item, qty, _estimated in planned:
+                old_approved = (existing[item.id].qty_approved or 0) if item.id in existing else 0
+                extra_needed = qty - old_approved
+                if extra_needed > item.qty_on_hand:
+                    raise OrderError(
+                        f"Not enough stock for {item.code}: editing needs {extra_needed} more, "
+                        f"but only {item.qty_on_hand} is available.")
+
+        for item_id, line in list(existing.items()):
+            if item_id not in desired_ids:
+                if stock_affecting and (line.qty_approved or 0):
+                    returned = line.qty_approved or 0
+                    line.item.qty_on_hand += returned
+                    db.add(InventoryTransaction(
+                        item_id=item_id, delta=returned,
+                        reason=f"Order #{order.id} edit returned removed line",
+                        source=source, user_id=actor.id))
+                db.delete(line)
+
+        for item, qty, estimated in planned:
+            line = existing.get(item.id)
+            if line is None:
+                line = OrderLine(order_id=order.id, item_id=item.id)
+                db.add(line)
+            if stock_affecting:
+                old_approved = line.qty_approved or 0
+                delta_from_stock = qty - old_approved
+                if delta_from_stock:
+                    item.qty_on_hand -= delta_from_stock
+                    db.add(InventoryTransaction(
+                        item_id=item.id, delta=-delta_from_stock,
+                        reason=f"Order #{order.id} quantity edited",
+                        source=source, user_id=actor.id))
+                line.qty_approved = qty
+                line.qty_estimated = False
+            else:
+                line.qty_estimated = estimated
+                if order.status == "rejected":
+                    line.qty_approved = None
+            line.qty_requested = qty
+
+    order.updated_at = datetime.now(timezone.utc)
+    db.flush()
+    new_snapshot = {
+        "notes": order.notes,
+        "status": order.status,
+        "lines": [{"item_id": l.item_id, "qty": l.qty_requested,
+                   "approved": l.qty_approved, "estimated": l.qty_estimated}
+                  for l in order.lines],
+        "project": _project_dict(order.project) if order.project else None,
+    }
+    log_action(db, user_id=actor.id, action="order.edit",
+               object_type="order", object_id=order.id,
+               old_value=old_snapshot, new_value=new_snapshot, source=source)
+    db.commit()
+    return _load_order(db, order.id)
 
 
 def approve_order(db: Session, *, order_id: int, approver: User,
                   reason: str, line_overrides: Optional[Dict[int, int]],
                   allow_negative: bool, source: str = "api") -> Order:
-    order = (db.query(Order).options(joinedload(Order.lines))
-            .filter_by(id=order_id).first())
-    if not order:
-        raise OrderError("Order not found.", status.HTTP_404_NOT_FOUND)
+    order = _load_order(db, order_id)
     if order.status != "pending":
         raise OrderError(f"Order is already {order.status}, not pending.")
-
-    # allow_negative is a privileged escape hatch — only an admin may use
-    # it, even though an 'approver' can approve orders normally.
+    missing = incomplete_reasons(order)
+    if missing:
+        raise OrderError("Complete this order before approval: " + "; ".join(missing) + ".")
     if allow_negative and not approver.has_role("admin"):
         raise OrderError("Only an admin can approve with allow_negative.",
-                        status.HTTP_403_FORBIDDEN)
+                         status.HTTP_403_FORBIDDEN)
 
     line_overrides = line_overrides or {}
-    old_status = order.status
-
-    # ---- Pass 1: validate every line BEFORE mutating anything -----------
-    planned = []   # (line, item, approved_qty)
+    planned = []
     for line in order.lines:
-        item = db.query(Item).filter_by(id=line.item_id).first()
-        if not item:
-            raise OrderError(f"Item {line.item_id} no longer exists.")
+        item = line.item
         approved_qty = line_overrides.get(line.item_id, line.qty_requested)
         if approved_qty < 0 or approved_qty > line.qty_requested:
             raise OrderError(
-                f"Approved qty for item {item.code} must be between 0 "
-                f"and the requested {line.qty_requested}.")
-        resulting_stock = item.qty_on_hand - approved_qty
-        if resulting_stock < 0 and not allow_negative:
+                f"Approved qty for item {item.code} must be between 0 and "
+                f"the requested {line.qty_requested}.")
+        if item.qty_on_hand - approved_qty < 0 and not allow_negative:
             raise OrderError(
                 f"Not enough stock for {item.code}: has {item.qty_on_hand}, "
-                f"needs {approved_qty}. Restock first, reduce the approved "
-                f"quantity, or reject this order.")
+                f"needs {approved_qty}.")
         planned.append((line, item, approved_qty))
 
-    # ---- Pass 2: everything validated — now actually apply it ------------
     for line, item, approved_qty in planned:
         line.qty_approved = approved_qty
-        if approved_qty > 0:
+        if approved_qty:
             item.qty_on_hand -= approved_qty
             db.add(InventoryTransaction(
                 item_id=item.id, delta=-approved_qty,
                 reason=f"Order #{order.id} approved", source=source,
                 user_id=approver.id))
-
     order.status = "approved"
     db.add(Approval(order_id=order.id, approver_user_id=approver.id,
                     decision="approved", reason=reason))
     log_action(db, user_id=approver.id, action="order.approve",
-              object_type="order", object_id=order.id,
-              old_value={"status": old_status},
-              new_value={"status": "approved",
-                         "lines": [{"item_id": p[1].id, "qty": p[2]}
-                                   for p in planned]},
-              source=source)
+               object_type="order", object_id=order.id,
+               old_value={"status": "pending"},
+               new_value={"status": "approved",
+                          "lines": [{"item_id": p[1].id, "qty": p[2]}
+                                    for p in planned]}, source=source)
     db.commit()
-    db.refresh(order)
-    return order
+    return _load_order(db, order.id)
 
 
 def reject_order(db: Session, *, order_id: int, approver: User, reason: str,
                  source: str = "api") -> Order:
-    order = db.query(Order).filter_by(id=order_id).first()
-    if not order:
-        raise OrderError("Order not found.", status.HTTP_404_NOT_FOUND)
+    order = _load_order(db, order_id)
     if order.status != "pending":
         raise OrderError(f"Order is already {order.status}, not pending.")
-
-    old_status = order.status
     order.status = "rejected"
     db.add(Approval(order_id=order.id, approver_user_id=approver.id,
                     decision="rejected", reason=reason))
     log_action(db, user_id=approver.id, action="order.reject",
-              object_type="order", object_id=order.id,
-              old_value={"status": old_status},
-              new_value={"status": "rejected", "reason": reason},
-              source=source)
+               object_type="order", object_id=order.id,
+               old_value={"status": "pending"},
+               new_value={"status": "rejected", "reason": reason},
+               source=source)
     db.commit()
-    db.refresh(order)
-    return order
+    return _load_order(db, order.id)
 
 
-def to_order_out(order: Order):
-    """Build the API-facing shape for one order, with its lines resolved
-    to item code/name (the frontend shouldn't need a second round-trip
-    just to show what was ordered)."""
-    from backend.schemas.schemas import OrderOut, OrderLineOut, ProjectOut
+def start_picking(db: Session, *, order_id: int, actor: User,
+                  source: str = "admin_app") -> Order:
+    order = _load_order(db, order_id)
+    if order.status != "approved":
+        raise OrderError("Only an approved order can be marked as being picked.")
+    order.status = "picking"
+    order.picking_started_at = datetime.now(timezone.utc)
+    log_action(db, user_id=actor.id, action="order.pick_start",
+               object_type="order", object_id=order.id,
+               old_value={"status": "approved"},
+               new_value={"status": "picking"}, source=source)
+    db.commit()
+    return _load_order(db, order.id)
+
+
+def fulfill_order(db: Session, *, order_id: int, actor: User,
+                  tracking_numbers: list[str], photos: list[tuple[str, str, bytes]],
+                  source: str = "admin_app") -> Order:
+    order = _load_order(db, order_id)
+    if order.status != "picking":
+        raise OrderError("Start picking this order before marking it done.")
+    tracking = [" ".join((number or "").split()) for number in tracking_numbers]
+    tracking = [number for number in tracking if number]
+    if not tracking:
+        raise OrderError("At least one tracking number is required.")
+    if not photos:
+        raise OrderError("At least one completion photo is required.")
+    for filename, content_type, content in photos:
+        if content_type not in ALLOWED_PROOF_TYPES:
+            raise OrderError("Proof photos must be JPG, PNG, GIF, or WebP.")
+        if not content or len(content) > MAX_PROOF_IMAGE_BYTES:
+            raise OrderError("Each proof photo must be between 1 byte and 10 MB.")
+
+    order.tracking_numbers.clear()
+    order.proof_photos.clear()
+    db.flush()
+    for number in tracking:
+        db.add(OrderTracking(order_id=order.id, tracking_number=number))
+    for filename, content_type, content in photos:
+        db.add(OrderProofPhoto(order_id=order.id,
+                               filename=(filename or "proof.jpg")[:255],
+                               content_type=content_type, content=content))
+    order.status = "fulfilled"
+    order.fulfilled_at = datetime.now(timezone.utc)
+    log_action(db, user_id=actor.id, action="order.fulfill",
+               object_type="order", object_id=order.id,
+               old_value={"status": "picking"},
+               new_value={"status": "fulfilled", "tracking": tracking,
+                          "photo_count": len(photos)}, source=source)
+    db.commit()
+    return _load_order(db, order.id)
+
+
+def to_order_out(order: Order) -> OrderOut:
+    project_out = ProjectOut.model_validate(order.project) if order.project else None
+    reasons = incomplete_reasons(order)
     return OrderOut(
         id=order.id, status=order.status,
-        requester=order.requester.username,
+        requester=order.requester.full_name or order.requester.username,
         project=order.project.name if order.project else None,
-        project_id=order.project_id,
-        project_details=(ProjectOut.model_validate(order.project)
-                         if order.project else None),
-        notes=order.notes,
-        created_at=order.created_at, updated_at=order.updated_at,
-        lines=[OrderLineOut(id=l.id, item_id=l.item_id,
-                            item_code=l.item.code, item_name=l.item.name,
-                            qty_requested=l.qty_requested,
-                            qty_approved=l.qty_approved)
-               for l in order.lines],
+        project_id=order.project_id, project_details=project_out,
+        notes=order.notes or "", created_at=order.created_at,
+        updated_at=order.updated_at,
+        picking_started_at=order.picking_started_at,
+        fulfilled_at=order.fulfilled_at,
+        incomplete=bool(reasons), incomplete_reasons=reasons,
+        can_self_edit=order.status == "pending",
+        tracking_numbers=[row.tracking_number for row in order.tracking_numbers],
+        proof_photo_ids=[row.id for row in order.proof_photos],
+        lines=[OrderLineOut(
+            id=line.id, item_id=line.item_id,
+            item_code=line.item.code if line.item else str(line.item_id),
+            item_name=line.item.name if line.item else "Deleted item",
+            qty_requested=line.qty_requested,
+            qty_estimated=bool(line.qty_estimated),
+            qty_approved=line.qty_approved,
+        ) for line in order.lines],
     )

@@ -1,21 +1,19 @@
-"""
-admin_app/app/views/orders_view.py — the Pending Orders tab.
-
-Self-contained ttk.Frame: give it a parent and an ApiClient and it runs.
-Designed to be lifted into another app's Notebook unchanged (the OpsDeck
-plan) — it owns its background poll thread and cleans it up on destroy.
-
-Threading rule used throughout: network calls happen in worker threads;
-every UI mutation is marshalled back with self.after(0, ...). Tkinter is
-not thread-safe and quietly corrupts state if you touch widgets from a
-worker.
-"""
+"""Order queue and history, including picking and completion proof."""
 import threading
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 
 from . import theme
+from .widgets import SpinnerLabel, fade_in
 from ..services.api_client import ApiClient, ApiError, SessionExpired
+
+STATUS_OPTIONS = ["all", "pending", "approved", "picking", "fulfilled", "rejected"]
+STATE_CODES = [
+    "AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL",
+    "IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE",
+    "NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","PR","RI","SC",
+    "SD","TN","TX","UT","VT","VA","VI","WA","WV","WI","WY",
+]
 
 
 class OrdersView(ttk.Frame):
@@ -24,258 +22,310 @@ class OrdersView(ttk.Frame):
         self.api = api
         self.orders: list[dict] = []
         self.selected_order: dict | None = None
-        self._poll_thread: threading.Thread | None = None
+        self._qty_vars: dict[int, tk.IntVar] = {}
         self._poll_stop = threading.Event()
         self._since: str | None = None
-
         self._build()
         self.refresh()
         self._start_polling()
         self.bind("<Destroy>", self._on_destroy)
 
-    # ---- UI ------------------------------------------------------------------
     def _build(self):
         self.columnconfigure(0, weight=3)
         self.columnconfigure(1, weight=2)
         self.rowconfigure(1, weight=1)
 
         top = ttk.Frame(self)
-        top.grid(row=0, column=0, columnspan=2, sticky="ew", padx=12, pady=(12, 6))
-        ttk.Label(top, text="PENDING ORDERS", style="Head.TLabel").pack(side="left")
+        top.grid(row=0, column=0, columnspan=2, sticky="ew", padx=12,
+                 pady=(12, 6))
+        ttk.Label(top, text="ORDERS", style="Head.TLabel").pack(side="left")
         self.count_lbl = ttk.Label(top, text="", style="Muted.TLabel")
         self.count_lbl.pack(side="left", padx=10)
+        self.spinner = SpinnerLabel(top, text="Loading", style="Muted.TLabel")
+        self.spinner.pack(side="left")
         ttk.Button(top, text="Refresh", command=self.refresh).pack(side="right")
-        self.live_lbl = ttk.Label(top, text="● live", style="Muted.TLabel")
-        self.live_lbl.pack(side="right", padx=8)
+        self.status_var = tk.StringVar(value="all")
+        status = ttk.Combobox(top, textvariable=self.status_var,
+                              values=STATUS_OPTIONS, width=12, state="readonly")
+        status.pack(side="right", padx=8)
+        status.bind("<<ComboboxSelected>>", lambda e: self.refresh())
+        ttk.Label(top, text="Status", style="Muted.TLabel").pack(side="right")
 
-        # left: order list
         left = ttk.Frame(self)
         left.grid(row=1, column=0, sticky="nsew", padx=(12, 6), pady=(0, 12))
         left.rowconfigure(0, weight=1)
         left.columnconfigure(0, weight=1)
-
-        cols = ("id", "requester", "project", "lines", "created")
+        cols = ("id", "status", "ready", "requester", "project", "created")
         self.tree = ttk.Treeview(left, columns=cols, show="headings",
                                  selectmode="browse")
-        headings = {"id": ("#", 50), "requester": ("Requester", 110),
-                    "project": ("Project / Event", 170),
-                    "lines": ("Lines", 60), "created": ("Created", 130)}
-        for c, (label, width) in headings.items():
-            self.tree.heading(c, text=label)
-            self.tree.column(c, width=width, anchor="w")
+        headings = {
+            "id": ("#", 50), "status": ("Status", 90),
+            "ready": ("Info", 90), "requester": ("Requester", 110),
+            "project": ("Project / Event", 190), "created": ("Created", 125),
+        }
+        for col, (label, width) in headings.items():
+            self.tree.heading(col, text=label)
+            self.tree.column(col, width=width, anchor="w")
         self.tree.grid(row=0, column=0, sticky="nsew")
         sb = ttk.Scrollbar(left, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=sb.set)
         sb.grid(row=0, column=1, sticky="ns")
+        self.tree.configure(yscrollcommand=sb.set)
+        self.tree.tag_configure("incomplete", foreground=theme.RUST)
+        self.tree.tag_configure("fulfilled", foreground=theme.OK)
         self.tree.bind("<<TreeviewSelect>>", self._on_select)
 
-        # right: detail / decision pane
         right = ttk.Frame(self, style="Surface.TFrame")
         right.grid(row=1, column=1, sticky="nsew", padx=(6, 12), pady=(0, 12))
         right.columnconfigure(0, weight=1)
-        right.rowconfigure(2, weight=1)
-        self.detail = right
-
+        right.rowconfigure(3, weight=1)
         self.detail_head = ttk.Label(right, text="Select an order",
                                      style="Surface.TLabel", font=theme.FONT_HEAD)
-        self.detail_head.grid(row=0, column=0, sticky="w", padx=14, pady=(14, 2))
+        self.detail_head.grid(row=0, column=0, sticky="w", padx=14,
+                              pady=(14, 2))
+        self.status_lbl = ttk.Label(right, text="", style="SurfaceMuted.TLabel")
+        self.status_lbl.grid(row=1, column=0, sticky="w", padx=14)
         self.detail_sub = ttk.Label(right, text="", style="SurfaceMuted.TLabel",
                                     wraplength=460, justify="left")
-        self.detail_sub.grid(row=1, column=0, sticky="w", padx=14)
+        self.detail_sub.grid(row=2, column=0, sticky="w", padx=14, pady=(4, 2))
 
-        # lines area (scrollable canvas holding per-line qty spinboxes)
-        lines_wrap = ttk.Frame(right, style="Surface.TFrame")
-        lines_wrap.grid(row=2, column=0, sticky="nsew", padx=14, pady=8)
-        lines_wrap.columnconfigure(0, weight=1)
-        lines_wrap.rowconfigure(0, weight=1)
-        self.lines_canvas = tk.Canvas(lines_wrap, bg=theme.SURFACE,
-                                      highlightthickness=0)
-        self.lines_canvas.grid(row=0, column=0, sticky="nsew")
-        lines_sb = ttk.Scrollbar(lines_wrap, orient="vertical",
-                                 command=self.lines_canvas.yview)
-        lines_sb.grid(row=0, column=1, sticky="ns")
-        self.lines_canvas.configure(yscrollcommand=lines_sb.set)
-        self.lines_inner = ttk.Frame(self.lines_canvas, style="Surface.TFrame")
-        self._lines_window = self.lines_canvas.create_window(
-            (0, 0), window=self.lines_inner, anchor="nw")
-        self.lines_inner.bind("<Configure>", lambda e: self.lines_canvas.configure(
-            scrollregion=self.lines_canvas.bbox("all")))
-        self.lines_canvas.bind("<Configure>", lambda e: self.lines_canvas.itemconfigure(
-            self._lines_window, width=e.width))
+        wrap = ttk.Frame(right, style="Surface.TFrame")
+        wrap.grid(row=3, column=0, sticky="nsew", padx=14, pady=8)
+        wrap.rowconfigure(0, weight=1)
+        wrap.columnconfigure(0, weight=1)
+        self.canvas = tk.Canvas(wrap, bg=theme.SURFACE, highlightthickness=0)
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        sb2 = ttk.Scrollbar(wrap, orient="vertical", command=self.canvas.yview)
+        sb2.grid(row=0, column=1, sticky="ns")
+        self.canvas.configure(yscrollcommand=sb2.set)
+        self.lines_inner = ttk.Frame(self.canvas, style="Surface.TFrame")
+        self._window = self.canvas.create_window((0, 0), window=self.lines_inner,
+                                                  anchor="nw")
+        self.lines_inner.bind("<Configure>", lambda e: self.canvas.configure(
+            scrollregion=self.canvas.bbox("all")))
+        self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfigure(
+            self._window, width=e.width))
 
-        # decision area
-        dec = ttk.Frame(right, style="Surface.TFrame")
-        dec.grid(row=3, column=0, sticky="ew", padx=14, pady=(4, 14))
-        dec.columnconfigure(1, weight=1)
-        ttk.Label(dec, text="Reason", style="SurfaceMuted.TLabel").grid(
-            row=0, column=0, sticky="w")
+        controls = ttk.Frame(right, style="Surface.TFrame")
+        controls.grid(row=4, column=0, sticky="ew", padx=14, pady=(4, 14))
         self.reason_var = tk.StringVar()
-        self.reason_entry = ttk.Entry(dec, textvariable=self.reason_var)
-        self.reason_entry.grid(row=0, column=1, sticky="ew", padx=(8, 0))
-        ttk.Label(dec, text="Optional for approve — required for reject.",
-                  style="SurfaceMuted.TLabel").grid(
-            row=1, column=0, columnspan=2, sticky="w", pady=(2, 8))
-        btns = ttk.Frame(dec, style="Surface.TFrame")
-        btns.grid(row=2, column=0, columnspan=2, sticky="ew")
+        self.reason_entry = ttk.Entry(controls, textvariable=self.reason_var)
+        self.reason_entry.pack(fill="x", pady=(0, 8))
+        self.reason_entry.insert(0, "")
+        btns = ttk.Frame(controls, style="Surface.TFrame")
+        btns.pack(fill="x")
+        self.edit_btn = ttk.Button(btns, text="Edit…", command=self._edit_dialog,
+                                   state="disabled")
+        self.edit_btn.pack(side="left")
         self.approve_btn = ttk.Button(btns, text="Approve",
                                       style="Primary.TButton",
                                       command=self._approve, state="disabled")
-        self.approve_btn.pack(side="left")
+        self.approve_btn.pack(side="left", padx=(8, 0))
         self.reject_btn = ttk.Button(btns, text="Reject",
                                      style="Danger.TButton",
                                      command=self._reject, state="disabled")
-        self.reject_btn.pack(side="left", padx=8)
+        self.reject_btn.pack(side="left", padx=(8, 0))
+        self.pick_btn = ttk.Button(btns, text="Pick Order",
+                                   style="Primary.TButton",
+                                   command=self._pick, state="disabled")
+        self.pick_btn.pack(side="left", padx=(8, 0))
+        self.done_btn = ttk.Button(btns, text="Mark Done…",
+                                   style="Primary.TButton",
+                                   command=self._done_dialog, state="disabled")
+        self.done_btn.pack(side="left", padx=(8, 0))
 
-        self._qty_vars: dict[int, tk.IntVar] = {}   # item_id -> approved qty
-
-    # ---- data ---------------------------------------------------------------
     def refresh(self):
+        self.spinner.start("Loading orders")
+        status_filter = self.status_var.get()
+
         def work():
             try:
-                orders = self.api.pending_orders()
+                orders = self.api.all_orders(status_filter)
             except SessionExpired:
                 return
-            except ApiError as e:
-                self.after(0, lambda: theme.show_error(self, "Load failed", str(e)))
+            except ApiError as exc:
+                self.after(0, lambda: self._load_failed(exc))
                 return
             self.after(0, lambda: self._set_orders(orders))
         threading.Thread(target=work, daemon=True).start()
 
-    def _set_orders(self, orders: list[dict]):
+    def _load_failed(self, exc):
+        self.spinner.stop()
+        theme.show_error(self, "Load failed", str(exc))
+
+    def _set_orders(self, orders):
         if not self.winfo_exists():
             return
+        self.spinner.stop()
+        keep = self.selected_order["id"] if self.selected_order else None
         self.orders = orders
-        keep_id = self.selected_order["id"] if self.selected_order else None
         self.tree.delete(*self.tree.get_children())
-        for o in orders:
-            created = o["created_at"][:16].replace("T", " ")
-            self.tree.insert("", "end", iid=str(o["id"]), values=(
-                o["id"], o["requester"], o.get("project") or "—",
-                len(o["lines"]), created))
-        self.count_lbl.configure(
-            text=f"{len(orders)} waiting" if orders else "queue is clear")
-        if keep_id is not None and self.tree.exists(str(keep_id)):
-            self.tree.selection_set(str(keep_id))
+        for order in orders:
+            tags = []
+            if order.get("incomplete"):
+                tags.append("incomplete")
+            if order["status"] == "fulfilled":
+                tags.append("fulfilled")
+            self.tree.insert("", "end", iid=str(order["id"]), values=(
+                order["id"], order["status"].upper(),
+                "INCOMPLETE" if order.get("incomplete") else "Ready",
+                order["requester"], order.get("project") or "—",
+                order["created_at"][:16].replace("T", " "),
+            ), tags=tags)
+        self.count_lbl.configure(text=f"{len(orders)} order{'s' if len(orders) != 1 else ''}")
+        if keep is not None and self.tree.exists(str(keep)):
+            self.tree.selection_set(str(keep))
+            self._on_select()
         else:
             self.selected_order = None
             self._show_detail(None)
 
     def _on_select(self, _evt=None):
-        sel = self.tree.selection()
-        if not sel:
+        selection = self.tree.selection()
+        if not selection:
+            self._show_detail(None)
             return
-        oid = int(sel[0])
-        order = next((o for o in self.orders if o["id"] == oid), None)
-        self.selected_order = order
-        self._show_detail(order)
+        oid = int(selection[0])
+        self.selected_order = next((o for o in self.orders if o["id"] == oid), None)
+        self._show_detail(self.selected_order)
 
-    def _show_detail(self, order: dict | None):
-        for w in self.lines_inner.winfo_children():
-            w.destroy()
+    def _show_detail(self, order):
+        for child in self.lines_inner.winfo_children():
+            child.destroy()
         self._qty_vars.clear()
-        self.reason_var.set("")
-
+        for button in (self.edit_btn, self.approve_btn, self.reject_btn,
+                       self.pick_btn, self.done_btn):
+            button.configure(state="disabled")
         if not order:
             self.detail_head.configure(text="Select an order")
+            self.status_lbl.configure(text="")
             self.detail_sub.configure(text="")
-            self.approve_btn.configure(state="disabled")
-            self.reject_btn.configure(state="disabled")
             return
 
         self.detail_head.configure(text=f"Order #{order['id']} — {order['requester']}")
-        sub = order.get("project") or "No project"
+        status_text = order["status"].upper()
+        if order.get("incomplete"):
+            status_text += "  ·  INCOMPLETE: " + "; ".join(order["incomplete_reasons"])
+        self.status_lbl.configure(text=status_text,
+                                  foreground=theme.RUST if order.get("incomplete") else theme.status_color(order["status"]))
         project = order.get("project_details") or {}
-        project_bits = []
-        if project.get("event_date"):
-            project_bits.append(f"Event {project['event_date']}")
-        if project.get("delivery_date"):
-            project_bits.append(f"Deliver {project['delivery_date']}")
-        if project.get("ship_by_date"):
-            project_bits.append(f"SHIP BY {project['ship_by_date']}")
+        bits = []
+        for label, key in (("Event", "event_date"), ("Deliver", "delivery_date"),
+                           ("Ship by", "ship_by_date")):
+            if project.get(key):
+                bits.append(f"{label} {project[key]}")
         if project.get("ups_ground_days"):
-            days = project["ups_ground_days"]
-            project_bits.append(f"UPS Ground {days} business day{'s' if days != 1 else ''}")
-        address = ", ".join(part for part in (
-            project.get("shipping_address1"),
-            project.get("shipping_address2"),
-            " ".join(part for part in (
-                project.get("shipping_city"), project.get("shipping_state"),
-                project.get("shipping_postal_code")) if part),
-        ) if part)
-        if address:
-            project_bits.append(f"Ship to {address}")
-        if project.get("location"):
-            project_bits.append(f"Venue {project['location']}")
-        if project.get("attendees") is not None:
-            project_bits.append(f"{project['attendees']} attendees")
-        if project_bits:
-            sub += "  ·  " + "  ·  ".join(project_bits)
+            bits.append(f"UPS Ground {project['ups_ground_days']} business day(s)")
+        address = ", ".join(filter(None, [
+            project.get("shipping_address1"), project.get("shipping_address2"),
+            " ".join(filter(None, [project.get("shipping_city"),
+                                     project.get("shipping_state"),
+                                     project.get("shipping_postal_code")]))
+        ]))
+        bits.append("Ship to " + address if address else "ADDRESS PENDING")
+        if order.get("tracking_numbers"):
+            bits.append("Tracking: " + ", ".join(order["tracking_numbers"]))
         if order.get("notes"):
-            sub += f'  ·  "{order["notes"]}"'
-        self.detail_sub.configure(text=sub)
+            bits.append('Notes: "' + order["notes"] + '"')
+        self.detail_sub.configure(text="  ·  ".join(bits))
 
         hdr = ttk.Frame(self.lines_inner, style="Surface.TFrame")
-        hdr.pack(fill="x", pady=(6, 2))
+        hdr.pack(fill="x", pady=(4, 3))
         ttk.Label(hdr, text="Item", style="SurfaceMuted.TLabel").pack(side="left")
-        ttk.Label(hdr, text="Approve qty", style="SurfaceMuted.TLabel").pack(side="right")
-
+        ttk.Label(hdr, text="Qty", style="SurfaceMuted.TLabel").pack(side="right")
         for line in order["lines"]:
             row = ttk.Frame(self.lines_inner, style="Surface.TFrame")
             row.pack(fill="x", pady=3)
-            name = ttk.Label(row, text=line["item_name"], style="Surface.TLabel")
-            name.pack(side="left")
-            code = ttk.Label(row, text=f' {line["item_code"]}',
-                             style="SurfaceMuted.TLabel", font=theme.FONT_MONO)
-            code.pack(side="left")
-            var = tk.IntVar(value=line["qty_requested"])
-            self._qty_vars[line["item_id"]] = var
-            spin = ttk.Spinbox(row, from_=0, to=line["qty_requested"],
-                               textvariable=var, width=6)
-            spin.pack(side="right")
-            ttk.Label(row, text=f'of {line["qty_requested"]}  ',
-                      style="SurfaceMuted.TLabel").pack(side="right")
+            label = line["item_name"] + ("  ~ESTIMATED" if line.get("qty_estimated") else "")
+            ttk.Label(row, text=label, style="Surface.TLabel").pack(side="left")
+            ttk.Label(row, text=" " + line["item_code"],
+                      style="SurfaceMuted.TLabel", font=theme.FONT_MONO).pack(side="left")
+            if order["status"] == "pending":
+                var = tk.IntVar(value=line["qty_requested"])
+                self._qty_vars[line["item_id"]] = var
+                spin = ttk.Spinbox(row, from_=0, to=line["qty_requested"],
+                                   textvariable=var, width=6)
+                spin.pack(side="right")
+                ttk.Label(row, text=f"of {line['qty_requested']}  ",
+                          style="SurfaceMuted.TLabel").pack(side="right")
+            else:
+                shown = line["qty_approved"] if line["qty_approved"] is not None else line["qty_requested"]
+                ttk.Label(row, text=str(shown), style="Surface.TLabel",
+                          font=theme.FONT_MONO).pack(side="right")
+        if order.get("proof_photo_ids"):
+            ttk.Label(self.lines_inner,
+                      text=f"Completion proof: {len(order['proof_photo_ids'])} photo(s)",
+                      style="SurfaceMuted.TLabel").pack(anchor="w", pady=(10, 0))
 
-        self.approve_btn.configure(state="normal")
-        self.reject_btn.configure(state="normal")
+        self.edit_btn.configure(state="normal")
+        if order["status"] == "pending":
+            self.reject_btn.configure(state="normal")
+            if not order.get("incomplete"):
+                self.approve_btn.configure(state="normal")
+        elif order["status"] == "approved":
+            self.pick_btn.configure(state="normal")
+        elif order["status"] == "picking":
+            self.done_btn.configure(state="normal")
 
-    # ---- decisions -----------------------------------------------------------
-    def _collect_overrides(self, order: dict) -> dict[int, int] | None:
-        """None means 'approve everything as requested'; a dict means at
-        least one line was cut down."""
+    def _run_action(self, call, success_message):
+        self.spinner.start("Saving")
+        self._set_action_buttons(False)
+
+        def work():
+            try:
+                call()
+            except SessionExpired:
+                return
+            except (ApiError, OSError) as exc:
+                self.after(0, lambda: self._action_failed(exc))
+                return
+            self.after(0, lambda: self._action_done(success_message))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _set_action_buttons(self, enabled):
+        if not enabled:
+            for button in (self.edit_btn, self.approve_btn, self.reject_btn,
+                           self.pick_btn, self.done_btn):
+                button.configure(state="disabled")
+        elif self.selected_order:
+            self._show_detail(self.selected_order)
+
+    def _action_failed(self, exc):
+        self.spinner.stop()
+        self._set_action_buttons(True)
+        theme.show_error(self, "Action failed", str(exc))
+
+    def _action_done(self, message):
+        self.spinner.stop()
+        self.selected_order = None
+        self.refresh()
+        self.event_generate("<<InventoryChanged>>")
+        theme.show_info(self, "Done", message)
+
+    def _collect_overrides(self):
+        order = self.selected_order
+        if not order:
+            return None
         overrides = {}
         for line in order["lines"]:
             var = self._qty_vars.get(line["item_id"])
             if var is None:
                 continue
             try:
-                val = int(var.get())
-            except (tk.TclError, ValueError):
-                val = line["qty_requested"]
-            val = max(0, min(val, line["qty_requested"]))
-            if val != line["qty_requested"]:
-                overrides[line["item_id"]] = val
+                value = max(0, min(int(var.get()), line["qty_requested"]))
+            except (ValueError, tk.TclError):
+                value = line["qty_requested"]
+            if value != line["qty_requested"]:
+                overrides[line["item_id"]] = value
         return overrides or None
 
     def _approve(self):
         order = self.selected_order
         if not order:
             return
-        overrides = self._collect_overrides(order)
-        reason = self.reason_var.get().strip()
-        self._set_buttons(False)
-
-        def work():
-            try:
-                self.api.approve_order(order["id"], reason=reason,
-                                       line_overrides=overrides)
-            except SessionExpired:
-                return
-            except ApiError as e:
-                self.after(0, lambda: self._decision_failed("Approve failed", e))
-                return
-            self.after(0, lambda: self._decision_done(
-                f"Order #{order['id']} approved."))
-        threading.Thread(target=work, daemon=True).start()
+        self._run_action(lambda: self.api.approve_order(
+            order["id"], reason=self.reason_var.get().strip(),
+            line_overrides=self._collect_overrides()),
+            f"Order #{order['id']} approved.")
 
     def _reject(self):
         order = self.selected_order
@@ -283,70 +333,189 @@ class OrdersView(ttk.Frame):
             return
         reason = self.reason_var.get().strip()
         if not reason:
-            theme.show_error(self, "Reason required",
-                             "A rejection needs a reason — the requester "
-                             "sees it on their order.")
-            self.reason_entry.focus_set()
+            theme.show_error(self, "Reason required", "Enter a reason before rejecting.")
             return
-        if not messagebox.askyesno(
-                "Reject order",
-                f"Reject order #{order['id']} from {order['requester']}?",
-                parent=self):
+        if not messagebox.askyesno("Reject order", f"Reject order #{order['id']}?", parent=self):
             return
-        self._set_buttons(False)
+        self._run_action(lambda: self.api.reject_order(order["id"], reason),
+                         f"Order #{order['id']} rejected.")
 
-        def work():
+    def _pick(self):
+        order = self.selected_order
+        if order:
+            self._run_action(lambda: self.api.pick_order(order["id"]),
+                             f"Order #{order['id']} is now being picked.")
+
+    def _done_dialog(self):
+        order = self.selected_order
+        if not order:
+            return
+        win = tk.Toplevel(self)
+        win.title(f"Complete order #{order['id']}")
+        win.configure(bg=theme.PAPER)
+        win.transient(self.winfo_toplevel())
+        win.grab_set()
+        frm = ttk.Frame(win, padding=16)
+        frm.pack(fill="both", expand=True)
+        ttk.Label(frm, text="TRACKING & COMPLETION PROOF",
+                  style="Head.TLabel").pack(anchor="w")
+        ttk.Label(frm, text="At least one tracking number and one photo are required.",
+                  style="Muted.TLabel").pack(anchor="w", pady=(2, 10))
+        tracks_frame = ttk.Frame(frm)
+        tracks_frame.pack(fill="x")
+        track_vars: list[tk.StringVar] = []
+
+        def add_tracking(value=""):
+            row = ttk.Frame(tracks_frame)
+            row.pack(fill="x", pady=2)
+            var = tk.StringVar(value=value)
+            track_vars.append(var)
+            ttk.Entry(row, textvariable=var, width=38).pack(side="left", fill="x", expand=True)
+            ttk.Button(row, text="Remove", command=lambda: (row.destroy(), track_vars.remove(var))).pack(side="left", padx=(6, 0))
+        add_tracking()
+        ttk.Button(frm, text="＋ Add another tracking number", command=add_tracking).pack(anchor="w", pady=6)
+        photos: list[str] = []
+        photo_lbl = ttk.Label(frm, text="No photos selected", style="Muted.TLabel")
+        photo_lbl.pack(anchor="w", pady=(8, 2))
+
+        def choose_photos():
+            selected = filedialog.askopenfilenames(
+                parent=win, title="Choose completion photos",
+                filetypes=[("Images", "*.jpg *.jpeg *.png *.gif *.webp")])
+            if selected:
+                photos[:] = list(selected)
+                photo_lbl.configure(text=f"{len(photos)} photo(s) selected")
+        ttk.Button(frm, text="Choose Photo(s)…", command=choose_photos).pack(anchor="w")
+        err = ttk.Label(frm, text="", style="Muted.TLabel", foreground=theme.RUST)
+        err.pack(anchor="w", pady=(8, 0))
+        buttons = ttk.Frame(frm)
+        buttons.pack(fill="x", pady=(12, 0))
+
+        def submit():
+            tracking = [v.get().strip() for v in track_vars if v.get().strip()]
+            if not tracking:
+                err.configure(text="Add at least one tracking number.")
+                return
+            if not photos:
+                err.configure(text="Choose at least one completion photo.")
+                return
+            win.destroy()
+            self._run_action(lambda: self.api.fulfill_order(order["id"], tracking, photos),
+                             f"Order #{order['id']} completed with tracking proof.")
+        ttk.Button(buttons, text="Cancel", command=win.destroy).pack(side="right")
+        ttk.Button(buttons, text="Mark Done", style="Primary.TButton",
+                   command=submit).pack(side="right", padx=(0, 8))
+        fade_in(win)
+
+    def _edit_dialog(self):
+        order = self.selected_order
+        if not order:
+            return
+        win = tk.Toplevel(self)
+        win.title(f"Edit order #{order['id']}")
+        win.geometry("560x720")
+        win.configure(bg=theme.PAPER)
+        win.transient(self.winfo_toplevel())
+        win.grab_set()
+        canvas = tk.Canvas(win, bg=theme.PAPER, highlightthickness=0)
+        canvas.pack(side="left", fill="both", expand=True)
+        sb = ttk.Scrollbar(win, orient="vertical", command=canvas.yview)
+        sb.pack(side="right", fill="y")
+        canvas.configure(yscrollcommand=sb.set)
+        frm = ttk.Frame(canvas, padding=16)
+        window_id = canvas.create_window((0, 0), window=frm, anchor="nw")
+        frm.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(window_id, width=e.width))
+        project = order.get("project_details") or {}
+        fields = {}
+
+        def field(label, key, value=""):
+            ttk.Label(frm, text=label).pack(anchor="w", pady=(7, 2))
+            var = tk.StringVar(value=value or "")
+            ttk.Entry(frm, textvariable=var).pack(fill="x")
+            fields[key] = var
+        ttk.Label(frm, text=f"EDIT ORDER #{order['id']}", style="Head.TLabel").pack(anchor="w")
+        field("Project / event name", "name", project.get("name") or order.get("project") or "")
+        field("Owner", "owner", project.get("owner"))
+        field("Event date (YYYY-MM-DD)", "event_date", project.get("event_date"))
+        field("Venue / location", "location", project.get("location"))
+        field("Street address", "shipping_address1", project.get("shipping_address1"))
+        field("Suite / floor / attention", "shipping_address2", project.get("shipping_address2"))
+        field("City", "shipping_city", project.get("shipping_city"))
+        ttk.Label(frm, text="State").pack(anchor="w", pady=(7, 2))
+        state_var = tk.StringVar(value=project.get("shipping_state") or "")
+        ttk.Combobox(frm, textvariable=state_var, values=STATE_CODES,
+                     state="readonly").pack(fill="x")
+        fields["shipping_state"] = state_var
+        field("ZIP code", "shipping_postal_code", project.get("shipping_postal_code"))
+        field("Estimated attendees", "attendees",
+              "" if project.get("attendees") is None else str(project.get("attendees")))
+        ttk.Label(frm, text="Notes").pack(anchor="w", pady=(7, 2))
+        notes = tk.Text(frm, height=3, bg=theme.SURFACE2, fg=theme.INK,
+                        insertbackground=theme.INK, relief="flat")
+        notes.pack(fill="x")
+        notes.insert("1.0", order.get("notes") or "")
+        ttk.Label(frm, text="LINE QUANTITIES", style="Head.TLabel").pack(anchor="w", pady=(14, 4))
+        line_vars = []
+        for line in order["lines"]:
+            row = ttk.Frame(frm)
+            row.pack(fill="x", pady=3)
+            ttk.Label(row, text=line["item_name"]).pack(side="left", fill="x", expand=True)
+            estimated = tk.BooleanVar(value=line.get("qty_estimated", False))
+            ttk.Checkbutton(row, text="Estimated", variable=estimated).pack(side="right")
+            qty = tk.StringVar(value=str(line["qty_requested"]))
+            ttk.Entry(row, textvariable=qty, width=7).pack(side="right", padx=6)
+            line_vars.append((line["item_id"], qty, estimated))
+        err = ttk.Label(frm, text="", style="Muted.TLabel", foreground=theme.RUST,
+                        wraplength=500)
+        err.pack(anchor="w", pady=(8, 0))
+        buttons = ttk.Frame(frm)
+        buttons.pack(fill="x", pady=(12, 8))
+
+        def save():
             try:
-                self.api.reject_order(order["id"], reason=reason)
-            except SessionExpired:
+                edit_lines = []
+                for item_id, qty_var, estimated_var in line_vars:
+                    qty = int(qty_var.get().strip())
+                    if qty <= 0:
+                        raise ValueError
+                    edit_lines.append({"item_id": item_id, "qty": qty,
+                                       "estimated": bool(estimated_var.get())})
+                attendees_raw = fields["attendees"].get().strip()
+                attendees = None if attendees_raw == "" else int(attendees_raw)
+                if attendees is not None and attendees < 0:
+                    raise ValueError
+            except ValueError:
+                err.configure(text="Quantities and attendees must be valid whole numbers.")
                 return
-            except ApiError as e:
-                self.after(0, lambda: self._decision_failed("Reject failed", e))
-                return
-            self.after(0, lambda: self._decision_done(
-                f"Order #{order['id']} rejected."))
-        threading.Thread(target=work, daemon=True).start()
+            project_body = {key: var.get().strip() for key, var in fields.items()
+                            if key != "attendees"}
+            project_body["attendees"] = attendees
+            body = {"notes": notes.get("1.0", "end").strip(),
+                    "project": project_body, "lines": edit_lines}
+            win.destroy()
+            self._run_action(lambda: self.api.edit_order(order["id"], body),
+                             f"Order #{order['id']} updated.")
+        ttk.Button(buttons, text="Cancel", command=win.destroy).pack(side="right")
+        ttk.Button(buttons, text="Save Changes", style="Primary.TButton",
+                   command=save).pack(side="right", padx=(0, 8))
+        fade_in(win)
 
-    def _decision_done(self, msg: str):
-        if not self.winfo_exists():
-            return
-        self._set_buttons(True)
-        self.selected_order = None
-        self.refresh()
-        self.event_generate("<<InventoryChanged>>")
-        theme.show_info(self, "Done", msg)
-
-    def _decision_failed(self, title: str, err: ApiError):
-        if not self.winfo_exists():
-            return
-        self._set_buttons(True)
-        theme.show_error(self, title, str(err))
-
-    def _set_buttons(self, enabled: bool):
-        state = "normal" if enabled else "disabled"
-        self.approve_btn.configure(state=state)
-        self.reject_btn.configure(state=state)
-
-    # ---- live polling ----------------------------------------------------------
     def _start_polling(self):
         def loop():
             while not self._poll_stop.is_set():
                 try:
-                    res = self.api.pending_orders_updates(self._since)
-                    self._since = res["server_time"]
-                    if res["orders"] and not self._poll_stop.is_set():
-                        # something changed in the pending set: reload the
-                        # full list (changes can also mean an order LEFT
-                        # the pending set, which the delta doesn't say)
+                    result = self.api.pending_orders_updates(self._since)
+                    self._since = result["server_time"]
+                    if result.get("orders") and not self._poll_stop.is_set():
                         self.after(0, self.refresh)
                 except SessionExpired:
                     return
                 except ApiError:
                     if self._poll_stop.wait(4.0):
                         return
-        self._poll_thread = threading.Thread(target=loop, daemon=True)
-        self._poll_thread.start()
+        threading.Thread(target=loop, daemon=True).start()
 
-    def _on_destroy(self, evt):
-        if evt.widget is self:
+    def _on_destroy(self, event):
+        if event.widget is self:
             self._poll_stop.set()
