@@ -37,7 +37,7 @@ try:
 finally:
     _legacy_db.close()
 
-APP_BUILD = "5.7.1-render-fix"
+APP_BUILD = "5.8.0-full-queue"
 
 app = FastAPI(
     title="Oti-Warehouse Swag API",

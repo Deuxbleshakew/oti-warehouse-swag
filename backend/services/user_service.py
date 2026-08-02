@@ -3,9 +3,9 @@ backend/services/user_service.py — admin user management.
 """
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from datetime import datetime, timezone
 
-from backend.models.models import (User, Role, Order, Approval,
-                                    InventoryTransaction, AuditLog, CountRequest)
+from backend.models.models import User, Role
 from backend.auth.security import hash_password
 from backend.services.audit_service import log_action
 
@@ -67,27 +67,34 @@ def update_user(db: Session, *, user_id: int, full_name=None, active=None,
 
 
 def delete_user(db: Session, *, user_id: int, actor: User, source="api") -> None:
+    """History-preserving deletion.
+
+    Foreign-key history remains attributable, but the account disappears from
+    user management, cannot authenticate, and its former username becomes
+    available for reuse.
+    """
     if user_id == actor.id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             "You cannot delete the account you are currently using.")
     user = db.query(User).filter_by(id=user_id).first()
-    if not user:
+    if not user or user.deleted_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found.")
-    history_checks = (
-        db.query(Order.id).filter_by(requester_user_id=user_id).first(),
-        db.query(Approval.id).filter_by(approver_user_id=user_id).first(),
-        db.query(InventoryTransaction.id).filter_by(user_id=user_id).first(),
-        db.query(AuditLog.id).filter_by(user_id=user_id).first(),
-        db.query(CountRequest.id).filter_by(requester_user_id=user_id).first(),
-        db.query(CountRequest.id).filter_by(resolved_by_user_id=user_id).first(),
-    )
-    if any(history_checks):
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            "This user has order, approval, inventory, recount, or audit history "
-            "and cannot be deleted. Turn off Active instead to preserve records.")
-    old = {"username": user.username, "full_name": user.full_name}
-    db.delete(user)
+    now = datetime.now(timezone.utc)
+    old = {"username": user.username, "full_name": user.full_name,
+           "roles": [role.name for role in user.roles]}
+    original_label = user.full_name or user.username
+    suffix = now.strftime("%Y%m%d%H%M%S")
+    user.username = (f"deleted-{user.id}-{suffix}")[:60]
+    user.full_name = (f"{original_label} [Deleted User]")[:120]
+    user.password_hash = "!deleted-account-no-login!"
+    user.active = False
+    user.deleted_at = now
+    user.roles = []
+    for session in user.sessions:
+        session.revoked = True
     log_action(db, user_id=actor.id, action="user.delete", object_type="user",
-               object_id=user_id, old_value=old, source=source)
+               object_id=user_id, old_value=old,
+               new_value={"deleted": True, "historical_label": user.full_name},
+               source=source)
     db.commit()
+

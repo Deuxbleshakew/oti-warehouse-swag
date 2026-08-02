@@ -28,9 +28,16 @@ def _table_columns_for_dialect(dialect_name: str) -> dict[str, dict[str, str]]:
             "ups_ground_days": "INTEGER",
             "ship_by_date": "VARCHAR(20) DEFAULT ''",
         },
+        "users": {
+            "deleted_at": datetime_type,
+        },
+        "items": {
+            "deleted_at": datetime_type,
+        },
         "orders": {
             "picking_started_at": datetime_type,
             "fulfilled_at": datetime_type,
+            "deleted_at": datetime_type,
         },
         "order_lines": {
             "qty_estimated": (
@@ -44,7 +51,7 @@ def _table_columns_for_dialect(dialect_name: str) -> dict[str, dict[str, str]]:
 
 
 def ensure_additive_columns(engine) -> None:
-    """Add missing v5.7 columns without rewriting or deleting existing data."""
+    """Add missing workflow columns without rewriting or deleting existing data."""
     wanted_columns = _table_columns_for_dialect(engine.dialect.name)
 
     with engine.begin() as connection:

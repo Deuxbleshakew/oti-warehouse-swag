@@ -1,7 +1,7 @@
 """Browsable and editable inventory adjustment history."""
 import threading
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 
 from . import theme
 from .widgets import SpinnerLabel, fade_in
@@ -27,6 +27,10 @@ class InventoryHistoryView(ttk.Frame):
         self.spinner = SpinnerLabel(top, text="Loading", style="Muted.TLabel")
         self.spinner.pack(side="left")
         ttk.Button(top, text="Refresh", command=self.refresh).pack(side="right")
+        self.delete_btn = ttk.Button(top, text="Delete Entry",
+                                     style="Danger.TButton",
+                                     command=self._delete, state="disabled")
+        self.delete_btn.pack(side="right", padx=6)
         self.edit_btn = ttk.Button(top, text="Edit Entry…", command=self._edit,
                                    state="disabled")
         self.edit_btn.pack(side="right", padx=6)
@@ -54,8 +58,7 @@ class InventoryHistoryView(ttk.Frame):
         self.tree.configure(yscrollcommand=sb.set)
         self.tree.tag_configure("negative", foreground=theme.RUST)
         self.tree.tag_configure("positive", foreground=theme.OK)
-        self.tree.bind("<<TreeviewSelect>>", lambda e: self.edit_btn.configure(
-            state="normal" if self.tree.selection() else "disabled"))
+        self.tree.bind("<<TreeviewSelect>>", self._selection_changed)
         self.tree.bind("<Double-1>", lambda e: self._edit())
 
     def refresh(self):
@@ -97,6 +100,48 @@ class InventoryHistoryView(ttk.Frame):
             return None
         txid = int(selected[0])
         return next((row for row in self.rows if row["id"] == txid), None)
+
+
+    def _selection_changed(self, _event=None):
+        state = "normal" if self.tree.selection() else "disabled"
+        self.edit_btn.configure(state=state)
+        self.delete_btn.configure(state=state)
+
+    def _delete(self):
+        row = self._selected()
+        if not row:
+            return
+        order_generated = (row.get("reason") or "").strip().lower().startswith("order #")
+        stock_note = (
+            "Current stock will stay unchanged because this line came from an order."
+            if order_generated else
+            f"Deleting it will reverse the {row['delta']:+d} adjustment on current stock."
+        )
+        if not messagebox.askyesno(
+                "Delete inventory entry",
+                f"Delete entry #{row['id']}?\n\n"
+                f"{row['item_code']} · {row['item_name']}\n"
+                f"Change: {row['delta']:+d}\nReason: {row['reason']}\n"
+                f"Date: {row['created_at'][:16].replace('T', ' ')}\n"
+                f"User: {row.get('user') or '—'}\n\n{stock_note}", parent=self):
+            return
+        self.spinner.start("Deleting entry")
+        self.edit_btn.configure(state="disabled")
+        self.delete_btn.configure(state="disabled")
+
+        def work():
+            try:
+                self.api.delete_inventory_transaction(row["id"])
+            except SessionExpired:
+                return
+            except ApiError as exc:
+                self.after(0, lambda: (self.spinner.stop(),
+                                       theme.show_error(self, "Delete failed", str(exc)),
+                                       self._selection_changed()))
+                return
+            self.after(0, lambda: (self.refresh(),
+                                   self.event_generate("<<InventoryChanged>>")))
+        threading.Thread(target=work, daemon=True).start()
 
     def _edit(self):
         row = self._selected()

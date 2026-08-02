@@ -1,6 +1,12 @@
 """Order queue and history, including picking and completion proof."""
 import threading
 import tkinter as tk
+import html
+import re
+import tempfile
+import webbrowser
+from datetime import datetime
+from pathlib import Path
 from tkinter import ttk, messagebox, filedialog
 
 from . import theme
@@ -116,6 +122,10 @@ class OrdersView(ttk.Frame):
         self.edit_btn = ttk.Button(btns, text="Edit…", command=self._edit_dialog,
                                    state="disabled")
         self.edit_btn.pack(side="left")
+        self.delete_btn = ttk.Button(btns, text="Delete Order",
+                                     style="Danger.TButton",
+                                     command=self._delete_order, state="disabled")
+        self.delete_btn.pack(side="left", padx=(8, 0))
         self.approve_btn = ttk.Button(btns, text="Approve",
                                       style="Primary.TButton",
                                       command=self._approve, state="disabled")
@@ -128,6 +138,9 @@ class OrdersView(ttk.Frame):
                                    style="Primary.TButton",
                                    command=self._pick, state="disabled")
         self.pick_btn.pack(side="left", padx=(8, 0))
+        self.print_btn = ttk.Button(btns, text="Print Pick Slip",
+                                    command=self._print_pick_slip, state="disabled")
+        self.print_btn.pack(side="left", padx=(8, 0))
         self.done_btn = ttk.Button(btns, text="Mark Done…",
                                    style="Primary.TButton",
                                    command=self._done_dialog, state="disabled")
@@ -192,8 +205,8 @@ class OrdersView(ttk.Frame):
         for child in self.lines_inner.winfo_children():
             child.destroy()
         self._qty_vars.clear()
-        for button in (self.edit_btn, self.approve_btn, self.reject_btn,
-                       self.pick_btn, self.done_btn):
+        for button in (self.edit_btn, self.delete_btn, self.approve_btn, self.reject_btn,
+                       self.pick_btn, self.print_btn, self.done_btn):
             button.configure(state="disabled")
         if not order:
             self.detail_head.configure(text="Select an order")
@@ -257,6 +270,8 @@ class OrdersView(ttk.Frame):
                       style="SurfaceMuted.TLabel").pack(anchor="w", pady=(10, 0))
 
         self.edit_btn.configure(state="normal")
+        if self.api.has_role("admin"):
+            self.delete_btn.configure(state="normal")
         if order["status"] == "pending":
             self.reject_btn.configure(state="normal")
             if not order.get("incomplete"):
@@ -264,7 +279,10 @@ class OrdersView(ttk.Frame):
         elif order["status"] == "approved":
             self.pick_btn.configure(state="normal")
         elif order["status"] == "picking":
+            self.print_btn.configure(state="normal")
             self.done_btn.configure(state="normal")
+        elif order["status"] == "fulfilled":
+            self.print_btn.configure(state="normal")
 
     def _run_action(self, call, success_message):
         self.spinner.start("Saving")
@@ -283,8 +301,8 @@ class OrdersView(ttk.Frame):
 
     def _set_action_buttons(self, enabled):
         if not enabled:
-            for button in (self.edit_btn, self.approve_btn, self.reject_btn,
-                           self.pick_btn, self.done_btn):
+            for button in (self.edit_btn, self.delete_btn, self.approve_btn, self.reject_btn,
+                           self.pick_btn, self.print_btn, self.done_btn):
                 button.configure(state="disabled")
         elif self.selected_order:
             self._show_detail(self.selected_order)
@@ -342,9 +360,137 @@ class OrdersView(ttk.Frame):
 
     def _pick(self):
         order = self.selected_order
-        if order:
-            self._run_action(lambda: self.api.pick_order(order["id"]),
-                             f"Order #{order['id']} is now being picked.")
+        if not order:
+            return
+        self.spinner.start("Starting pick")
+        self._set_action_buttons(False)
+
+        def work():
+            try:
+                picked = self.api.pick_order(order["id"])
+            except SessionExpired:
+                return
+            except ApiError as exc:
+                self.after(0, lambda: self._action_failed(exc))
+                return
+            self.after(0, lambda: self._pick_done(picked))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _pick_done(self, order):
+        self.spinner.stop()
+        try:
+            self._open_pick_slip(order)
+        except OSError as exc:
+            theme.show_error(self, "Pick slip", f"Order started, but the pick slip could not open: {exc}")
+        self.selected_order = None
+        self.refresh()
+        theme.show_info(self, "Pick started",
+                        f"Order #{order['id']} is being picked. The location-sorted pick slip opened for printing.")
+
+    @staticmethod
+    def _location_key(line):
+        location = (line.get("item_location") or "").strip()
+        if not location:
+            return (1, [])
+        parts = [int(part) if part.isdigit() else part.lower()
+                 for part in re.split(r"(\d+)", location)]
+        return (0, parts)
+
+    def _open_pick_slip(self, order):
+        project = order.get("project_details") or {}
+        lines = sorted(order.get("lines") or [], key=self._location_key)
+        picker = (self.api.user or {}).get("full_name") or (self.api.user or {}).get("username") or ""
+        street = ", ".join(filter(None, [project.get("shipping_address1"),
+                                          project.get("shipping_address2")]))
+        city = " ".join(filter(None, [project.get("shipping_city"),
+                                       project.get("shipping_state"),
+                                       project.get("shipping_postal_code")]))
+        address = ", ".join(filter(None, [street, city])) or "ADDRESS PENDING"
+        rows = []
+        missing_started = False
+        for line in lines:
+            has_location = bool((line.get("item_location") or "").strip())
+            if not has_location and not missing_started:
+                rows.append("<tr class='section'><td colspan='5'>LOCATION MISSING</td></tr>")
+                missing_started = True
+            qty = line.get("qty_approved")
+            if qty is None:
+                qty = line.get("qty_requested")
+            location = (line.get("item_location") or "").strip() or "LOCATION MISSING"
+            estimated = ' <span class="est">EST.</span>' if line.get("qty_estimated") else ""
+            rows.append(
+                "<tr>"
+                f"<td class='check'>□</td><td class='loc'>{html.escape(location)}</td>"
+                f"<td class='code'>{html.escape(str(line.get('item_code') or ''))}</td>"
+                f"<td>{html.escape(str(line.get('item_name') or ''))}{estimated}</td>"
+                f"<td class='qty'>{html.escape(str(qty))}</td>"
+                "</tr>")
+        document = f'''<!doctype html><html><head><meta charset="utf-8">
+<title>Pick Slip Order {order['id']}</title>
+<style>
+@page{{size:letter;margin:.42in}}*{{box-sizing:border-box}}body{{font-family:Arial,sans-serif;color:#111;margin:0}}
+header{{border:3px solid #111;padding:12px 14px;display:flex;justify-content:space-between;gap:20px}}
+h1{{font-size:24px;margin:0;text-transform:uppercase}}.order{{font-size:28px;font-weight:800}}
+.meta{{display:grid;grid-template-columns:140px 1fr 140px 1fr;border:2px solid #111;border-top:0}}
+.meta div{{padding:7px 9px;border-right:1px solid #999;border-bottom:1px solid #999;min-height:32px}}
+.meta .label{{font-size:10px;font-weight:bold;text-transform:uppercase;background:#eee}}
+table{{width:100%;border-collapse:collapse;margin-top:14px}}th,td{{border:1px solid #222;padding:8px 7px;text-align:left}}
+th{{background:#111;color:white;text-transform:uppercase;font-size:11px;letter-spacing:.04em}}.section td{{background:#eee;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}}
+.check{{font-size:23px;width:38px;text-align:center}}.loc{{font-weight:800;width:130px}}.code{{font-family:monospace;width:125px}}.qty{{font-size:19px;font-weight:800;text-align:center;width:70px}}
+.est{{font-size:9px;border:1px solid #111;padding:1px 3px}}.missing{{margin-top:8px;font-size:10px}}
+.footer{{margin-top:18px;display:grid;grid-template-columns:1fr 1fr;gap:14px}}.box{{border:2px solid #111;min-height:92px;padding:8px}}
+.box strong{{font-size:11px;text-transform:uppercase}}.line{{display:inline-block;border-bottom:1px solid #111;min-width:170px;height:22px}}
+.printbar{{position:fixed;right:18px;top:18px}}@media print{{.printbar{{display:none}}}}
+</style></head><body onload="setTimeout(()=>window.print(),250)">
+<button class="printbar" onclick="window.print()">Print Again</button>
+<header><div><h1>Warehouse Pick Slip</h1><div>{html.escape(str(order.get('project') or 'General order'))}</div></div><div class="order">ORDER #{order['id']}</div></header>
+<div class="meta">
+<div class="label">Requester</div><div>{html.escape(str(order.get('requester') or ''))}</div>
+<div class="label">Picker</div><div>{html.escape(picker)}</div>
+<div class="label">Event date</div><div>{html.escape(str(project.get('event_date') or '—'))}</div>
+<div class="label">Deliver by</div><div>{html.escape(str(project.get('delivery_date') or '—'))}</div>
+<div class="label">Ship by</div><div>{html.escape(str(project.get('ship_by_date') or '—'))}</div>
+<div class="label">Printed</div><div>{datetime.now().strftime('%Y-%m-%d %I:%M %p')}</div>
+<div class="label">Ship to</div><div style="grid-column:span 3">{html.escape(address)}</div>
+</div>
+<table><thead><tr><th>Pick</th><th>Location</th><th>Part #</th><th>Item</th><th>Qty</th></tr></thead><tbody>{''.join(rows)}</tbody></table>
+<div class="missing">Items without a saved location are sorted to the bottom under <b>LOCATION MISSING</b>.</div>
+<div class="footer"><div class="box"><strong>Boxes / tracking</strong><p>Box count: <span class="line"></span></p><p>Tracking 1: <span class="line"></span></p><p>Tracking 2: <span class="line"></span></p><p>Tracking 3: <span class="line"></span></p></div>
+<div class="box"><strong>Picker completion</strong><p>Initials: <span class="line"></span></p><p>Notes:</p></div></div>
+</body></html>'''
+        out = Path(tempfile.gettempdir()) / f"oti_pick_slip_order_{order['id']}.html"
+        out.write_text(document, encoding="utf-8")
+        if not webbrowser.open(out.resolve().as_uri()):
+            raise OSError("No web browser was available to open the printable pick slip.")
+
+    def _print_pick_slip(self):
+        order = self.selected_order
+        if not order:
+            return
+        try:
+            self._open_pick_slip(order)
+        except OSError as exc:
+            theme.show_error(self, "Pick slip", str(exc))
+
+    def _delete_order(self):
+        order = self.selected_order
+        if not order:
+            return
+        tracking = ", ".join(order.get("tracking_numbers") or []) or "none"
+        items = "\n".join(
+            f"• {line['item_code']} · {line['item_name']} × "
+            f"{line.get('qty_approved') if line.get('qty_approved') is not None else line['qty_requested']}"
+            for line in order.get("lines", []))
+        if not messagebox.askyesno(
+                "Delete order",
+                f"Delete order #{order['id']} permanently from all order views?\n\n"
+                f"Requester: {order.get('requester')}\nStatus: {order.get('status')}\n"
+                f"Tracking: {tracking}\n\n{items}\n\n"
+                "Inventory deductions will remain unchanged. Completion photos and tracking records will be removed.",
+                parent=self):
+            return
+        self._run_action(lambda: self.api.delete_order(order["id"]),
+                         f"Order #{order['id']} deleted. Inventory was left unchanged.")
 
     def _done_dialog(self):
         order = self.selected_order

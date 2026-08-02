@@ -1,9 +1,8 @@
 """
 admin_app/app/views/users_view.py — the Users tab (admin role only).
 
-Create users, edit roles, reset passwords, deactivate accounts, and safely
-remove unused accounts. Accounts with order, approval, inventory, recount,
-or audit history must be deactivated so their records remain attributable.
+Create users, edit roles, reset passwords, deactivate accounts, and remove
+accounts while keeping historical orders and audit records attributable.
 Same threading rules as the other views.
 """
 import threading
@@ -134,9 +133,10 @@ class UsersView(ttk.Frame):
             return
         if not messagebox.askyesno(
                 "Delete user",
-                f"Permanently delete {user['username']}?\n\n"
-                "This only works for unused accounts. If the person has any "
-                "history, the server will require deactivation instead.", parent=self):
+                f"Delete {user['username']}?\n\n"
+                "Their login will be removed immediately. Existing orders, "
+                "inventory actions, approvals, and audit records will remain "
+                "labeled as a deleted user.", parent=self):
             return
         self.spinner.start("Deleting user")
 
@@ -147,7 +147,7 @@ class UsersView(ttk.Frame):
                 return
             except ApiError as exc:
                 self.after(0, lambda: (self.spinner.stop(),
-                                       theme.show_error(self, "Delete blocked", str(exc))))
+                                       theme.show_error(self, "Delete failed", str(exc))))
                 return
             self.after(0, self.refresh)
         threading.Thread(target=work, daemon=True).start()

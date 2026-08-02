@@ -215,22 +215,49 @@ def delete_item_image(db: Session, *, item_id: int, image_id: int,
 
 # ---- safe deletion / history editing / recount requests ---------------------
 def delete_item(db: Session, *, item_id: int, actor: User, source="api") -> None:
+    """Remove an item from active use while preserving historical references."""
     item = db.query(Item).filter_by(id=item_id).first()
-    if not item:
+    if not item or item.deleted_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Item not found.")
-    has_order_history = db.query(OrderLine.id).filter_by(item_id=item_id).first()
-    has_inventory_history = (db.query(InventoryTransaction.id)
-                             .filter_by(item_id=item_id).first())
-    has_count_history = db.query(CountRequest.id).filter_by(item_id=item_id).first()
-    if has_order_history or has_inventory_history or has_count_history:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            "This item has history and cannot be permanently deleted. "
-            "Turn off Active instead so old orders and audit records stay intact.")
-    old = {"code": item.code, "name": item.name}
-    db.delete(item)
+    now = datetime.now(timezone.utc)
+    old = {"code": item.code, "name": item.name,
+           "qty_on_hand": item.qty_on_hand, "active": item.active}
+    original_name = item.name
+    item.name = (f"{original_name} [Deleted Item]")[:200]
+    item.active = False
+    item.deleted_at = now
     log_action(db, user_id=actor.id, action="item.delete", object_type="item",
-               object_id=item_id, old_value=old, source=source)
+               object_id=item_id, old_value=old,
+               new_value={"deleted": True, "historical_code": item.code,
+                          "historical_name": item.name}, source=source)
+    db.commit()
+
+
+def delete_inventory_transaction(db: Session, *, transaction_id: int,
+                                 actor: User, source="admin_app") -> None:
+    tx = db.query(InventoryTransaction).filter_by(id=transaction_id).first()
+    if not tx:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            "Inventory transaction not found.")
+    reason_key = (tx.reason or "").strip().lower()
+    order_generated = (reason_key.startswith("order #") or
+                       reason_key.startswith("deleted order #"))
+    before_qty = tx.item.qty_on_hand
+    after_qty = before_qty
+    if not order_generated:
+        # Deleting a manual adjustment reverses its effect. Order-generated
+        # rows are historical breadcrumbs only and never put shipped stock back.
+        after_qty = before_qty - tx.delta
+        tx.item.qty_on_hand = after_qty
+    snapshot = {"item_id": tx.item_id, "item_code": tx.item.code,
+                "delta": tx.delta, "reason": tx.reason, "source": tx.source,
+                "created_at": tx.created_at.isoformat() if tx.created_at else None,
+                "order_generated": order_generated,
+                "qty_before": before_qty, "qty_after": after_qty}
+    log_action(db, user_id=actor.id, action="inventory.transaction_delete",
+               object_type="inventory_transaction", object_id=tx.id,
+               old_value=snapshot, new_value={"deleted": True}, source=source)
+    db.delete(tx)
     db.commit()
 
 

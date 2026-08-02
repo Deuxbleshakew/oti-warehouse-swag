@@ -688,6 +688,154 @@
     .edit-line{ grid-template-columns:1fr 76px; }
     .edit-line .estimated-edit{ grid-column:1 / -1; }
   }
+
+
+  /* ---- v5.8 responsive workspace ---------------------------------------- */
+  .top-shell{ position:sticky; top:0; z-index:60; box-shadow:0 5px 18px rgba(0,0,0,.22); }
+  .top-shell header.bar, .top-shell nav.tabs{ position:static; }
+  main.catalog-shell{
+    max-width:1780px; grid-template-columns:220px minmax(0,1fr) 330px;
+    gap:18px; padding-top:18px;
+  }
+  main.single-shell{ max-width:1180px; display:block; }
+  main.single-shell.setup-mode{ max-width:820px; }
+  .catalog-content{ min-width:0; }
+  .filter-rail, .cart-rail{ position:sticky; top:118px; max-height:calc(100vh - 136px); overflow:auto; }
+  .filter-panel, .compact-cart{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  }
+  .rail-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:13px 14px; border-bottom:2px dashed var(--line); }
+  .rail-head strong{ font:600 14px 'Oswald',sans-serif; text-transform:uppercase; letter-spacing:.05em; }
+  .rail-close{ display:none; background:none; color:var(--ink); border:1px solid var(--line); width:34px; height:34px; }
+  .filter-group{ padding:12px 10px; border-bottom:1px solid var(--line); }
+  .filter-group:last-child{ border-bottom:0; }
+  .filter-title{ color:var(--muted); font:600 10px 'Oswald',sans-serif; text-transform:uppercase; letter-spacing:.08em; padding:0 5px 7px; }
+  .filter-option{
+    width:100%; display:flex; justify-content:space-between; align-items:center; gap:8px;
+    background:transparent; color:var(--muted); border:1px solid transparent;
+    padding:8px 9px; text-align:left; border-radius:var(--radius); font-size:12px;
+  }
+  .filter-option:hover{ color:var(--ink); background:var(--surface2); }
+  .filter-option.active{ color:var(--safety); border-color:rgba(242,183,5,.45); background:rgba(242,183,5,.08); }
+  .filter-option .filter-n{ font:10px 'IBM Plex Mono',monospace; color:var(--muted); }
+  .toolbar .mobile-filter-btn{ display:none; background:var(--surface2); color:var(--ink); border:1px solid var(--line); padding:9px 11px; }
+  .filter-backdrop{ display:none; }
+  .grid{ grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+  .tag{ min-height:470px; }
+  .tag .photo{ height:205px; padding:14px; background:radial-gradient(circle at 50% 40%,#3a4045 0,#2c3135 58%,#24282c 100%); }
+  .tag .photo img{ object-fit:contain; width:100%; height:100%; transform:none!important; }
+  .tag .body{ padding:14px; gap:8px; }
+  .tag .name{ min-height:38px; display:flex; align-items:flex-start; }
+  .tag .meta{ min-height:30px; }
+  .tag .row-bottom{ align-items:flex-end; }
+  .tag .stepper button{ width:34px; height:34px; }
+  .tag .stepper .qty{ height:34px; width:52px; }
+  .card-actions{ align-items:flex-start; }
+  .card-buy{ margin-top:auto; display:grid; grid-template-columns:1fr auto; gap:8px; align-items:stretch; }
+  .add-cart{
+    min-height:40px; border:0; background:var(--safety); color:var(--safety-ink);
+    padding:9px 12px; border-radius:var(--radius); font:600 12px 'Oswald',sans-serif;
+    text-transform:uppercase; letter-spacing:.05em;
+  }
+  .add-cart.in-cart{ background:var(--ok); color:#102416; }
+  .add-cart:disabled{ opacity:.38; cursor:not-allowed; }
+  .draft-note{ color:var(--muted); font-size:10px; align-self:center; text-align:right; }
+  .compact-cart .slip-head{ padding:14px; border-bottom:2px dashed var(--line); }
+  .compact-cart .slip-head .label{ color:var(--muted); font-size:10px; }
+  .compact-cart .slip-head h2{ margin:2px 0 0; font:600 18px 'Oswald',sans-serif; text-transform:uppercase; }
+  .compact-cart .lines{ padding:10px 14px; max-height:235px; overflow:auto; display:flex; flex-direction:column; gap:8px; }
+  .compact-cart .line{ display:flex; align-items:center; gap:8px; font-size:12px; }
+  .compact-cart .line .nm{ flex:1; min-width:0; }
+  .compact-cart .line .cd{ display:block; color:var(--muted); font-size:10px; }
+  .compact-cart .rm{ border:0; background:none; color:var(--rust); font-size:16px; }
+  .compact-cart .empty{ color:var(--muted); font-size:12px; }
+  .readiness{ border-top:1px solid var(--line); padding:12px 14px; }
+  .readiness h3{ margin:0 0 8px; font:600 13px 'Oswald',sans-serif; text-transform:uppercase; }
+  .ready-row{ display:flex; justify-content:space-between; gap:10px; padding:4px 0; font-size:11px; border-bottom:1px dotted var(--line); }
+  .ready-row:last-child{ border-bottom:0; }
+  .ready-row span{ color:var(--muted); }
+  .ready-value.good{ color:var(--ok); }.ready-value.warn{ color:var(--rust); }.ready-value.pending{ color:var(--safety); }
+  .compact-foot{ padding:12px 14px 14px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px; }
+  .compact-foot .btn-primary{ width:100%; }
+  .mobile-cart-bar{ display:none; }
+  .order-readiness-box{ border:1px solid var(--line); border-left:4px solid var(--safety); background:rgba(242,183,5,.06); padding:10px; }
+  .order-readiness-box.incomplete{ border-left-color:var(--rust); }
+  .order-readiness-box strong{ font:600 12px 'Oswald',sans-serif; text-transform:uppercase; }
+  .order-readiness-box ul{ margin:6px 0 0; padding-left:18px; color:var(--muted); font-size:11px; }
+  @media (min-width:1650px){ .grid{ grid-template-columns:repeat(3,minmax(0,1fr)); } }
+  @media (max-width:1180px){
+    main.catalog-shell{ grid-template-columns:190px minmax(0,1fr) 300px; padding-left:12px; padding-right:12px; }
+    .tag{ min-height:450px; }.tag .photo{ height:185px; }
+  }
+  @media (max-width:920px){
+    .top-shell header.bar{ padding:11px 13px; }
+    header.bar .brand{ font-size:16px; }.build-badge{ display:none; }
+    header.bar .who{ gap:7px; }.who .roles{ display:none; }
+    nav.tabs{ padding:0 10px; overflow-x:auto; scrollbar-width:none; }
+    nav.tabs::-webkit-scrollbar{ display:none; }
+    nav.tabs button{ flex:0 0 auto; margin-right:12px; white-space:nowrap; }
+    main.catalog-shell, main.single-shell{ display:block; padding:14px 12px 96px; max-width:none; }
+    .cart-rail{ display:none; }
+    .filter-rail{
+      position:fixed; left:0; top:0; bottom:0; width:min(320px,88vw); max-height:none;
+      z-index:90; transform:translateX(-105%); transition:transform .23s ease;
+      padding:0; background:var(--paper); overflow:auto;
+    }
+    .filter-rail.open{ transform:translateX(0); }
+    .filter-panel{ min-height:100%; border-radius:0; border-top:0; border-bottom:0; }
+    .rail-close{ display:inline-grid; place-items:center; }
+    .filter-backdrop{ position:fixed; inset:0; z-index:85; background:rgba(0,0,0,.66); opacity:0; visibility:hidden; display:block; transition:.2s; }
+    .filter-backdrop.open{ opacity:1; visibility:visible; }
+    .toolbar .mobile-filter-btn{ display:inline-flex; align-items:center; gap:6px; }
+    .toolbar input[type=search]{ flex-basis:100%; order:-1; }
+    .grid{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .mobile-cart-bar{
+      display:flex; position:fixed; left:12px; right:12px; bottom:12px; z-index:55;
+      background:var(--safety); color:var(--safety-ink); border:0; border-radius:4px;
+      min-height:54px; padding:10px 15px; align-items:center; justify-content:space-between;
+      font:600 13px 'Oswald',sans-serif; text-transform:uppercase; letter-spacing:.04em;
+      box-shadow:0 10px 30px rgba(0,0,0,.4);
+    }
+    .mobile-cart-bar .cart-total{ font-family:'IBM Plex Mono',monospace; }
+    .feature-banner{ align-items:stretch; flex-direction:column; }
+    .feature-banner button{ width:100%; }
+  }
+  @media (max-width:620px){
+    header.bar .who > span:first-child{ display:none; }
+    .grid{ grid-template-columns:1fr; }
+    .tag{ min-height:0; }
+    .tag .photo{ height:230px; }
+    .tag .name{ min-height:0; }
+    .tag .meta{ min-height:0; }
+    .card-buy{ grid-template-columns:1fr; }
+    .draft-note{ text-align:left; }
+    .add-cart{ min-height:48px; font-size:13px; }
+    .modal-backdrop{ padding:0; align-items:stretch; }
+    .modal-card{ width:100%; max-height:100vh; border-left:0; border-right:0; border-bottom:0; padding:16px; }
+    .order-card .top-row{ flex-direction:column; }.stamp{ align-self:flex-start; }
+    .proof-strip img{ width:calc(50% - 4px); height:120px; }
+  }
+
+
+  /* v5.8 finishing details */
+  main.catalog-shell.filters-collapsed{ grid-template-columns:52px minmax(0,1fr) 330px; }
+  .rail-controls{ display:flex; gap:6px; }
+  .rail-collapse{ display:grid; place-items:center; width:30px; height:30px; border:1px solid var(--line); background:var(--surface2); color:var(--ink); font-size:20px; }
+  .filter-rail.collapsed .rail-head{ padding:10px; justify-content:center; }
+  .filter-rail.collapsed .rail-head strong, .filter-rail.collapsed .filter-group, .filter-rail.collapsed .rail-close{ display:none; }
+  .filter-rail.collapsed .rail-controls{ display:block; }
+  .count-flag{ color:var(--safety); border:1px dashed rgba(242,183,5,.55); background:rgba(242,183,5,.06); padding:5px 7px; font-size:10px; }
+  .clear-filters{ background:transparent; color:var(--safety); border:1px solid rgba(242,183,5,.45); padding:8px 10px; border-radius:var(--radius); }
+  .toolbar{ align-items:center; }
+  @media (max-width:1180px) and (min-width:921px){ main.catalog-shell.filters-collapsed{ grid-template-columns:52px minmax(0,1fr) 300px; } }
+  @media (max-width:920px){
+    main.catalog-shell.filters-collapsed{ display:block; }
+    .filter-rail.collapsed .rail-head strong, .filter-rail.collapsed .filter-group, .filter-rail.collapsed .rail-close{ display:initial; }
+    .filter-rail.collapsed .filter-group{ display:block; }
+    .filter-rail.collapsed .rail-head{ padding:13px 14px; justify-content:space-between; }
+    .rail-collapse{ display:none; }
+  }
+
 </style>
 </head>
 <body>
@@ -711,7 +859,7 @@
 // typing a URL into a settings field is annoying. Opening the file
 // directly (file://) has no real origin to detect, so that case keeps
 // the old localhost default for local testing.
-const APP_VERSION = "5.7";
+const APP_VERSION = "5.8";
 const DEFAULT_API_BASE =
   (location.protocol === "file:" || !location.origin || location.origin === "null")
     ? "http://localhost:8000"
@@ -829,8 +977,10 @@ const state = {
   tab: "catalog",
   catalog: [],
   projects: [],
-  cart: {},           // item_id -> qty
-  estimated: {},      // item_id -> quantity is still an estimate
+  cart: {},           // committed item_id -> qty
+  estimated: {},      // committed item_id -> quantity is still an estimate
+  draftQty: {},       // catalog controls before Add / Update Cart
+  draftEstimated: {},
   orderForm: {
     projectChoice: "new",
     projectName: "",
@@ -852,6 +1002,10 @@ const state = {
   search: "",
   category: "",
   sort: "name",
+  quickFilter: "all",
+  filterDrawerOpen: false,
+  filterCollapsed: localStorage.getItem("oti_filter_collapsed") === "1",
+  recentlyViewed: JSON.parse(localStorage.getItem("oti_recent_items") || "[]"),
   loadingCatalog: false,
   loadingOrders: false,
   loginError: "",
@@ -922,6 +1076,9 @@ function logout(message) {
   state.user = null;
   state.cart = {};
   state.estimated = {};
+  state.draftQty = {};
+  state.draftEstimated = {};
+  state.filterDrawerOpen = false;
   state.orderForm = blankOrderForm();
   state.myOrders = [];
   Object.values(state.proofUrls).forEach(url => URL.revokeObjectURL(url));
@@ -1050,11 +1207,14 @@ async function pollLoop() {
       state.lastPollTime = res.server_time;
       if (res.orders && res.orders.length) {
         const byId = Object.fromEntries(state.myOrders.map(o => [o.id, o]));
-        res.orders.forEach(o => { byId[o.id] = o; });
+        res.orders.forEach(o => {
+          if (o.deleted) delete byId[o.id];
+          else byId[o.id] = o;
+        });
         state.myOrders = Object.values(byId).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         if (state.tab === "orders") render();
         res.orders.forEach(o => {
-          toast("Order #" + o.id + " is now " + o.status + ".");
+          toast(o.deleted ? ("Order #" + o.id + " was deleted.") : ("Order #" + o.id + " is now " + o.status + "."));
         });
       }
     } catch (e) {
@@ -1068,12 +1228,49 @@ async function pollLoop() {
 function cartCount() {
   return Object.values(state.cart).reduce((a, b) => a + b, 0);
 }
-function setQty(itemId, qty, max) {
+function hasOwn(object, key) {
+  return Object.prototype.hasOwnProperty.call(object, key);
+}
+function draftQtyFor(item) {
+  return hasOwn(state.draftQty, item.id) ? Number(state.draftQty[item.id] || 0) : Number(state.cart[item.id] || 0);
+}
+function draftEstimatedFor(itemId) {
+  return hasOwn(state.draftEstimated, itemId)
+    ? Boolean(state.draftEstimated[itemId])
+    : Boolean(state.estimated[itemId]);
+}
+function setDraftQty(itemId, qty, max) {
   qty = Number.isFinite(Number(qty)) ? Math.floor(Number(qty)) : 0;
   qty = Math.max(0, Math.min(qty, max));
-  if (qty === 0) { delete state.cart[itemId]; delete state.estimated[itemId]; }
-  else state.cart[itemId] = qty;
+  state.draftQty[itemId] = qty;
+  if (qty === 0) state.draftEstimated[itemId] = false;
   render();
+}
+function markRecentlyViewed(itemId) {
+  state.recentlyViewed = [Number(itemId), ...state.recentlyViewed.filter(id => Number(id) !== Number(itemId))].slice(0, 20);
+  localStorage.setItem("oti_recent_items", JSON.stringify(state.recentlyViewed));
+}
+function commitItemToCart(itemId) {
+  const item = state.catalog.find(i => i.id === Number(itemId));
+  if (!item) return;
+  const qty = draftQtyFor(item);
+  if (!Number.isInteger(qty) || qty <= 0) {
+    toast("Enter a quantity before adding this item.", true);
+    return;
+  }
+  if (qty > item.qty_on_hand) {
+    toast("Only " + item.qty_on_hand + " are currently available.", true);
+    return;
+  }
+  const updating = Boolean(state.cart[item.id]);
+  state.cart[item.id] = qty;
+  if (draftEstimatedFor(item.id)) state.estimated[item.id] = true;
+  else delete state.estimated[item.id];
+  state.draftQty[item.id] = qty;
+  state.draftEstimated[item.id] = Boolean(state.estimated[item.id]);
+  markRecentlyViewed(item.id);
+  render();
+  toast(updating ? (item.name + " updated in the cart.") : (item.name + " added to the cart."));
 }
 
 function buildProjectPayload() {
@@ -1132,6 +1329,8 @@ async function submitOrder() {
     const savedForReuse = Boolean(projectPayload.save_project);
     state.cart = {};
     state.estimated = {};
+    state.draftQty = {};
+    state.draftEstimated = {};
     state.orderForm = blankOrderForm();
     if (savedForReuse) {
       try { state.projects = await api("/projects"); } catch (_) {}
@@ -1229,45 +1428,85 @@ function renderLogin() {
 }
 
 function renderTagCard(item) {
-  const inCart = state.cart[item.id] || 0;
+  const inCart = Number(state.cart[item.id] || 0);
+  const draftQty = draftQtyFor(item);
+  const draftEstimated = draftEstimatedFor(item.id);
   const out = item.qty_on_hand <= 0;
   const low = item.qty_on_hand > 0 && item.qty_on_hand <= item.reorder_threshold;
   const photo = imgUrl(item);
+  const countRequests = Number(item.open_count_requests || 0);
+  const sameAsCart = inCart > 0 && draftQty === inCart && draftEstimated === Boolean(state.estimated[item.id]);
+  const buttonText = inCart ? (sameAsCart ? "In Cart" : "Update Cart") : "Add to Cart";
   return `
   <div class="tag">
-    <div class="photo">${photo ? `<img src="${esc(photo)}" alt="${esc(item.name)}" loading="lazy" data-lightbox-src="${esc(photo)}" onerror="handleImageError(this)">` : `<span class="photo-fallback">📦</span>`}${item.color ? `<span class="colordot" style="background:${esc(item.color)}" title="${esc(item.color_name || item.color)}"></span>` : ""}</div>
+    <div class="photo">${photo ? `<img src="${esc(photo)}" alt="${esc(item.name)}" loading="lazy" data-item-image-id="${item.id}" data-lightbox-src="${esc(photo)}" onerror="handleImageError(this)">` : `<span class="photo-fallback">📦</span>`}${item.color ? `<span class="colordot" style="background:${esc(item.color)}" title="${esc(item.color_name || item.color)}"></span>` : ""}</div>
     <div class="perf"></div>
     <div class="body">
       <div class="code mono">${esc(item.code)}</div>
       <div class="name">${esc(item.name)}</div>
-      <div class="meta">${[item.category, item.measures].filter(Boolean).map(esc).join(" · ")}</div>
+      <div class="meta">${[item.category, item.location ? "Location " + item.location : "", item.measures].filter(Boolean).map(esc).join(" · ")}</div>
+      ${countRequests ? `<div class="count-flag">${countRequests} open recount request${countRequests === 1 ? "" : "s"}</div>` : ""}
       <div class="row-bottom">
         <div class="stock ${low ? "low" : ""}">${out ? "OUT OF STOCK" : "QTY ON HAND: " + item.qty_on_hand}</div>
         <div class="stepper">
-          <button data-act="dec" data-id="${item.id}" data-max="${item.qty_on_hand}" ${inCart <= 0 ? "disabled" : ""}>−</button>
-          <input class="qty qty-input" type="number" inputmode="numeric" min="0" max="${item.qty_on_hand}" step="1" value="${inCart}" data-qty-id="${item.id}" data-max="${item.qty_on_hand}" aria-label="Quantity for ${esc(item.name)}" ${out ? "disabled" : ""}>
-          <button data-act="inc" data-id="${item.id}" data-max="${item.qty_on_hand}" ${out || inCart >= item.qty_on_hand ? "disabled" : ""}>+</button>
+          <button data-act="dec" data-id="${item.id}" data-max="${item.qty_on_hand}" ${draftQty <= 0 ? "disabled" : ""}>−</button>
+          <input class="qty qty-input" type="number" inputmode="numeric" min="0" max="${item.qty_on_hand}" step="1" value="${draftQty || ""}" data-qty-id="${item.id}" data-max="${item.qty_on_hand}" aria-label="Quantity for ${esc(item.name)}" ${out ? "disabled" : ""}>
+          <button data-act="inc" data-id="${item.id}" data-max="${item.qty_on_hand}" ${out || draftQty >= item.qty_on_hand ? "disabled" : ""}>+</button>
         </div>
       </div>
       <div class="card-actions">
-        <label class="estimated-mark"><input class="estimated-toggle" type="checkbox" data-estimated-id="${item.id}" ${state.estimated[item.id] ? "checked" : ""} ${!inCart ? "disabled" : ""}> Quantity estimated</label>
+        <label class="estimated-mark"><input class="estimated-toggle" type="checkbox" data-estimated-id="${item.id}" ${draftEstimated ? "checked" : ""} ${!draftQty ? "disabled" : ""}> Quantity estimated</label>
         <button class="request-count" type="button" data-count-id="${item.id}" data-count-name="${esc(item.name)}">Request Count</button>
+      </div>
+      <div class="card-buy">
+        <button class="add-cart ${sameAsCart ? "in-cart" : ""}" type="button" data-add-cart="${item.id}" ${out || !draftQty ? "disabled" : ""}>${buttonText}</button>
+        <div class="draft-note" data-draft-note="${item.id}">${inCart ? `Cart: ${inCart}${state.estimated[item.id] ? " est." : ""}` : "Not in cart"}</div>
       </div>
     </div>
   </div>`;
 }
 
+function frequentItemIds() {
+  const counts = new Map();
+  state.myOrders.forEach(order => (order.lines || []).forEach(line => {
+    counts.set(Number(line.item_id), (counts.get(Number(line.item_id)) || 0) + Number(line.qty_requested || 0));
+  }));
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([id]) => id);
+}
+
+function quickFilterCounts() {
+  const frequent = new Set(frequentItemIds());
+  const recent = new Set(state.recentlyViewed.map(Number));
+  return {
+    all: state.catalog.length,
+    low: state.catalog.filter(i => i.qty_on_hand <= i.reorder_threshold).length,
+    recount: state.catalog.filter(i => Number(i.open_count_requests || 0) > 0).length,
+    frequent: state.catalog.filter(i => frequent.has(Number(i.id))).length,
+    recent: state.catalog.filter(i => recent.has(Number(i.id))).length,
+  };
+}
+
 function filteredCatalog() {
   const q = state.search.trim().toLowerCase();
+  const frequent = new Set(frequentItemIds());
+  const recent = new Set(state.recentlyViewed.map(Number));
   const items = state.catalog.filter(i => {
     if (state.category && i.category !== state.category) return false;
+    if (state.quickFilter === "low" && i.qty_on_hand > i.reorder_threshold) return false;
+    if (state.quickFilter === "recount" && Number(i.open_count_requests || 0) <= 0) return false;
+    if (state.quickFilter === "frequent" && !frequent.has(Number(i.id))) return false;
+    if (state.quickFilter === "recent" && !recent.has(Number(i.id))) return false;
     if (!q) return true;
-    return (i.name + " " + i.code + " " + i.description).toLowerCase().includes(q);
+    return (i.name + " " + i.code + " " + (i.description || "") + " " + (i.location || "")).toLowerCase().includes(q);
   });
   const by = state.sort;
   items.sort((a, b) => {
+    if (state.quickFilter === "recent" && by === "name") {
+      return state.recentlyViewed.indexOf(Number(a.id)) - state.recentlyViewed.indexOf(Number(b.id));
+    }
     if (by === "code") return a.code.localeCompare(b.code);
     if (by === "stock") return a.qty_on_hand - b.qty_on_hand;
+    if (by === "location") return String(a.location || "~~~~").localeCompare(String(b.location || "~~~~"), undefined, { numeric:true });
     return a.name.localeCompare(b.name);
   });
   return items;
@@ -1283,43 +1522,69 @@ function groupByCategory(items) {
   return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 }
 
+function renderFilterRail() {
+  const counts = quickFilterCounts();
+  const categories = [...new Set(state.catalog.map(i => i.category || "Uncategorized"))].sort((a,b) => a.localeCompare(b));
+  const categoryCount = cat => state.catalog.filter(i => (i.category || "Uncategorized") === cat).length;
+  const quick = [
+    ["all", "All items", counts.all],
+    ["low", "Low stock", counts.low],
+    ["recount", "Count requested", counts.recount],
+    ["frequent", "Frequently ordered", counts.frequent],
+    ["recent", "Recently viewed", counts.recent],
+  ];
+  return `<div class="filter-panel">
+    <div class="rail-head">
+      <strong>Browse & Filter</strong>
+      <div class="rail-controls">
+        <button class="rail-collapse" id="filter-collapse" type="button" title="${state.filterCollapsed ? "Expand filters" : "Collapse filters"}">${state.filterCollapsed ? "›" : "‹"}</button>
+        <button class="rail-close" id="filter-close" type="button" aria-label="Close filters">✕</button>
+      </div>
+    </div>
+    <div class="filter-group">
+      <div class="filter-title">Quick views</div>
+      ${quick.map(([key,label,n]) => `<button class="filter-option ${state.quickFilter === key ? "active" : ""}" data-quick-filter="${key}"><span>${esc(label)}</span><span class="filter-n">${n}</span></button>`).join("")}
+    </div>
+    <div class="filter-group">
+      <div class="filter-title">Categories</div>
+      <button class="filter-option ${!state.category ? "active" : ""}" data-category-choice=""><span>All categories</span><span class="filter-n">${state.catalog.length}</span></button>
+      ${categories.map(cat => `<button class="filter-option ${state.category === cat ? "active" : ""}" data-category-choice="${esc(cat)}"><span>${esc(cat)}</span><span class="filter-n">${categoryCount(cat)}</span></button>`).join("")}
+    </div>
+  </div>`;
+}
+
 function renderCatalogTab() {
   const items = filteredCatalog();
-  const categories = [...new Set(state.catalog.map(i => i.category).filter(Boolean))];
   let body;
   if (state.loadingCatalog) {
     body = loadingMarkup("Loading catalog…");
   } else if (!items.length) {
-    body = `<div class="empty-state">No items match. Try clearing the search or category filter.</div>`;
-  } else if (state.category) {
-    // a single category is already one section — plain grid, no headers
-    body = `<div class="grid">${items.map(renderTagCard).join("")}</div>`;
+    body = `<div class="empty-state">No items match these filters. Clear a filter or try another search.</div>`;
   } else {
-    body = groupByCategory(items).map(([cat, list]) => `
-      <div class="cat-section">
-        <div class="cat-head"><span>${esc(cat)}</span><span class="n">${list.length} item${list.length === 1 ? "" : "s"}</span></div>
-        <div class="grid">${list.map(renderTagCard).join("")}</div>
-      </div>`).join("");
+    // Categories now live in the left rail, so one continuous responsive grid
+    // can actually use the available desktop width instead of leaving a blank
+    // column whenever a category only contains one item.
+    body = `<div class="grid">${items.map(renderTagCard).join("")}</div>`;
   }
+  const activeDescription = state.category || (state.quickFilter !== "all" ? state.quickFilter.replace(/\b\w/g, c => c.toUpperCase()) : "");
   return `
     <div class="feature-banner">
       <div>
-        <strong>Project & delivery setup is now a separate step</strong>
-        <span>Enter item quantities here, then add the event date. The delivery address can be completed later while the order is still pending, and UPS Ground timing is calculated automatically from the state.</span>
+        <strong>Build the item list, then finish delivery details</strong>
+        <span>Enter a quantity and press Add to Cart. Estimated amounts and a pending address can be updated before approval.</span>
       </div>
-      <button id="open-order-setup" type="button">Open Project & Delivery (${cartCount()})</button>
+      <button id="open-order-setup" type="button">Project & Delivery (${cartCount()})</button>
     </div>
     <div class="toolbar">
-      <input type="search" id="search" placeholder="Search item name or code…" value="${esc(state.search)}">
-      <select id="category-filter">
-        <option value="">All categories</option>
-        ${categories.map(c => `<option value="${esc(c)}" ${state.category === c ? "selected" : ""}>${esc(c)}</option>`).join("")}
-      </select>
+      <button class="mobile-filter-btn" id="mobile-filter-open" type="button">☰ Filters</button>
+      <input type="search" id="search" placeholder="Search item, part #, or location…" value="${esc(state.search)}">
       <select id="sort-by">
         <option value="name" ${state.sort === "name" ? "selected" : ""}>Sort: Name</option>
-        <option value="code" ${state.sort === "code" ? "selected" : ""}>Sort: Code</option>
-        <option value="stock" ${state.sort === "stock" ? "selected" : ""}>Sort: Stock (low first)</option>
+        <option value="code" ${state.sort === "code" ? "selected" : ""}>Sort: Part #</option>
+        <option value="location" ${state.sort === "location" ? "selected" : ""}>Sort: Location</option>
+        <option value="stock" ${state.sort === "stock" ? "selected" : ""}>Sort: Stock</option>
       </select>
+      ${activeDescription ? `<button class="clear-filters" id="clear-filters" type="button">Clear: ${esc(activeDescription)} ✕</button>` : ""}
     </div>
     ${body}
   `;
@@ -1385,7 +1650,9 @@ async function submitCountRequest(itemId, itemName) {
         method: "POST",
         body: JSON.stringify({ note: document.getElementById("count-note").value.trim() }),
       });
+      try { state.catalog = await api("/catalog"); } catch (_) {}
       closeModal();
+      render();
       toast("Count request sent for " + itemName + ".");
     } catch (e) {
       document.getElementById("count-error").textContent = e.message;
@@ -1499,29 +1766,105 @@ function cartLinesHtml(lines) {
   `).join("") : `<div class="empty">Add items from the catalog to build an order.</div>`;
 }
 
+function selectedProjectForReadiness() {
+  const f = state.orderForm;
+  if (f.projectChoice.startsWith("saved:")) {
+    return state.projects.find(p => p.id === Number(f.projectChoice.split(":", 2)[1])) || null;
+  }
+  return null;
+}
+
+function orderReadiness() {
+  const f = state.orderForm;
+  const lines = cartLinesData();
+  const estimatedCount = lines.filter(line => line.estimated).length;
+  const saved = selectedProjectForReadiness();
+  let project = "Pending", eventDate = "Pending", address = "Pending", shipBy = "Pending";
+  const issues = [];
+
+  if (!lines.length) issues.push("Add at least one item.");
+  if (f.projectChoice === "new") {
+    project = f.projectName.trim() || "Pending";
+    eventDate = f.eventDate || "Pending";
+    const addressComplete = Boolean(f.shippingAddress1.trim() && f.shippingCity.trim() && f.shippingState && f.shippingPostalCode.trim());
+    address = addressComplete ? "Complete" : "Address pending";
+    const plan = shippingPlanForForm(f);
+    shipBy = plan ? plan.shipByDate : "Pending";
+    if (!f.projectName.trim()) issues.push("Project or event name is missing.");
+    if (!f.eventDate) issues.push("Event date is missing.");
+    if (!addressComplete) issues.push("Delivery address is incomplete.");
+    if (!plan) issues.push("UPS Ground ship-by date is pending.");
+  } else if (f.projectChoice === "none") {
+    project = "No project";
+    issues.push("Delivery address and event details will remain incomplete.");
+  } else if (saved) {
+    project = saved.name || "Saved project";
+    eventDate = saved.event_date || "Pending";
+    const addressComplete = Boolean(saved.shipping_address1 && saved.shipping_city && saved.shipping_state && saved.shipping_postal_code);
+    address = addressComplete ? "Complete" : "Address pending";
+    shipBy = saved.ship_by_date || "Pending";
+    if (!saved.event_date) issues.push("Event date is missing from the saved project.");
+    if (!addressComplete) issues.push("Delivery address is incomplete in the saved project.");
+    if (!saved.ship_by_date || saved.ups_ground_days == null) issues.push("UPS Ground ship-by date is pending.");
+  } else {
+    issues.push("Select a valid saved project.");
+  }
+  if (estimatedCount) issues.push(estimatedCount + " estimated quantit" + (estimatedCount === 1 ? "y needs" : "ies need") + " confirmation.");
+
+  return {
+    lines, estimatedCount, issues,
+    rows: [
+      ["Items", lines.length ? cartCount() + " units" : "None", lines.length ? "good" : "warn"],
+      ["Project", project, project === "Pending" ? "warn" : "good"],
+      ["Event", eventDate, eventDate === "Pending" ? "warn" : "good"],
+      ["Address", address, address === "Complete" ? "good" : "warn"],
+      ["Estimated qty", estimatedCount ? String(estimatedCount) : "None", estimatedCount ? "pending" : "good"],
+      ["Ship by", shipBy, shipBy === "Pending" ? "warn" : "good"],
+    ],
+  };
+}
+
+function renderReadinessRows(readiness) {
+  return readiness.rows.map(([label, value, cls]) => `<div class="ready-row"><span>${esc(label)}</span><strong class="ready-value ${cls}">${esc(value)}</strong></div>`).join("");
+}
+
+function renderOrderReadinessBox() {
+  const readiness = orderReadiness();
+  return `<div class="order-readiness-box ${readiness.issues.length ? "incomplete" : ""}">
+    <strong>${readiness.issues.length ? "Order will submit as incomplete" : "Ready for approval"}</strong>
+    ${readiness.issues.length ? `<ul>${readiness.issues.map(issue => `<li>${esc(issue)}</li>`).join("")}</ul>` : `<div class="project-help" style="margin-top:5px;">All required information is complete.</div>`}
+  </div>`;
+}
+
+function renderCompactCart() {
+  const lines = cartLinesData();
+  const readiness = orderReadiness();
+  return `<div class="compact-cart">
+    <div class="slip-head"><div class="label">Live order</div><h2>Your Cart</h2></div>
+    <div class="lines">${cartLinesHtml(lines)}</div>
+    <div class="readiness"><h3>Order Readiness</h3>${renderReadinessRows(readiness)}</div>
+    <div class="compact-foot">
+      <div class="total-count">${cartCount()} unit${cartCount() === 1 ? "" : "s"} · ${lines.length} line${lines.length === 1 ? "" : "s"}</div>
+      <button class="btn-primary" id="compact-open-setup" type="button">Project & Delivery</button>
+    </div>
+  </div>`;
+}
+
 function wireRemoveButtons() {
   document.querySelectorAll(".rm").forEach(btn => {
     btn.addEventListener("click", () => {
       const id = Number(btn.dataset.rm);
       delete state.cart[id];
       delete state.estimated[id];
+      state.draftQty[id] = 0;
+      state.draftEstimated[id] = false;
       render();
     });
   });
 }
 
 function refreshCartPreview() {
-  const lines = cartLinesData();
-  const holder = document.querySelector(".slip .lines");
-  if (holder) {
-    holder.innerHTML = cartLinesHtml(lines);
-    wireRemoveButtons();
-  }
-  const count = cartCount();
-  const total = document.querySelector(".slip .total-count");
-  if (total) total.textContent = count + " item" + (count === 1 ? "" : "s") + " in this order";
-  const submit = document.getElementById("submit-order");
-  if (submit) submit.disabled = !lines.length;
+  render();
 }
 
 function renderSlip() {
@@ -1642,6 +1985,7 @@ function renderSlip() {
           ${selectedSaved.ups_ground_days ? `UPS Ground: ${selectedSaved.ups_ground_days} business day${selectedSaved.ups_ground_days === 1 ? "" : "s"}<br>` : ""}
           ${formattedAddress(selectedSaved) ? `Ship to: ${esc(formattedAddress(selectedSaved))}` : "No saved delivery address."}
         </div>` : `<div class="project-help">This order will be added to the selected saved project.</div>`}
+      ${renderOrderReadinessBox()}
       <textarea id="slip-notes" placeholder="Notes for the approver (optional)">${esc(f.notes)}</textarea>
       <button class="btn-primary" id="submit-order" ${!lines.length ? "disabled" : ""}>Submit Order</button>
     </div>
@@ -1655,17 +1999,9 @@ function render() {
     wireLogin();
     return;
   }
-  // Remember focus state BEFORE the innerHTML swap destroys the old
-  // search box — otherwise wireApp() has no way to tell "user was
-  // mid-search" apart from "render happened to run for some other
-  // reason" (tapping a qty stepper, switching tabs, a live-poll update),
-  // and would force focus onto search every single time regardless.
-  const searchHadFocus = document.activeElement &&
-    document.activeElement.id === "search";
-  const searchCursorPos = searchHadFocus
-    ? document.activeElement.selectionStart : null;
-
-  app.innerHTML = `
+  const searchHadFocus = document.activeElement && document.activeElement.id === "search";
+  const searchCursorPos = searchHadFocus ? document.activeElement.selectionStart : null;
+  const top = `<div class="top-shell">
     <header class="bar">
       <div class="brand"><span class="crate">📦</span> Oti-Warehouse Swag <span class="build-badge">v${APP_VERSION} WORKFLOW</span></div>
       <div class="who">
@@ -1679,11 +2015,20 @@ function render() {
       <button data-tab="setup" class="${state.tab === "setup" ? "active" : ""}">2. Project & Delivery (${cartCount()})</button>
       <button data-tab="orders" class="${state.tab === "orders" ? "active" : ""}">My Orders</button>
     </nav>
-    <main class="${state.tab === "setup" ? "setup-only" : ""}">
-      <section class="view-panel">${state.tab === "catalog" ? renderCatalogTab() : state.tab === "setup" ? renderSlip() : renderOrdersTab()}</section>
-      ${state.tab === "catalog" ? renderSlip() : ""}
-    </main>
-  `;
+  </div>`;
+
+  if (state.tab === "catalog") {
+    app.innerHTML = `${top}
+      <div class="filter-backdrop ${state.filterDrawerOpen ? "open" : ""}" id="filter-backdrop"></div>
+      <main class="catalog-shell ${state.filterCollapsed ? "filters-collapsed" : ""}">
+        <aside class="filter-rail ${state.filterDrawerOpen ? "open" : ""} ${state.filterCollapsed ? "collapsed" : ""}">${renderFilterRail()}</aside>
+        <section class="catalog-content view-panel">${renderCatalogTab()}</section>
+        <aside class="cart-rail">${renderCompactCart()}</aside>
+      </main>
+      <button class="mobile-cart-bar" id="mobile-cart-open" type="button"><span>Review Order</span><span class="cart-total">${cartCount()} units</span></button>`;
+  } else {
+    app.innerHTML = `${top}<main class="single-shell ${state.tab === "setup" ? "setup-mode" : ""}"><section class="view-panel">${state.tab === "setup" ? renderSlip() : renderOrdersTab()}</section></main>`;
+  }
   wireApp(searchHadFocus, searchCursorPos);
 }
 
@@ -1715,16 +2060,54 @@ function wireApp(searchHadFocus, searchCursorPos) {
   document.querySelectorAll("nav.tabs button").forEach(btn => {
     btn.addEventListener("click", () => {
       state.tab = btn.dataset.tab;
+      state.filterDrawerOpen = false;
       renderWithTransition();
       if (state.tab === "orders") loadMyOrders();
     });
   });
 
-  const openOrderSetup = document.getElementById("open-order-setup");
-  if (openOrderSetup) openOrderSetup.addEventListener("click", () => {
+  const goToSetup = () => {
     state.tab = "setup";
+    state.filterDrawerOpen = false;
     renderWithTransition();
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  ["open-order-setup", "compact-open-setup", "mobile-cart-open"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("click", goToSetup);
+  });
+
+  const mobileFilterOpen = document.getElementById("mobile-filter-open");
+  if (mobileFilterOpen) mobileFilterOpen.addEventListener("click", () => { state.filterDrawerOpen = true; render(); });
+  const filterClose = document.getElementById("filter-close");
+  if (filterClose) filterClose.addEventListener("click", () => { state.filterDrawerOpen = false; render(); });
+  const backdrop = document.getElementById("filter-backdrop");
+  if (backdrop) backdrop.addEventListener("click", () => { state.filterDrawerOpen = false; render(); });
+  const filterCollapse = document.getElementById("filter-collapse");
+  if (filterCollapse) filterCollapse.addEventListener("click", () => {
+    if (window.matchMedia("(max-width: 920px)").matches) {
+      state.filterDrawerOpen = false;
+    } else {
+      state.filterCollapsed = !state.filterCollapsed;
+      localStorage.setItem("oti_filter_collapsed", state.filterCollapsed ? "1" : "0");
+    }
+    render();
+  });
+  document.querySelectorAll("[data-quick-filter]").forEach(btn => btn.addEventListener("click", () => {
+    state.quickFilter = btn.dataset.quickFilter;
+    state.filterDrawerOpen = false;
+    render();
+  }));
+  document.querySelectorAll("[data-category-choice]").forEach(btn => btn.addEventListener("click", () => {
+    state.category = btn.dataset.categoryChoice || "";
+    state.filterDrawerOpen = false;
+    render();
+  }));
+  const clearFilters = document.getElementById("clear-filters");
+  if (clearFilters) clearFilters.addEventListener("click", () => {
+    state.category = "";
+    state.quickFilter = "all";
+    render();
   });
 
   const searchEl = document.getElementById("search");
@@ -1732,26 +2115,25 @@ function wireApp(searchHadFocus, searchCursorPos) {
     searchEl.addEventListener("input", (e) => { state.search = e.target.value; render(); });
     if (searchHadFocus) {
       searchEl.focus();
-      searchEl.selectionStart = searchEl.selectionEnd =
-        searchCursorPos ?? searchEl.value.length;
+      searchEl.selectionStart = searchEl.selectionEnd = searchCursorPos ?? searchEl.value.length;
     }
   }
-  const catEl = document.getElementById("category-filter");
-  if (catEl) catEl.addEventListener("change", (e) => { state.category = e.target.value; render(); });
   const sortEl = document.getElementById("sort-by");
   if (sortEl) sortEl.addEventListener("change", (e) => { state.sort = e.target.value; render(); });
 
   document.querySelectorAll(".stepper button").forEach(btn => {
     btn.addEventListener("click", () => {
       const id = Number(btn.dataset.id);
-      const cur = state.cart[id] || 0;
+      const item = state.catalog.find(i => i.id === id);
+      if (!item) return;
+      const cur = draftQtyFor(item);
       const max = Number(btn.dataset.max || 999999);
-      setQty(id, btn.dataset.act === "inc" ? cur + 1 : cur - 1, max);
+      setDraftQty(id, btn.dataset.act === "inc" ? cur + 1 : cur - 1, max);
     });
   });
 
   document.querySelectorAll(".qty-input").forEach(input => {
-    const commitWithoutRerender = () => {
+    const syncDraft = () => {
       const id = Number(input.dataset.qtyId);
       const max = Number(input.dataset.max || 0);
       let requested = input.value === "" ? 0 : Number(input.value);
@@ -1761,14 +2143,9 @@ function wireApp(searchHadFocus, searchCursorPos) {
         requested = max;
         toast("Only " + max + " are currently available.", true);
       }
-      input.value = requested === 0 && input.value === "" ? "" : String(requested);
-      if (requested === 0) {
-        delete state.cart[id];
-        delete state.estimated[id];
-      } else {
-        state.cart[id] = requested;
-      }
-
+      state.draftQty[id] = requested;
+      input.value = requested === 0 ? "" : String(requested);
+      if (requested <= 0) state.draftEstimated[id] = false;
       const stepper = input.closest(".stepper");
       if (stepper) {
         const dec = stepper.querySelector('[data-act="dec"]');
@@ -1781,31 +2158,45 @@ function wireApp(searchHadFocus, searchCursorPos) {
         estimate.disabled = requested <= 0;
         if (requested <= 0) estimate.checked = false;
       }
-      refreshCartPreview();
-    };
-    input.addEventListener("input", commitWithoutRerender);
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        input.blur();
+      const add = document.querySelector(`[data-add-cart="${id}"]`);
+      if (add) {
+        add.disabled = requested <= 0;
+        const inCart = Number(state.cart[id] || 0);
+        const same = inCart > 0 && requested === inCart && draftEstimatedFor(id) === Boolean(state.estimated[id]);
+        add.textContent = inCart ? (same ? "In Cart" : "Update Cart") : "Add to Cart";
+        add.classList.toggle("in-cart", same);
       }
+    };
+    input.addEventListener("input", syncDraft);
+    input.addEventListener("blur", syncDraft);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
     });
   });
 
   document.querySelectorAll(".estimated-toggle").forEach(toggle => {
     toggle.addEventListener("change", () => {
       const id = Number(toggle.dataset.estimatedId);
-      if (!state.cart[id]) {
+      const item = state.catalog.find(i => i.id === id);
+      if (!item || draftQtyFor(item) <= 0) {
         toggle.checked = false;
         toggle.disabled = true;
-        delete state.estimated[id];
-      } else if (toggle.checked) {
-        state.estimated[id] = true;
+        state.draftEstimated[id] = false;
       } else {
-        delete state.estimated[id];
+        state.draftEstimated[id] = toggle.checked;
       }
-      refreshCartPreview();
+      const add = document.querySelector(`[data-add-cart="${id}"]`);
+      if (add) {
+        const inCart = Number(state.cart[id] || 0);
+        const same = inCart > 0 && draftQtyFor(item) === inCart && draftEstimatedFor(id) === Boolean(state.estimated[id]);
+        add.textContent = inCart ? (same ? "In Cart" : "Update Cart") : "Add to Cart";
+        add.classList.toggle("in-cart", same);
+      }
     });
+  });
+
+  document.querySelectorAll("[data-add-cart]").forEach(btn => {
+    btn.addEventListener("click", () => commitItemToCart(Number(btn.dataset.addCart)));
   });
 
   document.querySelectorAll(".request-count").forEach(btn => {
@@ -1814,6 +2205,7 @@ function wireApp(searchHadFocus, searchCursorPos) {
 
   document.querySelectorAll("[data-lightbox-src], [data-proof-id]").forEach(img => {
     img.addEventListener("click", () => {
+      if (img.dataset.itemImageId) markRecentlyViewed(Number(img.dataset.itemImageId));
       if (img.dataset.lightboxSrc) openLightbox(img.dataset.lightboxSrc, img.alt);
     });
   });
@@ -1830,36 +2222,26 @@ function wireApp(searchHadFocus, searchCursorPos) {
     if (el) el.addEventListener(eventName, (e) => { state.orderForm[key] = e.target.value; });
   };
   const projectChoice = document.getElementById("project-choice");
-  if (projectChoice) {
-    projectChoice.addEventListener("change", (e) => {
-      state.orderForm.projectChoice = e.target.value;
-      renderWithTransition();
-    });
-  }
+  if (projectChoice) projectChoice.addEventListener("change", (e) => {
+    state.orderForm.projectChoice = e.target.value;
+    renderWithTransition();
+  });
   bindFormValue("project-name", "projectName");
   bindFormValue("project-owner", "projectOwner");
   const eventDate = document.getElementById("project-event-date");
-  if (eventDate) eventDate.addEventListener("change", (e) => {
-    state.orderForm.eventDate = e.target.value;
-    render();
-  });
+  if (eventDate) eventDate.addEventListener("change", (e) => { state.orderForm.eventDate = e.target.value; render(); });
   bindFormValue("project-location", "projectLocation");
   bindFormValue("shipping-address1", "shippingAddress1");
   bindFormValue("shipping-address2", "shippingAddress2");
   bindFormValue("shipping-city", "shippingCity");
   bindFormValue("shipping-postal-code", "shippingPostalCode");
   const shippingState = document.getElementById("shipping-state");
-  if (shippingState) shippingState.addEventListener("change", (e) => {
-    state.orderForm.shippingState = e.target.value;
-    render();
-  });
+  if (shippingState) shippingState.addEventListener("change", (e) => { state.orderForm.shippingState = e.target.value; render(); });
   bindFormValue("project-attendees", "attendees");
   bindFormValue("project-description", "projectDescription");
   bindFormValue("slip-notes", "notes");
   const saveProject = document.getElementById("save-project");
-  if (saveProject) {
-    saveProject.addEventListener("change", (e) => { state.orderForm.saveProject = e.target.checked; });
-  }
+  if (saveProject) saveProject.addEventListener("change", (e) => { state.orderForm.saveProject = e.target.checked; });
 
   const submitBtn = document.getElementById("submit-order");
   if (submitBtn) submitBtn.addEventListener("click", submitOrder);

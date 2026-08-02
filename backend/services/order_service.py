@@ -141,12 +141,15 @@ def incomplete_reasons(order: Order) -> list[str]:
     return reasons
 
 
-def _load_order(db: Session, order_id: int) -> Order:
-    order = (db.query(Order).options(
+def _load_order(db: Session, order_id: int, *, include_deleted: bool = False) -> Order:
+    query = db.query(Order).options(
         joinedload(Order.lines).joinedload(OrderLine.item),
         joinedload(Order.project), joinedload(Order.requester),
         joinedload(Order.tracking_numbers), joinedload(Order.proof_photos),
-    ).filter_by(id=order_id).first())
+    ).filter(Order.id == order_id)
+    if not include_deleted:
+        query = query.filter(Order.deleted_at.is_(None))
+    order = query.first()
     if not order:
         raise OrderError("Order not found.", status.HTTP_404_NOT_FOUND)
     return order
@@ -423,6 +426,40 @@ def start_picking(db: Session, *, order_id: int, actor: User,
     return _load_order(db, order.id)
 
 
+def delete_order(db: Session, *, order_id: int, actor: User,
+                 source: str = "admin_app") -> None:
+    """Hide an order everywhere without changing inventory already consumed."""
+    order = _load_order(db, order_id)
+    snapshot = {
+        "status": order.status,
+        "requester": order.requester.full_name or order.requester.username,
+        "project": order.project.name if order.project else None,
+        "tracking": [row.tracking_number for row in order.tracking_numbers],
+        "photo_count": len(order.proof_photos),
+        "lines": [{"item_id": line.item_id,
+                   "code": line.item.code if line.item else str(line.item_id),
+                   "qty_requested": line.qty_requested,
+                   "qty_approved": line.qty_approved}
+                  for line in order.lines],
+    }
+    order.tracking_numbers.clear()
+    order.proof_photos.clear()
+    # Keep the stock ledger, but make its orphaned source obvious after the
+    # order itself disappears from the order-history screens.
+    prefix = f"Order #{order.id}"
+    for tx in (db.query(InventoryTransaction)
+               .filter(InventoryTransaction.reason.like(prefix + "%")).all()):
+        tx.reason = "Deleted " + tx.reason
+    now = datetime.now(timezone.utc)
+    order.deleted_at = now
+    order.updated_at = now
+    log_action(db, user_id=actor.id, action="order.delete",
+               object_type="order", object_id=order.id, old_value=snapshot,
+               new_value={"deleted": True, "inventory_unchanged": True},
+               source=source)
+    db.commit()
+
+
 def fulfill_order(db: Session, *, order_id: int, actor: User,
                   tracking_numbers: list[str], photos: list[tuple[str, str, bytes]],
                   source: str = "admin_app") -> Order:
@@ -477,6 +514,7 @@ def to_order_out(order: Order) -> OrderOut:
         can_self_edit=order.status == "pending",
         tracking_numbers=[row.tracking_number for row in order.tracking_numbers],
         proof_photo_ids=[row.id for row in order.proof_photos],
+        deleted=order.deleted_at is not None,
         lines=[OrderLineOut(
             id=line.id, item_id=line.item_id,
             item_code=line.item.code if line.item else str(line.item_id),
@@ -484,5 +522,6 @@ def to_order_out(order: Order) -> OrderOut:
             qty_requested=line.qty_requested,
             qty_estimated=bool(line.qty_estimated),
             qty_approved=line.qty_approved,
+            item_location=line.item.location if line.item else "",
         ) for line in order.lines],
     )

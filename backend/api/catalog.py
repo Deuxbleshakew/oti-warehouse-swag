@@ -12,10 +12,12 @@ from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from backend.db.session import get_db
 from backend.schemas.schemas import ItemOut, ProjectOut
-from backend.models.models import Item, ItemImage, ItemImageBlob, Project, User
+from backend.models.models import (Item, ItemImage, ItemImageBlob, Project, User,
+                                   CountRequest)
 from backend.auth.dependencies import get_current_user
 from backend.services.item_service import (resolve_stored_image_path,
                                            image_content_type)
@@ -72,8 +74,14 @@ def get_item_image(image_id: int, db: Session = Depends(get_db)):
 @router.get("/catalog", response_model=list[ItemOut])
 def list_catalog(db: Session = Depends(get_db),
                  _user: User = Depends(get_current_user)):
-    items = db.query(Item).filter_by(active=True).order_by(Item.name).all()
-    return [ItemOut.from_orm_item(i) for i in items]
+    counts = dict(db.query(CountRequest.item_id, func.count(CountRequest.id))
+                  .filter(CountRequest.status == "open")
+                  .group_by(CountRequest.item_id).all())
+    items = (db.query(Item)
+             .filter(Item.active.is_(True), Item.deleted_at.is_(None))
+             .order_by(Item.name).all())
+    return [ItemOut.from_orm_item(i, open_count_requests=counts.get(i.id, 0))
+            for i in items]
 
 
 @router.get("/catalog/{item_id}/image", include_in_schema=False)
@@ -85,7 +93,8 @@ def get_catalog_item_image(item_id: int, db: Session = Depends(get_db)):
     file. A remote URL is redirected only when that exact URL is stored on the
     item's image record.
     """
-    item = db.query(Item).filter_by(id=item_id, active=True).first()
+    item = (db.query(Item).filter(Item.id == item_id, Item.active.is_(True),
+                                  Item.deleted_at.is_(None)).first())
     if not item or not item.images:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Item image not found.")
 
@@ -107,7 +116,8 @@ def get_catalog_item_image(item_id: int, db: Session = Depends(get_db)):
 @router.get("/catalog/{item_id}", response_model=ItemOut)
 def get_catalog_item(item_id: int, db: Session = Depends(get_db),
                      _user: User = Depends(get_current_user)):
-    item = db.query(Item).filter_by(id=item_id, active=True).first()
+    item = (db.query(Item).filter(Item.id == item_id, Item.active.is_(True),
+                                  Item.deleted_at.is_(None)).first())
     if not item:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Item not found.")
     return ItemOut.from_orm_item(item)

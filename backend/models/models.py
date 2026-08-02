@@ -35,6 +35,7 @@ class User(Base):
     created_at = Column(DateTime, default=utcnow, nullable=False)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow,
                         nullable=False)
+    deleted_at = Column(DateTime, nullable=True, index=True)
 
     roles = relationship("Role", secondary="user_roles", back_populates="users")
     sessions = relationship("Session", back_populates="user",
@@ -139,6 +140,7 @@ class Item(Base):
     created_at = Column(DateTime, default=utcnow, nullable=False)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow,
                         nullable=False)
+    deleted_at = Column(DateTime, nullable=True, index=True)
 
     images = relationship("ItemImage", back_populates="item",
                           cascade="all, delete-orphan",
@@ -223,6 +225,7 @@ class Order(Base):
     notes = Column(Text, default="")
     picking_started_at = Column(DateTime, nullable=True)
     fulfilled_at = Column(DateTime, nullable=True)
+    deleted_at = Column(DateTime, nullable=True, index=True)
     created_at = Column(DateTime, default=utcnow, nullable=False)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow,
                         nullable=False)

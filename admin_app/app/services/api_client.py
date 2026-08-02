@@ -139,6 +139,9 @@ class ApiClient:
     def edit_order(self, order_id: int, data: dict) -> dict:
         return self._put(f"/admin/orders/{order_id}", data)
 
+    def delete_order(self, order_id: int) -> None:
+        self._request("DELETE", f"/admin/orders/{order_id}")
+
     def pending_orders_updates(self, since: Optional[str]) -> dict:
         """Long-polls the backend for order changes across every status.
         Blocks up to ~25s server-side; run in a background thread. `since` is the
@@ -293,6 +296,9 @@ class ApiClient:
         return self._put(f"/admin/inventory/transactions/{transaction_id}",
                          {"delta": delta, "reason": reason,
                           "allow_negative": allow_negative})
+
+    def delete_inventory_transaction(self, transaction_id: int) -> None:
+        self._request("DELETE", f"/admin/inventory/transactions/{transaction_id}")
 
     def count_requests(self, status: str = "open") -> list[dict]:
         return self._get("/admin/count-requests?status="

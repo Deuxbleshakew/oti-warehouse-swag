@@ -61,7 +61,7 @@ def _count_out(row: CountRequest) -> CountRequestOut:
 def all_orders(status_filter: str | None = Query(None, alias="status"),
                db: Session = Depends(get_db),
                _u: User = Depends(require_role("admin", "approver"))):
-    q = _orders_query(db)
+    q = _orders_query(db).filter(Order.deleted_at.is_(None))
     if status_filter and status_filter != "all":
         q = q.filter(Order.status == status_filter)
     orders = q.order_by(Order.created_at.desc()).all()
@@ -71,7 +71,8 @@ def all_orders(status_filter: str | None = Query(None, alias="status"),
 @router.get("/orders/pending", response_model=list[OrderOut])
 def pending_orders(db: Session = Depends(get_db),
                    _u: User = Depends(require_role("admin", "approver"))):
-    orders = (_orders_query(db).filter(Order.status == "pending")
+    orders = (_orders_query(db).filter(Order.deleted_at.is_(None),
+                                      Order.status == "pending")
               .order_by(Order.created_at).all())
     return [order_service.to_order_out(o) for o in orders]
 
@@ -118,6 +119,14 @@ def edit_order(order_id: int, body: AdminOrderUpdate,
                       if body.project else None),
         lines=body.lines, owner_only_pending=False, source="admin_app")
     return order_service.to_order_out(order)
+
+
+@router.delete("/orders/{order_id}", status_code=204)
+def delete_order(order_id: int, db: Session = Depends(get_db),
+                 user: User = Depends(require_role("admin"))):
+    order_service.delete_order(db, order_id=order_id, actor=user,
+                               source="admin_app")
+    return None
 
 
 @router.post("/orders/{order_id}/approve", response_model=OrderOut)
@@ -181,7 +190,8 @@ def list_all_items(db: Session = Depends(get_db),
     counts = dict(db.query(CountRequest.item_id, func.count(CountRequest.id))
                   .filter(CountRequest.status == "open")
                   .group_by(CountRequest.item_id).all())
-    items = db.query(Item).order_by(Item.name).all()
+    items = (db.query(Item).filter(Item.deleted_at.is_(None))
+             .order_by(Item.name).all())
     return [ItemOut.from_orm_item(i, open_count_requests=counts.get(i.id, 0))
             for i in items]
 
@@ -244,6 +254,15 @@ def edit_inventory_transaction(transaction_id: int,
     return _transaction_out(row)
 
 
+@router.delete("/inventory/transactions/{transaction_id}", status_code=204)
+def delete_inventory_transaction(transaction_id: int,
+                                 db: Session = Depends(get_db),
+                                 user: User = Depends(require_role("admin"))):
+    item_service.delete_inventory_transaction(
+        db, transaction_id=transaction_id, actor=user, source="admin_app")
+    return None
+
+
 # ---- Recount requests --------------------------------------------------------
 @router.get("/count-requests", response_model=list[CountRequestOut])
 def count_requests(status_filter: str = Query("open", alias="status"),
@@ -296,7 +315,8 @@ def delete_item_image(item_id: int, image_id: int,
 def list_users(db: Session = Depends(get_db),
                _u: User = Depends(require_role("admin"))):
     return [UserOut.from_orm_user(u) for u in
-            db.query(User).order_by(User.username).all()]
+            db.query(User).filter(User.deleted_at.is_(None))
+            .order_by(User.username).all()]
 
 
 @router.post("/users", response_model=UserOut, status_code=201)
@@ -332,7 +352,7 @@ def delete_user(user_id: int, db: Session = Depends(get_db),
 def audit_log(limit: int = Query(200, le=1000), db: Session = Depends(get_db),
               _u: User = Depends(require_role("admin"))):
     rows = (db.query(AuditLog).order_by(AuditLog.id.desc()).limit(limit).all())
-    return [AuditLogOut(id=r.id, user=r.user.username if r.user else None,
+    return [AuditLogOut(id=r.id, user=(r.user.full_name or r.user.username) if r.user else None,
                         action=r.action, object_type=r.object_type,
                         object_id=r.object_id, old_value=r.old_value,
                         new_value=r.new_value, source=r.source,

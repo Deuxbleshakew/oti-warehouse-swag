@@ -55,7 +55,9 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db),
 @router.get("/orders/my", response_model=list[OrderOut])
 def my_orders(db: Session = Depends(get_db),
               user: User = Depends(get_current_user)):
-    orders = _my_orders_query(db, user.id).order_by(Order.created_at.desc()).all()
+    orders = (_my_orders_query(db, user.id)
+              .filter(Order.deleted_at.is_(None))
+              .order_by(Order.created_at.desc()).all())
     return [order_service.to_order_out(o) for o in orders]
 
 
@@ -135,7 +137,7 @@ def get_order(order_id: int, db: Session = Depends(get_db),
         joinedload(Order.lines).joinedload(OrderLine.item),
         joinedload(Order.project), joinedload(Order.requester),
         joinedload(Order.tracking_numbers), joinedload(Order.proof_photos),
-    ).filter_by(id=order_id).first())
+    ).filter(Order.id == order_id, Order.deleted_at.is_(None)).first())
     if not order:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Order not found.")
     is_owner = order.requester_user_id == user.id

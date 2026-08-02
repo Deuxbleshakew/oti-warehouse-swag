@@ -503,9 +503,9 @@ class InventoryView(ttk.Frame):
             return
         if not messagebox.askyesno(
                 "Delete item",
-                f"Permanently delete {item['code']} · {item['name']}?\n\n"
-                "This only works for unused test/mistake items. Items with any "
-                "history must be deactivated instead.", parent=self):
+                f"Delete {item['code']} · {item['name']}?\n\n"
+                "It will disappear from the catalog and inventory list. Past "
+                "orders and inventory history will keep a Deleted Item label.", parent=self):
             return
         self.spinner.start("Deleting item")
 
@@ -516,7 +516,7 @@ class InventoryView(ttk.Frame):
                 return
             except ApiError as exc:
                 self.after(0, lambda: (self.spinner.stop(),
-                                       theme.show_error(self, "Delete blocked", str(exc))))
+                                       theme.show_error(self, "Delete failed", str(exc))))
                 return
             self.after(0, self.refresh)
         threading.Thread(target=work, daemon=True).start()

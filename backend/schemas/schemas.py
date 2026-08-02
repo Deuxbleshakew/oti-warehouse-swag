@@ -240,6 +240,7 @@ class OrderLineOut(BaseModel):
     qty_requested: int
     qty_estimated: bool = False
     qty_approved: Optional[int]
+    item_location: str = ""
 
 
 class OrderOut(BaseModel):
@@ -259,6 +260,7 @@ class OrderOut(BaseModel):
     can_self_edit: bool = False
     tracking_numbers: List[str] = []
     proof_photo_ids: List[int] = []
+    deleted: bool = False
     lines: List[OrderLineOut]
 
 
