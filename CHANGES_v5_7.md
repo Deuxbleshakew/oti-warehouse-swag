@@ -31,3 +31,12 @@
 - Proof photos require authentication and are only available to the requester or an admin/approver.
 - Order edits and inventory-history corrections are audit logged.
 - Existing databases upgrade additively on startup. Existing rows and tables are preserved.
+
+## v5.7.1 Render deployment fix
+
+- Made the additive database upgrade dialect-aware.
+- PostgreSQL now receives `TIMESTAMP WITHOUT TIME ZONE` instead of SQLite's
+  `DATETIME` type.
+- PostgreSQL boolean columns now use `DEFAULT FALSE` instead of numeric
+  `DEFAULT 0`.
+- Local SQLite upgrades remain supported with their original compatible types.
