@@ -1,0 +1,2476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oti-Warehouse Swag 1.0 — Project & Delivery</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2712%27 fill=%27%23141618%27/%3E%3Cpath d=%27M12 21 32 10l20 11v23L32 55 12 44Z%27 fill=%27%23c79269%27/%3E%3Cpath d=%27m12 21 20 11 20-11M32 32v23%27 fill=%27none%27 stroke=%27%23f2b705%27 stroke-width=%274%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#E8E5DC;
+    --paper:#1E2124;
+    --surface:#282C30;
+    --surface2:#31363B;
+    --bar:#141618;
+    --safety:#F2B705;
+    --safety-ink:#3A2E00;
+    --rust:#E06248;
+    --ok:#6FBF8A;
+    --line:#3D4349;
+    --muted:#9A958A;
+    --radius:3px;
+  }
+  html[data-theme="light"]{
+    --ink:#202326;--paper:#F4F2EC;--surface:#FFFFFF;--surface2:#EAE7DF;
+    --bar:#25292D;--safety:#D89E00;--safety-ink:#261D00;--rust:#B84431;
+    --ok:#237A47;--line:#CBC6BA;--muted:#66645E;
+  }
+  html[data-theme="high-contrast"]{
+    --ink:#FFFFFF;--paper:#000000;--surface:#080808;--surface2:#151515;
+    --bar:#000000;--safety:#FFD400;--safety-ink:#000000;--rust:#FF5A44;
+    --ok:#64FF91;--line:#FFFFFF;--muted:#E2E2E2;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .label{
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+  }
+  code, .mono{ font-family:'IBM Plex Mono',monospace; }
+
+  a, button{ font-family:inherit; }
+  button{ cursor:pointer; transition:transform .13s ease, background-color .18s ease, border-color .18s ease, opacity .18s ease, box-shadow .18s ease; }
+  button:not(:disabled):active{ transform:translateY(1px) scale(.975); }
+  a{ transition:color .18s ease, opacity .18s ease; }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible{
+    outline:3px solid var(--safety);
+    outline-offset:1px;
+  }
+
+  /* ---- top bar ---- */
+  header.bar{
+    background:var(--bar);
+    color:var(--ink);
+    padding:14px 20px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:5px solid var(--safety);
+  }
+  header.bar .brand{
+    font:600 20px/1 'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  header.bar .brand .crate{ font-size:22px; }
+  .build-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    margin-left:7px;
+    padding:3px 7px;
+    border:1px solid rgba(242,183,5,.55);
+    color:var(--safety);
+    background:rgba(242,183,5,.09);
+    font:500 10px/1 'IBM Plex Mono',monospace;
+    letter-spacing:.04em;
+    white-space:nowrap;
+  }
+  header.bar .who{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    font-size:13px;
+    color:var(--muted);
+  }
+  header.bar .who .roles{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    background:rgba(242,183,5,.14);
+    color:var(--safety);
+    padding:2px 7px;
+    border-radius:2px;
+    letter-spacing:.03em;
+  }
+  .theme-select{
+    background:var(--surface2);color:var(--ink);border:1px solid var(--line);
+    padding:6px 8px;border-radius:var(--radius);font-size:12px;
+  }
+  header.bar button.link{
+    background:none;
+    border:none;
+    color:var(--ink);
+    text-decoration:underline;
+    font-size:13px;
+    padding:0;
+  }
+
+  /* ---- tabs ---- */
+  nav.tabs{
+    display:flex;
+    gap:2px;
+    background:var(--surface);
+    border-bottom:1px solid var(--line);
+    padding:0 20px;
+  }
+  nav.tabs button{
+    transition:color .2s ease, border-color .2s ease, transform .15s ease;
+    background:none;
+    border:none;
+    padding:13px 4px;
+    margin-right:22px;
+    font:600 13px/1 'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--muted);
+    border-bottom:3px solid transparent;
+  }
+  nav.tabs button.active{
+    color:var(--ink);
+    border-bottom-color:var(--safety);
+  }
+
+  main{
+    max-width:1180px;
+    margin:0 auto;
+    padding:22px 20px 80px;
+    display:grid;
+    grid-template-columns:1fr 320px;
+    gap:24px;
+    align-items:start;
+  }
+  main.setup-only{
+    grid-template-columns:minmax(0,760px);
+    justify-content:center;
+  }
+  main.setup-only .slip{
+    position:static;
+    max-height:none;
+    overflow:visible;
+  }
+  .feature-banner{
+    border:1px solid var(--line);
+    border-left:5px solid var(--safety);
+    background:linear-gradient(135deg,rgba(242,183,5,.10),rgba(49,54,59,.72));
+    padding:13px 14px;
+    margin-bottom:16px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+  }
+  .feature-banner strong{
+    display:block;
+    font:600 15px 'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+  .feature-banner span{
+    display:block;
+    margin-top:3px;
+    color:var(--muted);
+    font-size:12px;
+    line-height:1.4;
+  }
+  .feature-banner button{
+    flex:0 0 auto;
+    background:var(--safety);
+    color:var(--safety-ink);
+    border:0;
+    padding:10px 12px;
+    border-radius:var(--radius);
+    font:600 12px 'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+  .setup-empty-warning{
+    border:1px dashed var(--rust);
+    background:rgba(224,98,72,.07);
+    color:var(--ink);
+    padding:10px 11px;
+    font-size:12px;
+    line-height:1.4;
+  }
+  @media (max-width:880px){
+    main{ grid-template-columns:1fr; }
+    .slip{ position:static; max-height:none; overflow:visible; }
+  }
+
+  .toolbar{
+    display:flex;
+    gap:10px;
+    margin-bottom:16px;
+    flex-wrap:wrap;
+  }
+  .toolbar input[type=search], .toolbar select{
+    padding:9px 11px;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    background:var(--surface2);
+    font-size:13px;
+    color:var(--ink);
+  }
+  .toolbar input[type=search]{ flex:1; min-width:180px; }
+
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
+    gap:14px;
+  }
+
+  /* ---- item tag card ---- */
+  .tag{
+    background:var(--surface);
+    transition:transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    position:relative;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
+  .tag:hover{ transform:translateY(-3px); border-color:#596168; box-shadow:0 10px 24px rgba(0,0,0,.22); }
+  .tag:focus-within{ border-color:var(--safety); }
+  .tag .perf{
+    height:0;
+    border-top:2px dashed var(--line);
+    margin:0 14px;
+    position:relative;
+    top:14px;
+  }
+  .tag .photo{
+    height:160px;
+    position:relative;
+    background:var(--surface2);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:var(--line);
+    border-bottom:1px solid var(--line);
+  }
+  .tag .photo img{ width:100%; height:100%; object-fit:contain; padding:10px; cursor:zoom-in; transition:transform .25s ease, opacity .2s ease; }
+  .tag:hover .photo img{ transform:scale(1.025); }
+  .tag .colordot{
+    position:absolute;
+    top:8px;
+    right:8px;
+    width:16px;
+    height:16px;
+    border-radius:50%;
+    border:2px solid var(--ink);
+    box-shadow:0 0 0 2px var(--bar);
+  }
+  .favorite-btn{
+    position:absolute;top:8px;left:8px;z-index:3;width:36px;height:36px;
+    border:1px solid var(--line);background:rgba(20,22,24,.84);color:#C8C4B9;
+    border-radius:50%;font-size:20px;display:grid;place-items:center;
+  }
+  .favorite-btn.active{color:var(--safety);border-color:var(--safety);}
+  .stock-badge{
+    position:absolute;left:50%;bottom:8px;transform:translateX(-50%);z-index:2;
+    padding:5px 10px;border:1px solid currentColor;background:rgba(20,22,24,.92);
+    font:700 11px 'Oswald',sans-serif;letter-spacing:.07em;text-transform:uppercase;
+    white-space:nowrap;
+  }
+  .stock-badge.not_counted{color:var(--safety);background:rgba(58,47,19,.96);border-color:var(--safety);font-size:12px;}
+  .stock-badge.low_stock{color:var(--safety)}
+  .stock-badge.out_of_stock{color:#fff;background:rgba(169,48,35,.96);font-size:13px;}
+  .tag.out-of-stock .photo img{opacity:.38;filter:grayscale(.7)}
+  .tag.out-of-stock{border-color:rgba(224,98,72,.75)}
+  .cat-section{ margin-bottom:22px; }
+  .cat-head{
+    font:600 13px 'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--safety);
+    border-bottom:1px solid var(--line);
+    padding-bottom:6px;
+    margin-bottom:12px;
+    display:flex;
+    justify-content:space-between;
+  }
+  .cat-head .n{ color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:11px; }
+  .tag .body{ padding:12px 14px 14px; display:flex; flex-direction:column; gap:6px; flex:1; }
+  .tag .code{
+    font-size:11px;
+    color:var(--muted);
+    letter-spacing:.03em;
+  }
+  .tag .name{ font-weight:600; font-size:14.5px; line-height:1.3; }
+  .tag .meta{ font-size:12px; color:var(--muted); }
+  .tag .row-bottom{
+    margin-top:auto;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+  }
+  .tag .stock{
+    font-size:11px;
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .tag .stock.low{ color:var(--rust); }
+  .tag .stepper{
+    display:flex;
+    align-items:center;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    overflow:hidden;
+  }
+  .tag .stepper button{
+    background:var(--surface2);
+    color:var(--ink);
+    border:none;
+    width:26px;
+    height:26px;
+    font-size:15px;
+    line-height:1;
+  }
+  .tag .stepper button:disabled{ opacity:.35; cursor:not-allowed; }
+  .tag .stepper .qty{
+    width:42px;
+    height:26px;
+    border:0;
+    border-left:1px solid var(--line);
+    border-right:1px solid var(--line);
+    background:var(--paper);
+    color:var(--ink);
+    text-align:center;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    padding:0 3px;
+    -moz-appearance:textfield;
+  }
+  .tag .stepper .qty::-webkit-outer-spin-button,
+  .tag .stepper .qty::-webkit-inner-spin-button{
+    -webkit-appearance:none;
+    margin:0;
+  }
+  .tag .photo-fallback{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+    height:100%;
+    font-size:28px;
+    opacity:.5;
+  }
+  .card-actions{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:4px; }
+  .estimated-mark{ display:flex; align-items:center; gap:5px; color:var(--muted); font-size:10.5px; }
+  .estimated-mark input{ accent-color:var(--safety); }
+  .request-count{ background:none; border:1px solid var(--line); color:var(--muted); padding:5px 7px; border-radius:var(--radius); font-size:10px; }
+  .request-count:hover{ color:var(--ink); border-color:var(--safety); }
+
+  /* ---- order slip (cart) ---- */
+  .slip{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    position:sticky;
+    top:20px;
+    max-height:calc(100vh - 40px);
+    overflow-y:auto;
+  }
+  .slip .slip-head{
+    padding:14px 16px 10px;
+    border-bottom:2px dashed var(--line);
+  }
+  .slip .slip-head .label{ font-size:12px; color:var(--muted); }
+  .slip .slip-head h2{
+    margin:2px 0 0;
+    font:600 18px 'Oswald',sans-serif;
+    text-transform:uppercase;
+  }
+  .slip .lines{ padding:10px 16px; display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto; }
+  .slip .empty{ color:var(--muted); font-size:13px; padding:8px 0; }
+  .slip .line{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-size:13px;
+    gap:8px;
+  }
+  .slip .line .cart-thumb, .compact-cart .line .cart-thumb{
+    width:44px;height:44px;flex:0 0 44px;border:1px solid var(--line);border-radius:3px;
+    background:var(--surface2);display:flex;align-items:center;justify-content:center;overflow:hidden;
+    color:var(--muted);font-size:18px;
+  }
+  .slip .line .cart-thumb img, .compact-cart .line .cart-thumb img{width:100%;height:100%;object-fit:contain;padding:3px;}
+  .slip .line .nm{ flex:1; min-width:0; }
+  .slip .line .nm .cd{ display:block; font-size:10.5px; color:var(--muted); font-family:'IBM Plex Mono',monospace; }
+  .slip .line button.rm{
+    background:none;
+    border:none;
+    color:var(--rust);
+    font-size:16px;
+    padding:0 2px;
+  }
+  .slip .foot{ padding:12px 16px 16px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:10px; }
+  .slip select, .slip textarea, .slip input[type=text],
+  .slip input[type=date], .slip input[type=number]{
+    width:100%;
+    padding:8px 9px;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    background:var(--surface2);
+    color:var(--ink);
+    font-size:13px;
+    font-family:inherit;
+  }
+  .slip textarea{ min-height:52px; resize:vertical; }
+  .project-builder{
+    border:1px solid var(--line);
+    background:rgba(20,22,24,.32);
+    padding:10px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .slip .mini-label{
+    display:block;
+    color:var(--muted);
+    font-size:10.5px;
+    margin-bottom:4px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+  }
+  .project-builder .two-col{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+  .project-builder .save-project{
+    display:flex;
+    align-items:flex-start;
+    gap:8px;
+    color:var(--muted);
+    font-size:11.5px;
+    line-height:1.35;
+  }
+  .project-builder .save-project input{
+    width:auto;
+    margin-top:2px;
+    accent-color:var(--safety);
+  }
+  .project-help{
+    color:var(--muted);
+    font-size:11px;
+    line-height:1.35;
+  }
+  .address-box{
+    border-top:1px dashed var(--line);
+    margin-top:2px;
+    padding-top:9px;
+  }
+  .address-box h3{
+    margin:0 0 8px;
+    font:600 13px 'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+  .shipping-plan{
+    border:1px solid var(--line);
+    border-left:4px solid var(--safety);
+    background:var(--surface2);
+    padding:9px 10px;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:7px 10px;
+  }
+  .shipping-plan .plan-item span{
+    display:block;
+    color:var(--muted);
+    font-size:9.5px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+  .shipping-plan .plan-item strong{
+    display:block;
+    margin-top:2px;
+    font:600 12px 'IBM Plex Mono',monospace;
+  }
+  .shipping-plan .plan-wide{ grid-column:1 / -1; }
+  .shipping-plan.due{ border-left-color:var(--rust); }
+  .shipping-note{
+    grid-column:1 / -1;
+    color:var(--muted);
+    font-size:10px;
+    line-height:1.35;
+  }
+  .map-reference summary{
+    cursor:pointer;
+    color:var(--muted);
+    font-size:10.5px;
+  }
+  .map-reference img{
+    display:block;
+    width:100%;
+    margin-top:7px;
+    border:1px solid var(--line);
+    background:#000;
+  }
+  .saved-project-card{
+    border:1px solid var(--line);
+    background:var(--surface2);
+    padding:9px;
+    font-size:11px;
+    line-height:1.5;
+  }
+  .saved-project-card strong{ color:var(--ink); }
+  .btn-primary{
+    background:var(--safety);
+    color:var(--safety-ink);
+    border:none;
+    padding:11px;
+    border-radius:var(--radius);
+    font:600 13px 'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+  }
+  .btn-primary:disabled{ opacity:.4; cursor:not-allowed; }
+  .total-count{ font-size:12px; color:var(--muted); }
+
+  /* ---- toast ---- */
+  #toast{
+    position:fixed;
+    left:50%;
+    bottom:24px;
+    transform:translate(-50%,18px);
+    background:var(--bar);
+    color:var(--ink);
+    padding:12px 18px;
+    border-radius:var(--radius);
+    border-left:4px solid var(--safety);
+    font-size:13px;
+    max-width:420px;
+    box-shadow:0 6px 20px rgba(0,0,0,.25);
+    opacity:0;
+    visibility:hidden;
+    pointer-events:none;
+    transition:opacity .22s ease, transform .22s ease, visibility .22s;
+    z-index:80;
+  }
+  #toast.show{ opacity:1; visibility:visible; transform:translate(-50%,0); }
+  #toast.err{ border-left-color:var(--rust); }
+
+  /* ---- orders tab ---- */
+  .orders-list{ display:flex; flex-direction:column; gap:10px; }
+  .order-card{
+    background:var(--surface);
+    transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:14px 16px;
+  }
+  .order-card:hover{ transform:translateY(-2px); border-color:#596168; box-shadow:0 8px 20px rgba(0,0,0,.16); }
+  .order-card.incomplete{ border-left:4px solid var(--rust); }
+  .order-card .top-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+  .order-card .oid{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted); }
+  .order-card .proj{ font-size:13px; color:var(--muted); margin-top:2px; }
+  .order-card .proj-meta{ font-size:11.5px; color:var(--muted); margin-top:3px; }
+  .stamp{
+    font:700 11px 'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    padding:4px 9px;
+    border:2px solid currentColor;
+    border-radius:2px;
+    transform:rotate(-2deg);
+    white-space:nowrap;
+  }
+  .stamp.pending{ color:var(--muted); }
+  .stamp.approved{ color:var(--ok); }
+  .stamp.picking{ color:var(--safety); }
+  .stamp.rejected{ color:var(--rust); }
+  .stamp.fulfilled{ color:var(--ink); }
+  .order-card .lines-mini{ margin-top:10px; font-size:12.5px; color:var(--ink); }
+  .order-card .lines-mini div{ display:flex; justify-content:space-between; padding:2px 0; border-bottom:1px dotted var(--line); }
+  .order-card .lines-mini div:last-child{ border-bottom:none; }
+  .order-card .notes{ margin-top:8px; font-size:12.5px; color:var(--muted); font-style:italic; }
+  .incomplete-note{ margin-top:8px; padding:7px 9px; border:1px dashed var(--rust); color:var(--rust); font-size:11.5px; background:rgba(224,98,72,.06); }
+  .order-actions{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .btn-secondary{ background:var(--surface2); color:var(--ink); border:1px solid var(--line); padding:8px 10px; border-radius:var(--radius); font:600 11px 'Oswald',sans-serif; text-transform:uppercase; letter-spacing:.04em; }
+  .estimate-pill{ color:var(--safety); font-size:9px; border:1px solid rgba(242,183,5,.45); padding:1px 4px; margin-left:5px; }
+  .tracking-box{ margin-top:10px; border-top:1px dashed var(--line); padding-top:9px; font-size:12px; }
+  .proof-strip{ display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .proof-strip img{ width:88px; height:70px; object-fit:cover; border:1px solid var(--line); cursor:zoom-in; transition:transform .18s ease, border-color .18s ease; }
+  .proof-strip img:hover{ transform:translateY(-2px); border-color:var(--safety); }
+  .proof-strip img:not([src]){ opacity:.45; background:var(--surface2); }
+
+  /* ---- login screen ---- */
+  .login-wrap{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+  .login-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    width:430px;
+    max-width:100%;
+    padding:26px 24px 24px;
+  }
+  .login-card .brand{
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr) auto;
+    align-items:center;
+    gap:12px;
+    margin-bottom:8px;
+  }
+  .login-card .brand-icon{font-size:24px;line-height:1;}
+  .login-card .brand-name{font:600 25px/1.08 'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;}
+  .login-card .build-badge{margin-left:0;}
+  @media(max-width:430px){
+    .login-card .brand{grid-template-columns:auto minmax(0,1fr);}
+    .login-card .brand-name{white-space:normal;font-size:22px;}
+    .login-card .brand .build-badge{grid-column:2;justify-self:start;}
+  }
+  .login-card .sub{ font-size:12.5px; color:var(--muted); margin-bottom:20px; }
+  .field{ margin-bottom:14px; }
+  .field label{ display:block; font-size:12px; color:var(--muted); margin-bottom:5px; }
+  .field input{
+    width:100%;
+    padding:10px 11px;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    background:var(--surface2);
+    color:var(--ink);
+    font-size:14px;
+  }
+  .server-field input{
+    width:100%;
+    padding:8px 10px;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    background:var(--surface2);
+    color:var(--ink);
+    font-size:12.5px;
+  }
+  .err-line{ color:var(--rust); font-size:12.5px; margin:-6px 0 14px; }
+  .server-toggle{
+    font-size:11.5px;
+    color:var(--muted);
+    background:none;
+    border:none;
+    text-decoration:underline;
+    padding:0;
+    margin-top:14px;
+  }
+  .server-field{ margin-top:10px; }
+
+  .loading, .empty-state{
+    color:var(--muted);
+    font-size:13px;
+    padding:30px 4px;
+    text-align:center;
+  }
+  .spinner{ width:28px; height:28px; margin:0 auto 9px; border:3px solid var(--line); border-top-color:var(--safety); border-radius:50%; animation:spin .7s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .view-panel{ animation:viewIn .22s ease both; }
+  @keyframes viewIn{ from{ opacity:0; transform:translateY(5px); } to{ opacity:1; transform:none; } }
+  .computed-field{ min-height:36px; padding:8px 9px; border:1px solid var(--line); background:var(--paper); color:var(--ink); font:500 12px 'IBM Plex Mono',monospace; display:flex; align-items:center; }
+  .modal-backdrop, .lightbox{
+    position:fixed; inset:0; background:rgba(5,6,7,.82); z-index:70;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+    opacity:0; visibility:hidden; transition:opacity .2s ease, visibility .2s;
+  }
+  .modal-backdrop.open, .lightbox.open{ opacity:1; visibility:visible; }
+  .modal-card{ width:min(600px,100%); max-height:90vh; overflow:auto; background:var(--surface); border:1px solid var(--line); border-top:4px solid var(--safety); padding:18px; transform:translateY(10px) scale(.985); transition:transform .2s ease; box-shadow:0 24px 70px rgba(0,0,0,.45); }
+  .modal-backdrop.open .modal-card{ transform:none; }
+  .modal-card h2{ margin:0 0 4px; font:600 18px 'Oswald',sans-serif; text-transform:uppercase; }
+  .modal-card .modal-sub{ color:var(--muted); font-size:12px; margin-bottom:14px; }
+  .modal-grid{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  .modal-card label{ display:block; color:var(--muted); font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px; }
+  .modal-card input, .modal-card select, .modal-card textarea{ width:100%; padding:9px; border:1px solid var(--line); background:var(--surface2); color:var(--ink); font:inherit; }
+  .modal-card textarea{ min-height:70px; resize:vertical; }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
+  .edit-line{ display:grid; grid-template-columns:1fr 90px 110px; gap:8px; align-items:center; padding:7px 0; border-bottom:1px dotted var(--line); font-size:12px; }
+  .edit-line label{ margin:0; text-transform:none; letter-spacing:0; display:flex; align-items:center; gap:5px; }
+  .lightbox img{ max-width:min(1100px,94vw); max-height:88vh; object-fit:contain; border:0; box-shadow:0 20px 70px rgba(0,0,0,.55); transform:scale(.97); transition:transform .2s ease; }
+  .lightbox.open img{ transform:scale(1); }
+  .lightbox-close{ position:absolute; top:18px; right:22px; background:var(--bar); color:var(--ink); border:1px solid var(--line); width:40px; height:40px; font-size:20px; }
+  @media (prefers-reduced-motion:reduce){ *,*::before,*::after{ animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; scroll-behavior:auto!important; } }
+
+  /* Phone-width tap targets. Placed at the END of the stylesheet on
+     purpose: CSS gives later same-specificity rules priority over
+     earlier ones regardless of media query — put this anywhere else and
+     the base desktop rules above would silently win even when this
+     query matches. The compact desktop sizing (26px stepper buttons,
+     etc.) is comfortable with a mouse but genuinely hard to hit
+     accurately with a thumb, so this bumps touch targets to the
+     standard ~44px comfort size without touching desktop at all. */
+  @media (max-width:480px){
+    .tag .stepper button{ width:44px; height:44px; font-size:19px; }
+    .tag .stepper .qty{ width:52px; height:44px; font-size:16px; }
+    .field input, .server-field input{ padding:13px 12px; font-size:16px; }
+    .toolbar input[type=search], .toolbar select{ padding:12px 12px; font-size:16px; }
+    .slip select, .slip textarea, .slip input[type=text],
+    .slip input[type=date], .slip input[type=number]{ padding:12px 12px; font-size:16px; }
+    .project-builder .two-col{ grid-template-columns:1fr; }
+    .shipping-plan{ grid-template-columns:1fr; }
+    .shipping-plan .plan-wide, .shipping-note{ grid-column:1; }
+    .slip .line button.rm{ font-size:20px; padding:8px 10px; }
+    .btn-primary{ padding:14px; }
+    nav.tabs button{
+    transition:color .2s ease, border-color .2s ease, transform .15s ease; padding:15px 4px; margin-right:12px; }
+    .feature-banner{ align-items:stretch; flex-direction:column; }
+    .feature-banner button{ width:100%; padding:13px; }
+    .modal-grid{ grid-template-columns:1fr; }
+    .edit-line{ grid-template-columns:1fr 76px; }
+    .edit-line .estimated-edit{ grid-column:1 / -1; }
+  }
+
+
+  /* ---- responsive workspace --------------------------------------------- */
+  .top-shell{ position:sticky; top:0; z-index:60; box-shadow:0 5px 18px rgba(0,0,0,.22); }
+  .top-shell header.bar, .top-shell nav.tabs{ position:static; }
+  main.catalog-shell{
+    max-width:1780px; grid-template-columns:220px minmax(0,1fr) 330px;
+    gap:18px; padding-top:18px;
+  }
+  main.single-shell{ max-width:1180px; display:block; }
+  main.single-shell.setup-mode{ max-width:820px; }
+  main.single-shell.setup-mode .slip{position:static;max-height:none;overflow:visible;}
+  main.single-shell.setup-mode .slip .lines{max-height:none;overflow:visible;}
+  .catalog-content{ min-width:0; }
+  .filter-rail, .cart-rail{ position:sticky; top:118px; max-height:calc(100vh - 136px); overflow:auto; }
+  .filter-panel, .compact-cart{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  }
+  .rail-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:13px 14px; border-bottom:2px dashed var(--line); }
+  .rail-head strong{ font:600 14px 'Oswald',sans-serif; text-transform:uppercase; letter-spacing:.05em; }
+  .rail-close{ display:none; background:none; color:var(--ink); border:1px solid var(--line); width:34px; height:34px; }
+  .filter-group{ padding:12px 10px; border-bottom:1px solid var(--line); }
+  .filter-group:last-child{ border-bottom:0; }
+  .filter-title{ color:var(--muted); font:600 10px 'Oswald',sans-serif; text-transform:uppercase; letter-spacing:.08em; padding:0 5px 7px; }
+  .filter-option{
+    width:100%; display:flex; justify-content:space-between; align-items:center; gap:8px;
+    background:transparent; color:var(--muted); border:1px solid transparent;
+    padding:8px 9px; text-align:left; border-radius:var(--radius); font-size:12px;
+  }
+  .filter-option:hover{ color:var(--ink); background:var(--surface2); }
+  .filter-option.active{ color:var(--safety); border-color:rgba(242,183,5,.45); background:rgba(242,183,5,.08); }
+  .filter-option .filter-n{ font:10px 'IBM Plex Mono',monospace; color:var(--muted); }
+  .toolbar .mobile-filter-btn{ display:none; background:var(--surface2); color:var(--ink); border:1px solid var(--line); padding:9px 11px; }
+  .filter-backdrop{ display:none; }
+  .grid{ grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+  .tag{ min-height:470px; }
+  .tag .photo{ height:205px; padding:14px; background:radial-gradient(circle at 50% 40%,#3a4045 0,#2c3135 58%,#24282c 100%); }
+  .tag .photo img{ object-fit:contain; width:100%; height:100%; transform:none!important; }
+  .tag .body{ padding:14px; gap:8px; }
+  .tag .name{ min-height:38px; display:flex; align-items:flex-start; }
+  .tag .meta{ min-height:30px; }
+  .tag .row-bottom{ align-items:flex-end; }
+  .tag .stepper button{ width:34px; height:34px; }
+  .tag .stepper .qty{ height:34px; width:52px; }
+  .card-actions{ align-items:flex-start; }
+  .card-buy{ margin-top:auto; display:grid; grid-template-columns:1fr auto; gap:8px; align-items:stretch; }
+  .add-cart{
+    min-height:40px; border:0; background:var(--safety); color:var(--safety-ink);
+    padding:9px 12px; border-radius:var(--radius); font:600 12px 'Oswald',sans-serif;
+    text-transform:uppercase; letter-spacing:.05em;
+  }
+  .add-cart.in-cart{ background:var(--ok); color:#102416; }
+  .add-cart:disabled{ opacity:.38; cursor:not-allowed; }
+  .draft-note{ color:var(--muted); font-size:10px; align-self:center; text-align:right; }
+  .compact-cart .slip-head{ padding:14px; border-bottom:2px dashed var(--line); }
+  .compact-cart .slip-head .label{ color:var(--muted); font-size:10px; }
+  .compact-cart .slip-head h2{ margin:2px 0 0; font:600 18px 'Oswald',sans-serif; text-transform:uppercase; }
+  .compact-cart .lines{ padding:10px 14px; max-height:235px; overflow:auto; display:flex; flex-direction:column; gap:8px; }
+  .compact-cart .line{ display:flex; align-items:center; gap:8px; font-size:12px; }
+  .compact-cart .line .nm{ flex:1; min-width:0; }
+  .compact-cart .line .cd{ display:block; color:var(--muted); font-size:10px; }
+  .compact-cart .rm{ border:0; background:none; color:var(--rust); font-size:16px; }
+  .compact-cart .empty{ color:var(--muted); font-size:12px; }
+  .readiness{ border-top:1px solid var(--line); padding:12px 14px; }
+  .readiness h3{ margin:0 0 8px; font:600 13px 'Oswald',sans-serif; text-transform:uppercase; }
+  .ready-row{ display:flex; justify-content:space-between; gap:10px; padding:4px 0; font-size:11px; border-bottom:1px dotted var(--line); }
+  .ready-row:last-child{ border-bottom:0; }
+  .ready-row span{ color:var(--muted); }
+  .ready-value.good{ color:var(--ok); }.ready-value.warn{ color:var(--rust); }.ready-value.pending{ color:var(--safety); }
+  .compact-foot{ padding:12px 14px 14px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px; }
+  .compact-foot .btn-primary{ width:100%; }
+  .mobile-cart-bar{ display:none; }
+  .order-readiness-box{ border:1px solid var(--line); border-left:4px solid var(--safety); background:rgba(242,183,5,.06); padding:10px; }
+  .order-readiness-box.incomplete{ border-left-color:var(--rust); }
+  .order-readiness-box strong{ font:600 12px 'Oswald',sans-serif; text-transform:uppercase; }
+  .order-readiness-box ul{ margin:6px 0 0; padding-left:18px; color:var(--muted); font-size:11px; }
+  @media (min-width:1650px){ .grid{ grid-template-columns:repeat(3,minmax(0,1fr)); } }
+  @media (max-width:1180px){
+    main.catalog-shell{ grid-template-columns:190px minmax(0,1fr) 300px; padding-left:12px; padding-right:12px; }
+    .tag{ min-height:450px; }.tag .photo{ height:185px; }
+  }
+  @media (max-width:920px){
+    .top-shell header.bar{ padding:11px 13px; }
+    header.bar .brand{ font-size:16px; }.build-badge{ display:none; }
+    header.bar .who{ gap:7px; }.who .roles{ display:none; }
+    nav.tabs{ padding:0 10px; overflow-x:auto; scrollbar-width:none; }
+    nav.tabs::-webkit-scrollbar{ display:none; }
+    nav.tabs button{ flex:0 0 auto; margin-right:12px; white-space:nowrap; }
+    main.catalog-shell, main.single-shell{ display:block; padding:14px 12px 96px; max-width:none; }
+    .cart-rail{ display:none; }
+    .filter-rail{
+      position:fixed; left:0; top:0; bottom:0; width:min(320px,88vw); max-height:none;
+      z-index:90; transform:translateX(-105%); transition:transform .23s ease;
+      padding:0; background:var(--paper); overflow:auto;
+    }
+    .filter-rail.open{ transform:translateX(0); }
+    .filter-panel{ min-height:100%; border-radius:0; border-top:0; border-bottom:0; }
+    .rail-close{ display:inline-grid; place-items:center; }
+    .filter-backdrop{ position:fixed; inset:0; z-index:85; background:rgba(0,0,0,.66); opacity:0; visibility:hidden; display:block; transition:.2s; }
+    .filter-backdrop.open{ opacity:1; visibility:visible; }
+    .toolbar .mobile-filter-btn{ display:inline-flex; align-items:center; gap:6px; }
+    .toolbar input[type=search]{ flex-basis:100%; order:-1; }
+    .grid{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .mobile-cart-bar{
+      display:flex; position:fixed; left:12px; right:12px; bottom:12px; z-index:55;
+      background:var(--safety); color:var(--safety-ink); border:0; border-radius:4px;
+      min-height:54px; padding:10px 15px; align-items:center; justify-content:space-between;
+      font:600 13px 'Oswald',sans-serif; text-transform:uppercase; letter-spacing:.04em;
+      box-shadow:0 10px 30px rgba(0,0,0,.4);
+    }
+    .mobile-cart-bar .cart-total{ font-family:'IBM Plex Mono',monospace; }
+    .feature-banner{ align-items:stretch; flex-direction:column; }
+    .feature-banner button{ width:100%; }
+  }
+  @media (max-width:620px){
+    header.bar .who > span:first-child{ display:none; }
+    .theme-select{max-width:112px;padding:5px 6px;}
+    .grid{ grid-template-columns:1fr; }
+    .tag{ min-height:0; }
+    .tag .photo{ height:230px; }
+    .tag .name{ min-height:0; }
+    .tag .meta{ min-height:0; }
+    .card-buy{ grid-template-columns:1fr; }
+    .draft-note{ text-align:left; }
+    .add-cart{ min-height:48px; font-size:13px; }
+    .modal-backdrop{ padding:0; align-items:stretch; }
+    .modal-card{ width:100%; max-height:100vh; border-left:0; border-right:0; border-bottom:0; padding:16px; }
+    .order-card .top-row{ flex-direction:column; }.stamp{ align-self:flex-start; }
+    .proof-strip img{ width:calc(50% - 4px); height:120px; }
+  }
+
+
+  /* finishing details */
+  main.catalog-shell.filters-collapsed{ grid-template-columns:52px minmax(0,1fr) 330px; }
+  .rail-controls{ display:flex; gap:6px; }
+  .rail-collapse{ display:grid; place-items:center; width:30px; height:30px; border:1px solid var(--line); background:var(--surface2); color:var(--ink); font-size:20px; }
+  .filter-rail.collapsed .rail-head{ padding:10px; justify-content:center; }
+  .filter-rail.collapsed .rail-head strong, .filter-rail.collapsed .filter-group, .filter-rail.collapsed .rail-close{ display:none; }
+  .filter-rail.collapsed .rail-controls{ display:block; }
+  .count-flag{ color:var(--safety); border:1px dashed rgba(242,183,5,.55); background:rgba(242,183,5,.06); padding:5px 7px; font-size:10px; }
+  .clear-filters{ background:transparent; color:var(--safety); border:1px solid rgba(242,183,5,.45); padding:8px 10px; border-radius:var(--radius); }
+  .toolbar{ align-items:center; }
+  @media (max-width:1180px) and (min-width:921px){ main.catalog-shell.filters-collapsed{ grid-template-columns:52px minmax(0,1fr) 300px; } }
+  @media (max-width:920px){
+    main.catalog-shell.filters-collapsed{ display:block; }
+    .filter-rail.collapsed .rail-head strong, .filter-rail.collapsed .filter-group, .filter-rail.collapsed .rail-close{ display:initial; }
+    .filter-rail.collapsed .filter-group{ display:block; }
+    .filter-rail.collapsed .rail-head{ padding:13px 14px; justify-content:space-between; }
+    .rail-collapse{ display:none; }
+  }
+
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+<div id="toast"></div>
+<div id="modal-root" class="modal-backdrop" aria-hidden="true"></div>
+<div id="lightbox" class="lightbox" aria-hidden="true"><button class="lightbox-close" aria-label="Close">✕</button><img alt="Expanded item photo"></div>
+
+<script>
+/* ---------------------------------------------------------------------
+   Oti-Warehouse Swag — ordering frontend.
+   Static file, no build step — open it from the shared drive or host it
+   next to the backend. Talks to the FastAPI backend over bearer-token
+   auth (see backend/main.py for the CORS rationale).
+   ------------------------------------------------------------------- */
+
+// When this page is served BY the backend itself (Render, or any host
+// running main.py), talking to "itself" is exactly right — no manual
+// server address needed at all, which matters most on a phone where
+// typing a URL into a settings field is annoying. Opening the file
+// directly (file://) has no real origin to detect, so that case keeps
+// the old localhost default for local testing.
+const APP_VERSION = "1.0";
+const DEFAULT_API_BASE =
+  (location.protocol === "file:" || !location.origin || location.origin === "null")
+    ? "http://localhost:8000"
+    : location.origin;
+
+// Conservative state-level defaults transcribed from the supplied UPS Ground
+// outbound map. Several states contain more than one ZIP-level zone, so the
+// transit time is locked to the supplied UPS state map.
+const GROUND_DAYS_BY_STATE = {
+  CT:1, DC:1, DE:1, MA:1, MD:1, NJ:1, NY:1, PA:1, RI:1, VT:1,
+  GA:2, IN:2, KY:2, ME:2, MI:2, NC:2, NH:2, OH:2, SC:2, TN:2, VA:2, WV:2,
+  AL:3, AR:3, AZ:3, FL:3, IA:3, IL:3, KS:3, LA:3, MN:3, MO:3, MS:3, NE:3, NM:3, WI:3,
+  CO:4, MT:4, ND:4, OK:4, SD:4, TX:4,
+  AK:5, CA:5, HI:5, ID:5, NV:5, OR:5, PR:5, UT:5, VI:5, WA:5, WY:5,
+};
+const US_STATES = [
+  ["AL","Alabama"],["AK","Alaska"],["AZ","Arizona"],["AR","Arkansas"],
+  ["CA","California"],["CO","Colorado"],["CT","Connecticut"],["DE","Delaware"],
+  ["DC","District of Columbia"],["FL","Florida"],["GA","Georgia"],["HI","Hawaii"],
+  ["ID","Idaho"],["IL","Illinois"],["IN","Indiana"],["IA","Iowa"],
+  ["KS","Kansas"],["KY","Kentucky"],["LA","Louisiana"],["ME","Maine"],
+  ["MD","Maryland"],["MA","Massachusetts"],["MI","Michigan"],["MN","Minnesota"],
+  ["MS","Mississippi"],["MO","Missouri"],["MT","Montana"],["NE","Nebraska"],
+  ["NV","Nevada"],["NH","New Hampshire"],["NJ","New Jersey"],["NM","New Mexico"],
+  ["NY","New York"],["NC","North Carolina"],["ND","North Dakota"],["OH","Ohio"],
+  ["OK","Oklahoma"],["OR","Oregon"],["PA","Pennsylvania"],["PR","Puerto Rico"],
+  ["RI","Rhode Island"],["SC","South Carolina"],["SD","South Dakota"],["TN","Tennessee"],
+  ["TX","Texas"],["UT","Utah"],["VT","Vermont"],["VA","Virginia"],
+  ["VI","U.S. Virgin Islands"],["WA","Washington"],["WV","West Virginia"],
+  ["WI","Wisconsin"],["WY","Wyoming"],
+];
+
+function parseIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) return null;
+  const [y,m,d] = value.split("-").map(Number);
+  const result = new Date(y, m - 1, d, 12, 0, 0);
+  return result.getFullYear() === y && result.getMonth() === m - 1 && result.getDate() === d ? result : null;
+}
+function isoFromDate(value) {
+  const y = value.getFullYear();
+  const m = String(value.getMonth() + 1).padStart(2, "0");
+  const d = String(value.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+function observedFixed(year, monthIndex, day) {
+  const d = new Date(year, monthIndex, day, 12);
+  if (d.getDay() === 6) d.setDate(d.getDate() - 1);
+  else if (d.getDay() === 0) d.setDate(d.getDate() + 1);
+  return d;
+}
+function nthWeekday(year, monthIndex, weekday, n) {
+  const d = new Date(year, monthIndex, 1, 12);
+  d.setDate(1 + ((weekday - d.getDay() + 7) % 7) + (n - 1) * 7);
+  return d;
+}
+function lastWeekday(year, monthIndex, weekday) {
+  const d = new Date(year, monthIndex + 1, 0, 12);
+  d.setDate(d.getDate() - ((d.getDay() - weekday + 7) % 7));
+  return d;
+}
+function federalHolidaySet(year) {
+  return new Set([
+    observedFixed(year,0,1), nthWeekday(year,0,1,3), nthWeekday(year,1,1,3),
+    lastWeekday(year,4,1), observedFixed(year,5,19), observedFixed(year,6,4),
+    nthWeekday(year,8,1,1), nthWeekday(year,9,1,2), observedFixed(year,10,11),
+    nthWeekday(year,10,4,4), observedFixed(year,11,25),
+  ].map(isoFromDate));
+}
+function isBusinessDate(value) {
+  if (value.getDay() === 0 || value.getDay() === 6) return false;
+  const iso = isoFromDate(value);
+  for (const y of [value.getFullYear()-1, value.getFullYear(), value.getFullYear()+1]) {
+    if (federalHolidaySet(y).has(iso)) return false;
+  }
+  return true;
+}
+function previousBusinessDate(value) {
+  const d = new Date(value);
+  do { d.setDate(d.getDate() - 1); } while (!isBusinessDate(d));
+  return d;
+}
+function subtractBusinessDates(value, count) {
+  const d = new Date(value);
+  let left = Number(count) || 0;
+  while (left > 0) {
+    d.setDate(d.getDate() - 1);
+    if (isBusinessDate(d)) left -= 1;
+  }
+  return d;
+}
+function shippingPlanForForm(form) {
+  const event = parseIsoDate(form.eventDate);
+  const stateCode = (form.shippingState || "").toUpperCase();
+  const days = GROUND_DAYS_BY_STATE[stateCode];
+  if (!event || !days) return null;
+  const delivery = previousBusinessDate(event);
+  const shipBy = subtractBusinessDates(delivery, days);
+  return { deliveryDate: isoFromDate(delivery), shipByDate: isoFromDate(shipBy), days };
+}
+function stateOptions(selected) {
+  return `<option value="">Select state</option>` + US_STATES.map(([code,name]) =>
+    `<option value="${code}" ${selected === code ? "selected" : ""}>${name}</option>`).join("");
+}
+function formattedAddress(project) {
+  if (!project) return "";
+  const street = [project.shipping_address1, project.shipping_address2].filter(Boolean).join(", ");
+  const cityLine = [project.shipping_city, project.shipping_state, project.shipping_postal_code].filter(Boolean).join(" ");
+  return [street, cityLine].filter(Boolean).join(" · ");
+}
+
+const state = {
+  apiBase: sessionStorage.getItem("oti_api_base") || DEFAULT_API_BASE,
+  token: sessionStorage.getItem("oti_token") || null,
+  user: null,
+  theme: localStorage.getItem("oti_theme") || "warehouse-dark",
+  tab: "catalog",
+  catalog: [],
+  projects: [],
+  cart: {},           // committed item_id -> qty
+  estimated: {},      // committed item_id -> quantity is still an estimate
+  draftQty: {},       // catalog controls before Add / Update Cart
+  draftEstimated: {},
+  orderForm: {
+    projectChoice: "new",
+    projectName: "",
+    projectOwner: "",
+    eventDate: "",
+    projectLocation: "",
+    shippingAddress1: "",
+    shippingAddress2: "",
+    shippingCity: "",
+    shippingState: "",
+    shippingPostalCode: "",
+    attendees: "",
+    projectDescription: "",
+    saveProject: false,
+    notes: "",
+  },
+  myOrders: [],
+  proofUrls: {},       // proof photo id -> authenticated object URL
+  search: "",
+  category: "",
+  sort: "name",
+  quickFilter: "all",
+  filterDrawerOpen: false,
+  filterCollapsed: localStorage.getItem("oti_filter_collapsed") === "1",
+  recentlyViewed: JSON.parse(localStorage.getItem("oti_recent_items") || "[]"),
+  loadingCatalog: false,
+  loadingOrders: false,
+  loginError: "",
+  showServerField: false,
+  polling: false,
+  lastPollTime: null,
+};
+
+let pollAbort = null;
+
+function effectiveTheme(choice) {
+  if (choice !== "system") return choice;
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches
+    ? "light" : "warehouse-dark";
+}
+function applyTheme(choice) {
+  state.theme = choice || "warehouse-dark";
+  localStorage.setItem("oti_theme", state.theme);
+  document.documentElement.dataset.theme = effectiveTheme(state.theme);
+}
+applyTheme(state.theme);
+if (window.matchMedia) window.matchMedia("(prefers-color-scheme: light)").addEventListener?.("change", () => {
+  if (state.theme === "system") applyTheme("system");
+});
+
+// ---- fetch helper --------------------------------------------------------
+async function api(path, opts = {}) {
+  const headers = Object.assign({}, opts.headers || {});
+  if (opts.body) headers["Content-Type"] = "application/json";
+  if (state.token) headers["Authorization"] = "Bearer " + state.token;
+
+  let res;
+  try {
+    res = await fetch(state.apiBase + path, Object.assign({}, opts, { headers }));
+  } catch (e) {
+    throw new Error("Couldn't reach the server at " + state.apiBase + ". Check the server address and that the backend is running.");
+  }
+
+  if (res.status === 401) {
+    logout("Your session expired. Log in again.");
+    throw new Error("Session expired.");
+  }
+
+  if (!res.ok) {
+    let detail = "Request failed (" + res.status + ").";
+    try {
+      const body = await res.json();
+      if (body && body.detail) detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+    } catch (_) {}
+    throw new Error(detail);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+function saveSession() {
+  if (state.token) sessionStorage.setItem("oti_token", state.token);
+  sessionStorage.setItem("oti_api_base", state.apiBase);
+}
+
+function blankOrderForm() {
+  return {
+    projectChoice: "new",
+    projectName: "",
+    projectOwner: state.user ? (state.user.full_name || state.user.username || "") : "",
+    eventDate: "",
+    projectLocation: "",
+    shippingAddress1: "",
+    shippingAddress2: "",
+    shippingCity: "",
+    shippingState: "",
+    shippingPostalCode: "",
+    attendees: "",
+    projectDescription: "",
+    saveProject: false,
+    notes: "",
+  };
+}
+
+function logout(message) {
+  stopPolling();
+  state.token = null;
+  state.user = null;
+  state.cart = {};
+  state.estimated = {};
+  state.draftQty = {};
+  state.draftEstimated = {};
+  state.filterDrawerOpen = false;
+  state.orderForm = blankOrderForm();
+  state.myOrders = [];
+  Object.values(state.proofUrls).forEach(url => URL.revokeObjectURL(url));
+  state.proofUrls = {};
+  sessionStorage.removeItem("oti_token");
+  state.loginError = message || "";
+  render();
+}
+
+// ---- toast ----------------------------------------------------------------
+let toastTimer = null;
+function toast(message, isErr) {
+  const el = document.getElementById("toast");
+  el.textContent = message;
+  el.className = (isErr ? "err " : "") + "show";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.classList.remove("show"); }, 4200);
+}
+
+function loadingMarkup(label) {
+  return `<div class="loading"><div class="spinner" aria-hidden="true"></div>${esc(label)}</div>`;
+}
+
+function renderWithTransition() {
+  if (document.startViewTransition) document.startViewTransition(() => render());
+  else render();
+}
+
+function openLightbox(src, alt) {
+  const box = document.getElementById("lightbox");
+  const img = box.querySelector("img");
+  img.src = src;
+  img.alt = alt || "Expanded photo";
+  box.classList.add("open");
+  box.setAttribute("aria-hidden", "false");
+}
+function closeLightbox() {
+  const box = document.getElementById("lightbox");
+  box.classList.remove("open");
+  box.setAttribute("aria-hidden", "true");
+}
+function openModal(html) {
+  const root = document.getElementById("modal-root");
+  root.innerHTML = `<div class="modal-card" role="dialog" aria-modal="true">${html}</div>`;
+  root.classList.add("open");
+  root.setAttribute("aria-hidden", "false");
+}
+function closeModal() {
+  const root = document.getElementById("modal-root");
+  root.classList.remove("open");
+  root.setAttribute("aria-hidden", "true");
+  setTimeout(() => { if (!root.classList.contains("open")) root.innerHTML = ""; }, 210);
+}
+
+async function loadProtectedProofImages() {
+  const pending = [...document.querySelectorAll("img[data-proof-id]")];
+  await Promise.all(pending.map(async img => {
+    const id = Number(img.dataset.proofId);
+    if (state.proofUrls[id]) {
+      img.src = state.proofUrls[id];
+      img.dataset.lightboxSrc = state.proofUrls[id];
+      return;
+    }
+    try {
+      const res = await fetch(state.apiBase + "/order-proof/" + id, {
+        headers: { "Authorization": "Bearer " + state.token },
+      });
+      if (!res.ok) throw new Error("Proof photo failed to load.");
+      const url = URL.createObjectURL(await res.blob());
+      state.proofUrls[id] = url;
+      if (img.isConnected) {
+        img.src = url;
+        img.dataset.lightboxSrc = url;
+      }
+    } catch (_) {
+      if (img.isConnected) img.alt = "Proof photo unavailable";
+    }
+  }));
+}
+
+// ---- data loading -----------------------------------------------------------
+async function loadCatalog() {
+  state.loadingCatalog = true; render();
+  try {
+    const [items, projects] = await Promise.all([
+      api("/catalog"),
+      api("/projects"),
+    ]);
+    state.catalog = items;
+    state.projects = projects;
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    state.loadingCatalog = false; render();
+  }
+}
+
+async function loadMyOrders() {
+  state.loadingOrders = true; render();
+  try {
+    const orders = await api("/orders/my");
+    state.myOrders = orders;
+    state.lastPollTime = new Date().toISOString();
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    state.loadingOrders = false; render();
+  }
+}
+
+function stopPolling() {
+  state.polling = false;
+  if (pollAbort) pollAbort.aborted = true;
+}
+
+async function pollLoop() {
+  if (state.polling) return;
+  state.polling = true;
+  const myGate = { aborted: false };
+  pollAbort = myGate;
+  while (!myGate.aborted && state.token) {
+    try {
+      const since = encodeURIComponent(state.lastPollTime || new Date().toISOString());
+      const res = await api("/orders/updates?since=" + since);
+      if (myGate.aborted) break;
+      state.lastPollTime = res.server_time;
+      if (res.orders && res.orders.length) {
+        const byId = Object.fromEntries(state.myOrders.map(o => [o.id, o]));
+        res.orders.forEach(o => {
+          if (o.deleted) delete byId[o.id];
+          else byId[o.id] = o;
+        });
+        state.myOrders = Object.values(byId).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        if (state.tab === "orders") render();
+        res.orders.forEach(o => {
+          toast(o.deleted ? ("Order #" + o.id + " was deleted.") : ("Order #" + o.id + " is now " + o.status + "."));
+        });
+      }
+    } catch (e) {
+      if (myGate.aborted) break;
+      await new Promise(r => setTimeout(r, 4000));
+    }
+  }
+}
+
+// ---- cart -------------------------------------------------------------------
+function cartCount() {
+  return Object.values(state.cart).reduce((a, b) => a + b, 0);
+}
+function hasOwn(object, key) {
+  return Object.prototype.hasOwnProperty.call(object, key);
+}
+function draftQtyFor(item) {
+  return hasOwn(state.draftQty, item.id) ? Number(state.draftQty[item.id] || 0) : Number(state.cart[item.id] || 0);
+}
+function draftEstimatedFor(itemId) {
+  return hasOwn(state.draftEstimated, itemId)
+    ? Boolean(state.draftEstimated[itemId])
+    : Boolean(state.estimated[itemId]);
+}
+function setDraftQty(itemId, qty, max) {
+  qty = Number.isFinite(Number(qty)) ? Math.floor(Number(qty)) : 0;
+  qty = Math.max(0, Math.min(qty, max));
+  state.draftQty[itemId] = qty;
+  if (qty === 0) state.draftEstimated[itemId] = false;
+  render();
+}
+function markRecentlyViewed(itemId) {
+  state.recentlyViewed = [Number(itemId), ...state.recentlyViewed.filter(id => Number(id) !== Number(itemId))].slice(0, 20);
+  localStorage.setItem("oti_recent_items", JSON.stringify(state.recentlyViewed));
+}
+function commitItemToCart(itemId) {
+  const item = state.catalog.find(i => i.id === Number(itemId));
+  if (!item) return;
+  const qty = draftQtyFor(item);
+  if (!Number.isInteger(qty) || qty <= 0) {
+    toast("Enter a quantity before adding this item.", true);
+    return;
+  }
+  if (qty > item.qty_on_hand) {
+    toast("Only " + item.qty_on_hand + " are currently available.", true);
+    return;
+  }
+  const updating = Boolean(state.cart[item.id]);
+  state.cart[item.id] = qty;
+  if (draftEstimatedFor(item.id)) state.estimated[item.id] = true;
+  else delete state.estimated[item.id];
+  state.draftQty[item.id] = qty;
+  state.draftEstimated[item.id] = Boolean(state.estimated[item.id]);
+  markRecentlyViewed(item.id);
+  render();
+  toast(updating ? (item.name + " updated in the cart.") : (item.name + " added to the cart."));
+}
+
+
+function normalizedAddress(source) {
+  const read = (camel, snake) => String(source?.[camel] ?? source?.[snake] ?? "").trim();
+  return {
+    shipping_address1: read("shippingAddress1", "shipping_address1"),
+    shipping_address2: read("shippingAddress2", "shipping_address2"),
+    shipping_city: read("shippingCity", "shipping_city"),
+    shipping_state: read("shippingState", "shipping_state").toUpperCase(),
+    shipping_postal_code: read("shippingPostalCode", "shipping_postal_code"),
+  };
+}
+function addressIsComplete(source) {
+  const a = normalizedAddress(source);
+  return Boolean(a.shipping_address1 && a.shipping_city && a.shipping_state && a.shipping_postal_code);
+}
+function syncOrderFormFromDom() {
+  const pairs = {
+    "project-name":"projectName", "project-owner":"projectOwner",
+    "project-event-date":"eventDate", "project-location":"projectLocation",
+    "shipping-address1":"shippingAddress1", "shipping-address2":"shippingAddress2",
+    "shipping-city":"shippingCity", "shipping-state":"shippingState",
+    "shipping-postal-code":"shippingPostalCode", "project-attendees":"attendees",
+    "project-description":"projectDescription", "slip-notes":"notes",
+  };
+  Object.entries(pairs).forEach(([id,key]) => { const el=document.getElementById(id); if(el) state.orderForm[key]=el.value; });
+  const save=document.getElementById("save-project"); if(save) state.orderForm.saveProject=save.checked;
+}
+function refreshReadinessUI() {
+  const box=document.querySelector(".order-readiness-box");
+  if(box) box.outerHTML=renderOrderReadinessBox();
+  const readiness=document.querySelector(".readiness");
+  if(readiness) { const data=orderReadiness(); readiness.innerHTML=`<h3>Order Readiness</h3>${renderReadinessRows(data)}`; }
+}
+
+function buildProjectPayload() {
+  const f = state.orderForm;
+  if (f.projectChoice === "none") return {};
+  if (f.projectChoice.startsWith("saved:")) {
+    const projectId = Number(f.projectChoice.split(":", 2)[1]);
+    const saved = state.projects.find(p => p.id === projectId);
+    if (!saved) throw new Error("That saved project is no longer available.");
+    if (saved.address_mode === "fixed") return { project_id: projectId };
+    const plan = shippingPlanForForm(f);
+    const address = normalizedAddress(f);
+    const attendees = f.attendees === "" ? saved.attendees : Number(f.attendees);
+    return {
+      project_id: projectId,
+      new_project: {
+        name: saved.name, owner: saved.owner || f.projectOwner.trim(),
+        event_date: f.eventDate || saved.event_date || "",
+        delivery_date: plan ? plan.deliveryDate : "",
+        ship_by_date: plan ? plan.shipByDate : "",
+        location: f.projectLocation.trim() || saved.location || "",
+        shipping_address1: address.shipping_address1,
+        shipping_address2: address.shipping_address2,
+        shipping_city: address.shipping_city,
+        shipping_state: address.shipping_state,
+        shipping_postal_code: address.shipping_postal_code,
+        shipping_service: "UPS Ground", ups_ground_days: plan ? plan.days : null,
+        attendees: attendees == null || attendees === "" ? null : attendees,
+        description: saved.description || "", address_mode: "variable",
+      },
+      save_project: false,
+    };
+  }
+  if (!f.projectName.trim()) throw new Error("Enter a project or event name for this order.");
+  if (!f.eventDate) throw new Error("Enter the event date.");
+  const plan = shippingPlanForForm(f);
+  const address = normalizedAddress(f);
+  const attendees = f.attendees === "" ? null : Number(f.attendees);
+  if (attendees != null && (!Number.isInteger(attendees) || attendees < 0)) {
+    throw new Error("Attendees must be a whole number of zero or more.");
+  }
+  return {
+    new_project: {
+      name: f.projectName.trim(), owner: f.projectOwner.trim(),
+      event_date: f.eventDate,
+      delivery_date: plan ? plan.deliveryDate : "",
+      ship_by_date: plan ? plan.shipByDate : "",
+      location: f.projectLocation.trim(),
+      shipping_address1: address.shipping_address1,
+      shipping_address2: address.shipping_address2,
+      shipping_city: address.shipping_city,
+      shipping_state: address.shipping_state,
+      shipping_postal_code: address.shipping_postal_code,
+      shipping_service: "UPS Ground",
+      ups_ground_days: plan ? plan.days : null,
+      attendees, description: f.projectDescription.trim(),
+    },
+    save_project: Boolean(f.saveProject),
+  };
+}
+
+async function submitOrder() {
+  syncOrderFormFromDom();
+  const lines = Object.entries(state.cart).map(([item_id, qty]) => ({
+    item_id: Number(item_id), qty, estimated: Boolean(state.estimated[item_id])
+  }));
+  if (!lines.length) return;
+  let projectPayload;
+  try {
+    projectPayload = buildProjectPayload();
+  } catch (e) {
+    toast(e.message, true);
+    return;
+  }
+  try {
+    const order = await api("/orders", {
+      method: "POST",
+      body: JSON.stringify(Object.assign({
+        notes: state.orderForm.notes.trim(),
+        lines,
+      }, projectPayload)),
+    });
+    const savedForReuse = Boolean(projectPayload.save_project);
+    state.cart = {};
+    state.estimated = {};
+    state.draftQty = {};
+    state.draftEstimated = {};
+    state.orderForm = blankOrderForm();
+    if (savedForReuse) {
+      try { state.projects = await api("/projects"); } catch (_) {}
+    }
+    toast("Order #" + order.id + " submitted — pending approval.");
+    state.tab = "orders";
+    await loadMyOrders();
+  } catch (e) {
+    toast(e.message, true);
+    render();
+  }
+}
+
+// ---- auth -------------------------------------------------------------------
+async function doLogin(username, password) {
+  state.loginError = "";
+  try {
+    const res = await fetch(state.apiBase + "/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail || "Invalid username or password.");
+    }
+    const data = await res.json();
+    state.token = data.token;
+    state.user = data.user;
+    applyTheme(data.user.theme || state.theme);
+    state.orderForm = blankOrderForm();
+    saveSession();
+    await Promise.all([loadCatalog(), loadMyOrders()]);
+    pollLoop();
+  } catch (e) {
+    state.loginError = e.message.includes("fetch") || e.message.includes("reach")
+      ? "Couldn't reach the server at " + state.apiBase + ". Check the server address."
+      : e.message;
+  }
+  render();
+}
+
+// ---- rendering ----------------------------------------------------------------
+function esc(s) {
+  const d = document.createElement("div");
+  d.textContent = s == null ? "" : String(s);
+  return d.innerHTML;
+}
+
+function imgUrl(item) {
+  if (!item.images || !item.images.length) return null;
+  // The item endpoint skips stale legacy records and serves the first photo
+  // whose bytes still exist, including DB-backed uploads.
+  return state.apiBase + "/catalog/" + encodeURIComponent(item.id) + "/image?access_token=" + encodeURIComponent(state.token || "");
+}
+
+function handleImageError(img) {
+  const holder = img && img.closest ? img.closest(".photo") : null;
+  if (!holder) return;
+  img.remove();
+  if (!holder.querySelector(".photo-fallback")) {
+    const fallback = document.createElement("span");
+    fallback.className = "photo-fallback";
+    fallback.textContent = "📦";
+    fallback.title = "Photo file is missing from the server";
+    holder.prepend(fallback);
+  }
+}
+
+function renderLogin() {
+  return `
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="brand"><span class="brand-icon">📦</span><span class="brand-name">Oti-Warehouse Swag</span><span class="build-badge">${APP_VERSION}</span></div>
+      <div class="sub">Sign in to browse the catalog and place an order.</div>
+      <form id="login-form">
+        <div class="field">
+          <label for="f-user">Username</label>
+          <input id="f-user" name="username" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="f-pass">Password</label>
+          <input id="f-pass" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        ${state.loginError ? `<div class="err-line">${esc(state.loginError)}</div>` : ""}
+        <button class="btn-primary" style="width:100%" type="submit">Log in</button>
+      </form>
+      <button class="server-toggle" id="toggle-server">${state.showServerField ? "Hide" : "Change"} server address</button>
+      ${state.showServerField ? `
+        <div class="server-field">
+          <input id="f-server" value="${esc(state.apiBase)}" placeholder="http://192.168.1.20:8000">
+        </div>
+      ` : ""}
+    </div>
+  </div>`;
+}
+
+function renderTagCard(item) {
+  const inCart = Number(state.cart[item.id] || 0);
+  const draftQty = draftQtyFor(item);
+  const draftEstimated = draftEstimatedFor(item.id);
+  const notCounted = item.stock_status === "not_counted" || item.inventory_counted === false;
+  const out = !notCounted && item.qty_on_hand <= 0;
+  const low = !notCounted && item.qty_on_hand > 0 && item.qty_on_hand <= item.reorder_threshold;
+  const unavailable = notCounted || out;
+  const photo = imgUrl(item);
+  const countRequests = Number(item.open_count_requests || 0);
+  const sameAsCart = inCart > 0 && draftQty === inCart && draftEstimated === Boolean(state.estimated[item.id]);
+  const buttonText = inCart ? (sameAsCart ? "In Cart" : "Update Cart") : "Add to Cart";
+  return `
+  <div class="tag ${unavailable ? "out-of-stock" : ""}">
+    <div class="photo">
+      <button class="favorite-btn ${item.favorite ? "active" : ""}" type="button" data-favorite-id="${item.id}" aria-label="${item.favorite ? "Remove from" : "Add to"} favorites" title="${item.favorite ? "Remove favorite" : "Mark favorite"}">${item.favorite ? "★" : "☆"}</button>
+      ${photo ? `<img src="${esc(photo)}" alt="${esc(item.name)}" loading="lazy" data-item-image-id="${item.id}" data-lightbox-src="${esc(photo)}" onerror="handleImageError(this)">` : `<span class="photo-fallback">📦</span>`}
+      ${item.color ? `<span class="colordot" style="background:${esc(item.color)}" title="${esc(item.color_name || item.color)}"></span>` : ""}
+      ${notCounted || out || low ? `<span class="stock-badge ${notCounted ? "not_counted" : out ? "out_of_stock" : "low_stock"}">${notCounted ? "NOT COUNTED YET" : out ? "OUT OF STOCK" : "LOW STOCK · " + item.qty_on_hand}</span>` : ""}
+    </div>
+    <div class="perf"></div>
+    <div class="body">
+      <div class="code mono">${esc(item.code)}</div>
+      <div class="name">${esc(item.name)}</div>
+      <div class="meta">${[item.category, item.location ? "Location " + item.location : "", item.measures].filter(Boolean).map(esc).join(" · ")}</div>
+      ${countRequests ? `<div class="count-flag">${countRequests} open recount request${countRequests === 1 ? "" : "s"}</div>` : ""}
+      <div class="row-bottom">
+        <div class="stock ${low || notCounted ? "low" : ""}">${notCounted ? "QTY: NOT COUNTED YET" : out ? "QTY ON HAND: 0" : "QTY ON HAND: " + item.qty_on_hand}</div>
+        <div class="stepper">
+          <button data-act="dec" data-id="${item.id}" data-max="${item.qty_on_hand}" ${draftQty <= 0 ? "disabled" : ""}>−</button>
+          <input class="qty qty-input" type="number" inputmode="numeric" min="0" max="${item.qty_on_hand}" step="1" value="${draftQty || ""}" data-qty-id="${item.id}" data-max="${item.qty_on_hand}" aria-label="Quantity for ${esc(item.name)}" ${unavailable ? "disabled" : ""}>
+          <button data-act="inc" data-id="${item.id}" data-max="${item.qty_on_hand}" ${unavailable || draftQty >= item.qty_on_hand ? "disabled" : ""}>+</button>
+        </div>
+      </div>
+      <div class="card-actions">
+        <label class="estimated-mark"><input class="estimated-toggle" type="checkbox" data-estimated-id="${item.id}" ${draftEstimated ? "checked" : ""} ${!draftQty ? "disabled" : ""}> Quantity estimated</label>
+        <button class="request-count" type="button" data-count-id="${item.id}" data-count-name="${esc(item.name)}">Request Count</button>
+      </div>
+      <div class="card-buy">
+        <button class="add-cart ${sameAsCart ? "in-cart" : ""}" type="button" data-add-cart="${item.id}" ${unavailable || !draftQty ? "disabled" : ""}>${buttonText}</button>
+        <div class="draft-note" data-draft-note="${item.id}">${inCart ? `Cart: ${inCart}${state.estimated[item.id] ? " est." : ""}` : "Not in cart"}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function frequentItemIds() {
+  const counts = new Map();
+  state.myOrders.forEach(order => (order.lines || []).forEach(line => {
+    counts.set(Number(line.item_id), (counts.get(Number(line.item_id)) || 0) + Number(line.qty_requested || 0));
+  }));
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([id]) => id);
+}
+
+function quickFilterCounts() {
+  const frequent = new Set(frequentItemIds());
+  const recent = new Set(state.recentlyViewed.map(Number));
+  return {
+    all: state.catalog.length,
+    low: state.catalog.filter(i => i.qty_on_hand <= i.reorder_threshold).length,
+    recount: state.catalog.filter(i => Number(i.open_count_requests || 0) > 0).length,
+    frequent: state.catalog.filter(i => frequent.has(Number(i.id))).length,
+    recent: state.catalog.filter(i => recent.has(Number(i.id))).length,
+    favorites: state.catalog.filter(i => Boolean(i.favorite)).length,
+  };
+}
+
+function filteredCatalog() {
+  const q = state.search.trim().toLowerCase();
+  const frequent = new Set(frequentItemIds());
+  const recent = new Set(state.recentlyViewed.map(Number));
+  const items = state.catalog.filter(i => {
+    if (state.category && i.category !== state.category) return false;
+    if (state.quickFilter === "low" && i.qty_on_hand > i.reorder_threshold) return false;
+    if (state.quickFilter === "recount" && Number(i.open_count_requests || 0) <= 0) return false;
+    if (state.quickFilter === "frequent" && !frequent.has(Number(i.id))) return false;
+    if (state.quickFilter === "recent" && !recent.has(Number(i.id))) return false;
+    if (state.quickFilter === "favorites" && !i.favorite) return false;
+    if (!q) return true;
+    return (i.name + " " + i.code + " " + (i.description || "") + " " + (i.location || "")).toLowerCase().includes(q);
+  });
+  const by = state.sort;
+  items.sort((a, b) => {
+    if (state.quickFilter === "favorites" && a.favorite !== b.favorite) return a.favorite ? -1 : 1;
+    if (state.quickFilter === "recent" && by === "name") {
+      return state.recentlyViewed.indexOf(Number(a.id)) - state.recentlyViewed.indexOf(Number(b.id));
+    }
+    if (by === "code") return a.code.localeCompare(b.code);
+    if (by === "stock") return a.qty_on_hand - b.qty_on_hand;
+    if (by === "location") return String(a.location || "~~~~").localeCompare(String(b.location || "~~~~"), undefined, { numeric:true });
+    return a.name.localeCompare(b.name);
+  });
+  return items;
+}
+
+function groupByCategory(items) {
+  const groups = new Map();
+  items.forEach(i => {
+    const key = i.category || "Uncategorized";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(i);
+  });
+  return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function renderFilterRail() {
+  const counts = quickFilterCounts();
+  const categories = [...new Set(state.catalog.map(i => i.category || "Uncategorized"))].sort((a,b) => a.localeCompare(b));
+  const categoryCount = cat => state.catalog.filter(i => (i.category || "Uncategorized") === cat).length;
+  const quick = [
+    ["all", "All items", counts.all],
+    ["favorites", "Favorites", counts.favorites],
+    ["low", "Low stock", counts.low],
+    ["recount", "Count requested", counts.recount],
+    ["frequent", "Frequently ordered", counts.frequent],
+    ["recent", "Recently viewed", counts.recent],
+  ];
+  return `<div class="filter-panel">
+    <div class="rail-head">
+      <strong>Browse & Filter</strong>
+      <div class="rail-controls">
+        <button class="rail-collapse" id="filter-collapse" type="button" title="${state.filterCollapsed ? "Expand filters" : "Collapse filters"}">${state.filterCollapsed ? "›" : "‹"}</button>
+        <button class="rail-close" id="filter-close" type="button" aria-label="Close filters">✕</button>
+      </div>
+    </div>
+    <div class="filter-group">
+      <div class="filter-title">Quick views</div>
+      ${quick.map(([key,label,n]) => `<button class="filter-option ${state.quickFilter === key ? "active" : ""}" data-quick-filter="${key}"><span>${esc(label)}</span><span class="filter-n">${n}</span></button>`).join("")}
+    </div>
+    <div class="filter-group">
+      <div class="filter-title">Categories</div>
+      <button class="filter-option ${!state.category ? "active" : ""}" data-category-choice=""><span>All categories</span><span class="filter-n">${state.catalog.length}</span></button>
+      ${categories.map(cat => `<button class="filter-option ${state.category === cat ? "active" : ""}" data-category-choice="${esc(cat)}"><span>${esc(cat)}</span><span class="filter-n">${categoryCount(cat)}</span></button>`).join("")}
+    </div>
+  </div>`;
+}
+
+function renderCatalogTab() {
+  const items = filteredCatalog();
+  let body;
+  if (state.loadingCatalog) {
+    body = loadingMarkup("Loading catalog…");
+  } else if (!items.length) {
+    body = `<div class="empty-state">No items match these filters. Clear a filter or try another search.</div>`;
+  } else {
+    // Categories now live in the left rail, so one continuous responsive grid
+    // can actually use the available desktop width instead of leaving a blank
+    // column whenever a category only contains one item.
+    body = `<div class="grid">${items.map(renderTagCard).join("")}</div>`;
+  }
+  const activeDescription = state.category || (state.quickFilter !== "all" ? state.quickFilter.replace(/\b\w/g, c => c.toUpperCase()) : "");
+  return `
+    <div class="feature-banner">
+      <div>
+        <strong>Build the item list, then finish delivery details</strong>
+        <span>Enter a quantity and press Add to Cart. Estimated amounts and a pending address can be updated before approval.</span>
+      </div>
+      <button id="open-order-setup" type="button">Project & Delivery (${cartCount()})</button>
+    </div>
+    <div class="toolbar">
+      <button class="mobile-filter-btn" id="mobile-filter-open" type="button">☰ Filters</button>
+      <input type="search" id="search" placeholder="Search item, part #, or location…" value="${esc(state.search)}">
+      <select id="sort-by">
+        <option value="name" ${state.sort === "name" ? "selected" : ""}>Sort: Name</option>
+        <option value="code" ${state.sort === "code" ? "selected" : ""}>Sort: Part #</option>
+        <option value="location" ${state.sort === "location" ? "selected" : ""}>Sort: Location</option>
+        <option value="stock" ${state.sort === "stock" ? "selected" : ""}>Sort: Stock</option>
+      </select>
+      ${activeDescription ? `<button class="clear-filters" id="clear-filters" type="button">Clear: ${esc(activeDescription)} ✕</button>` : ""}
+    </div>
+    ${body}
+  `;
+}
+
+function renderOrdersTab() {
+  if (state.loadingOrders && !state.myOrders.length) return loadingMarkup("Loading your orders…");
+  if (!state.myOrders.length) return `<div class="empty-state">No orders yet — build one from the Catalog tab.</div>`;
+  return `<div class="orders-list">${state.myOrders.map(o => {
+    const p = o.project_details;
+    const address = formattedAddress(p);
+    const proof = (o.proof_photo_ids || []).map(id => {
+      const cached = state.proofUrls[id] || "";
+      return `<img ${cached ? `src="${esc(cached)}" data-lightbox-src="${esc(cached)}"` : ""} data-proof-id="${id}" alt="Completion proof for order ${o.id}">`;
+    }).join("");
+    return `
+    <div class="order-card ${o.incomplete ? "incomplete" : ""}">
+      <div class="top-row">
+        <div>
+          <div class="oid">ORDER #${o.id}</div>
+          ${o.project ? `<div class="proj">${esc(o.project)}</div>` : ""}
+          ${p ? `<div class="proj-meta">${[
+            p.event_date ? "Event: " + p.event_date : "",
+            p.delivery_date ? "Deliver: " + p.delivery_date : "",
+            p.ship_by_date ? "Ship by: " + p.ship_by_date : "",
+            p.ups_ground_days ? "UPS Ground: " + p.ups_ground_days + " business day" + (p.ups_ground_days === 1 ? "" : "s") : "",
+            p.location ? "Venue: " + p.location : "",
+            address ? "Ship to: " + address : "Address pending",
+            p.attendees != null ? p.attendees + " attendees" : "",
+          ].filter(Boolean).map(esc).join(" · ")}</div>` : `<div class="proj-meta">Address pending</div>`}
+        </div>
+        <div class="stamp ${o.status}">${esc(o.status)}</div>
+      </div>
+      ${o.incomplete ? `<div class="incomplete-note">INCOMPLETE · ${o.incomplete_reasons.map(esc).join(" · ")}</div>` : ""}
+      <div class="lines-mini">
+        ${o.lines.map(l => `<div><span>${esc(l.item_name)} ${l.qty_estimated ? `<span class="estimate-pill">ESTIMATED</span>` : ""} <span class="mono" style="color:var(--muted);font-size:11px;">${esc(l.item_code)}</span></span><span class="mono">${l.qty_approved != null ? l.qty_approved + " / " : ""}${l.qty_requested}</span></div>`).join("")}
+      </div>
+      ${o.notes ? `<div class="notes">"${esc(o.notes)}"</div>` : ""}
+      ${(o.tracking_numbers || []).length ? `<div class="tracking-box"><strong>Tracking:</strong> ${o.tracking_numbers.map(esc).join(", ")}${proof ? `<div class="proof-strip">${proof}</div>` : ""}</div>` : ""}
+      ${o.can_self_edit ? `<div class="order-actions"><button class="btn-secondary edit-order" data-order-id="${o.id}">Edit Pending Order</button></div>` : ""}
+    </div>`;
+  }).join("")}</div>`;
+}
+
+async function submitCountRequest(itemId, itemName) {
+  openModal(`
+    <h2>Request Count</h2>
+    <div class="modal-sub">Flag ${esc(itemName)} for a physical recount. Add a note only when useful.</div>
+    <label for="count-note">Optional note</label>
+    <textarea id="count-note" maxlength="255" placeholder="Example: looks low, discrepancy, or last count is old"></textarea>
+    <div id="count-error" class="err-line" style="margin:8px 0 0;"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="count-cancel">Cancel</button>
+      <button class="btn-primary" id="count-submit">Send Request</button>
+    </div>`);
+  document.getElementById("count-cancel").onclick = closeModal;
+  document.getElementById("count-submit").onclick = async () => {
+    const button = document.getElementById("count-submit");
+    button.disabled = true;
+    button.textContent = "Sending…";
+    try {
+      await api(`/catalog/${itemId}/count-requests`, {
+        method: "POST",
+        body: JSON.stringify({ note: document.getElementById("count-note").value.trim() }),
+      });
+      try { state.catalog = await api("/catalog"); } catch (_) {}
+      closeModal();
+      render();
+      toast("Count request sent for " + itemName + ".");
+    } catch (e) {
+      document.getElementById("count-error").textContent = e.message;
+      button.disabled = false;
+      button.textContent = "Send Request";
+    }
+  };
+}
+
+function openOrderEditor(orderId) {
+  const order = state.myOrders.find(o => o.id === orderId);
+  if (!order || !order.can_self_edit) return;
+  const p = order.project_details || {};
+  const lineHtml = order.lines.map(line => `
+    <div class="edit-line">
+      <div>${esc(line.item_name)} <span class="mono" style="color:var(--muted)">${esc(line.item_code)}</span></div>
+      <input class="edit-qty" data-item-id="${line.item_id}" type="number" min="1" step="1" value="${line.qty_requested}">
+      <label class="estimated-edit"><input class="edit-estimated" data-item-id="${line.item_id}" type="checkbox" ${line.qty_estimated ? "checked" : ""}> Estimated</label>
+    </div>`).join("");
+  openModal(`
+    <h2>Edit Pending Order #${order.id}</h2>
+    <div class="modal-sub">You can change quantities and delivery details until the order is approved or rejected.</div>
+    <div class="modal-grid">
+      <div><label>Project / event name</label><input id="edit-project-name" value="${esc(p.name || order.project || `Order ${order.id} delivery`)}"></div>
+      <div><label>Owner</label><input id="edit-owner" value="${esc(p.owner || "")}"></div>
+      <div><label>Event date</label><input id="edit-event" type="date" value="${esc(p.event_date || "")}"></div>
+      <div><label>Venue / location</label><input id="edit-location" value="${esc(p.location || "")}"></div>
+      <div><label>Street address</label><input id="edit-address1" value="${esc(p.shipping_address1 || "")}"></div>
+      <div><label>Suite / floor / attention</label><input id="edit-address2" value="${esc(p.shipping_address2 || "")}"></div>
+      <div><label>City</label><input id="edit-city" value="${esc(p.shipping_city || "")}"></div>
+      <div><label>State</label><select id="edit-state">${stateOptions(p.shipping_state || "")}</select></div>
+      <div><label>ZIP code</label><input id="edit-zip" value="${esc(p.shipping_postal_code || "")}"></div>
+      <div><label>UPS Ground transit</label><div id="edit-transit" class="computed-field">${p.shipping_state ? `${GROUND_DAYS_BY_STATE[p.shipping_state]} business day${GROUND_DAYS_BY_STATE[p.shipping_state] === 1 ? "" : "s"} · automatic` : "State pending"}</div></div>
+      <div><label>Estimated attendees</label><input id="edit-attendees" type="number" min="0" step="1" value="${p.attendees == null ? "" : p.attendees}"></div>
+    </div>
+    <div style="margin-top:12px;"><label>Notes</label><textarea id="edit-notes">${esc(order.notes || "")}</textarea></div>
+    <div style="margin-top:14px;"><label>Line quantities</label>${lineHtml}</div>
+    <div id="edit-error" class="err-line" style="margin:8px 0 0;"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="edit-cancel">Cancel</button>
+      <button class="btn-primary" id="edit-save">Save Changes</button>
+    </div>`);
+  document.getElementById("edit-cancel").onclick = closeModal;
+  document.getElementById("edit-state").onchange = (e) => {
+    const days = GROUND_DAYS_BY_STATE[e.target.value];
+    document.getElementById("edit-transit").textContent = days ? `${days} business day${days === 1 ? "" : "s"} · automatic` : "State pending";
+  };
+  document.getElementById("edit-save").onclick = async () => {
+    const error = document.getElementById("edit-error");
+    const lines = [];
+    try {
+      document.querySelectorAll(".edit-qty").forEach(input => {
+        const qty = Number(input.value);
+        if (!Number.isInteger(qty) || qty <= 0) throw new Error("Every quantity must be a whole number greater than zero.");
+        const id = Number(input.dataset.itemId);
+        const estimated = document.querySelector(`.edit-estimated[data-item-id="${id}"]`).checked;
+        lines.push({ item_id: id, qty, estimated });
+      });
+      const attendeeText = document.getElementById("edit-attendees").value.trim();
+      const attendees = attendeeText === "" ? null : Number(attendeeText);
+      if (attendees != null && (!Number.isInteger(attendees) || attendees < 0)) throw new Error("Attendees must be a whole number.");
+      const projectName = document.getElementById("edit-project-name").value.trim();
+      if (!projectName) throw new Error("Enter a project or event name.");
+      const button = document.getElementById("edit-save");
+      button.disabled = true;
+      button.textContent = "Saving…";
+      await api(`/orders/${order.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          notes: document.getElementById("edit-notes").value.trim(),
+          project: {
+            name: projectName,
+            owner: document.getElementById("edit-owner").value.trim(),
+            event_date: document.getElementById("edit-event").value,
+            location: document.getElementById("edit-location").value.trim(),
+            shipping_address1: document.getElementById("edit-address1").value.trim(),
+            shipping_address2: document.getElementById("edit-address2").value.trim(),
+            shipping_city: document.getElementById("edit-city").value.trim(),
+            shipping_state: document.getElementById("edit-state").value,
+            shipping_postal_code: document.getElementById("edit-zip").value.trim(),
+            attendees,
+          },
+          lines,
+        }),
+      });
+      closeModal();
+      toast("Order #" + order.id + " updated.");
+      await loadMyOrders();
+    } catch (e) {
+      error.textContent = e.message;
+      const button = document.getElementById("edit-save");
+      if (button) { button.disabled = false; button.textContent = "Save Changes"; }
+    }
+  };
+}
+
+function cartLinesData() {
+  return Object.entries(state.cart).map(([id, qty]) => {
+    const item = state.catalog.find(i => i.id === Number(id));
+    return item ? { item, qty, estimated: Boolean(state.estimated[id]) } : null;
+  }).filter(Boolean);
+}
+
+function cartLinesHtml(lines) {
+  return lines.length ? lines.map(({ item, qty, estimated }) => {
+    const photo = imgUrl(item);
+    return `
+    <div class="line">
+      <div class="cart-thumb">${photo ? `<img src="${esc(photo)}" alt="${esc(item.name)}" loading="lazy" onerror="this.remove();this.parentElement.textContent='📦'">` : "📦"}</div>
+      <div class="nm">${esc(item.name)}${estimated ? ` <span class="estimate-pill">EST.</span>` : ""}<span class="cd">${esc(item.code)}</span></div>
+      <div class="mono">×${qty}</div>
+      <button class="rm" data-rm="${item.id}" title="Remove">✕</button>
+    </div>`;
+  }).join("") : `<div class="empty">Add items from the catalog to build an order.</div>`;
+}
+
+function selectedProjectForReadiness() {
+  const f = state.orderForm;
+  if (f.projectChoice.startsWith("saved:")) {
+    return state.projects.find(p => p.id === Number(f.projectChoice.split(":", 2)[1])) || null;
+  }
+  return null;
+}
+
+function orderReadiness() {
+  const f = state.orderForm;
+  const lines = cartLinesData();
+  const estimatedCount = lines.filter(line => line.estimated).length;
+  const saved = selectedProjectForReadiness();
+  let project = "Pending", eventDate = "Pending", address = "Pending", shipBy = "Pending";
+  const issues = [];
+
+  if (!lines.length) issues.push("Add at least one item.");
+  if (f.projectChoice === "new") {
+    project = f.projectName.trim() || "Pending";
+    eventDate = f.eventDate || "Pending";
+    const addressComplete = addressIsComplete(f);
+    address = addressComplete ? "Complete" : "Address pending";
+    const plan = shippingPlanForForm(f);
+    shipBy = plan ? plan.shipByDate : "Pending";
+    if (!f.projectName.trim()) issues.push("Project or event name is missing.");
+    if (!f.eventDate) issues.push("Event date is missing.");
+    if (!addressComplete) issues.push("Delivery address is incomplete.");
+    if (!plan) issues.push("UPS Ground ship-by date is pending.");
+  } else if (f.projectChoice === "none") {
+    project = "No project";
+    issues.push("Delivery address and event details will remain incomplete.");
+  } else if (saved) {
+    project = saved.name || "Saved project";
+    const variable = saved.address_mode !== "fixed";
+    eventDate = variable ? (f.eventDate || saved.event_date || "Pending") : (saved.event_date || "Pending");
+    const addressComplete = variable
+      ? addressIsComplete(f)
+      : addressIsComplete(saved);
+    address = addressComplete ? "Complete" : "Address pending";
+    const plan = variable ? shippingPlanForForm(Object.assign({}, f, {eventDate})) : null;
+    shipBy = variable ? (plan ? plan.shipByDate : "Pending") : (saved.ship_by_date || "Pending");
+    if (eventDate === "Pending") issues.push("Event date is missing.");
+    if (!addressComplete) issues.push(variable ? "Enter this order's delivery address." : "Delivery address is incomplete in the saved project.");
+    if (shipBy === "Pending") issues.push("UPS Ground ship-by date is pending.");
+  } else {
+    issues.push("Select a valid saved project.");
+  }
+  if (estimatedCount) issues.push(estimatedCount + " estimated quantit" + (estimatedCount === 1 ? "y needs" : "ies need") + " confirmation.");
+
+  return {
+    lines, estimatedCount, issues,
+    rows: [
+      ["Items", lines.length ? cartCount() + " units" : "None", lines.length ? "good" : "warn"],
+      ["Project", project, project === "Pending" ? "warn" : "good"],
+      ["Event", eventDate, eventDate === "Pending" ? "warn" : "good"],
+      ["Address", address, address === "Complete" ? "good" : "warn"],
+      ["Estimated qty", estimatedCount ? String(estimatedCount) : "None", estimatedCount ? "pending" : "good"],
+      ["Ship by", shipBy, shipBy === "Pending" ? "warn" : "good"],
+    ],
+  };
+}
+
+function renderReadinessRows(readiness) {
+  return readiness.rows.map(([label, value, cls]) => `<div class="ready-row"><span>${esc(label)}</span><strong class="ready-value ${cls}">${esc(value)}</strong></div>`).join("");
+}
+
+function renderOrderReadinessBox() {
+  const readiness = orderReadiness();
+  return `<div class="order-readiness-box ${readiness.issues.length ? "incomplete" : ""}">
+    <strong>${readiness.issues.length ? "Order will submit as incomplete" : "Ready for approval"}</strong>
+    ${readiness.issues.length ? `<ul>${readiness.issues.map(issue => `<li>${esc(issue)}</li>`).join("")}</ul>` : `<div class="project-help" style="margin-top:5px;">All required information is complete.</div>`}
+  </div>`;
+}
+
+function renderCompactCart() {
+  const lines = cartLinesData();
+  const readiness = orderReadiness();
+  return `<div class="compact-cart">
+    <div class="slip-head"><div class="label">Live order</div><h2>Your Cart</h2></div>
+    <div class="lines">${cartLinesHtml(lines)}</div>
+    <div class="readiness"><h3>Order Readiness</h3>${renderReadinessRows(readiness)}</div>
+    <div class="compact-foot">
+      <div class="total-count">${cartCount()} unit${cartCount() === 1 ? "" : "s"} · ${lines.length} line${lines.length === 1 ? "" : "s"}</div>
+      <button class="btn-primary" id="compact-open-setup" type="button">Project & Delivery</button>
+    </div>
+  </div>`;
+}
+
+function wireRemoveButtons() {
+  document.querySelectorAll(".rm").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = Number(btn.dataset.rm);
+      delete state.cart[id];
+      delete state.estimated[id];
+      state.draftQty[id] = 0;
+      state.draftEstimated[id] = false;
+      render();
+    });
+  });
+}
+
+function refreshCartPreview() {
+  render();
+}
+
+function renderSlip() {
+  const lines = cartLinesData();
+  const count = cartCount();
+  const f = state.orderForm;
+  const isNewProject = f.projectChoice === "new";
+  const selectedSaved = f.projectChoice.startsWith("saved:")
+    ? state.projects.find(p => p.id === Number(f.projectChoice.split(":", 2)[1]))
+    : null;
+  const plan = isNewProject ? shippingPlanForForm(f) : null;
+  const todayIso = isoFromDate(new Date());
+  const shipDateReached = plan && plan.shipByDate <= todayIso;
+  return `
+  <div class="slip">
+    <div class="slip-head">
+      <div class="label">${state.tab === "setup" ? "Step 2 of 2" : "Order Slip"}</div>
+      <h2>${state.tab === "setup" ? "Project, Delivery & Cart" : "Your Cart"}</h2>
+    </div>
+    ${state.tab === "setup" && !lines.length ? `<div class="setup-empty-warning">No items have been added yet. You can complete the event details now, then return to the Catalog to enter quantities.</div>` : ""}
+    <div class="lines">${cartLinesHtml(lines)}</div>
+    <div class="foot">
+      <div class="total-count">${count} item${count === 1 ? "" : "s"} in this order</div>
+      <div>
+        <label class="mini-label" for="project-choice">Project / event</label>
+        <select id="project-choice">
+          <option value="new" ${f.projectChoice === "new" ? "selected" : ""}>＋ Create for this order</option>
+          <option value="none" ${f.projectChoice === "none" ? "selected" : ""}>No project / event</option>
+          ${state.projects.length ? `<optgroup label="Saved projects">${state.projects.map(p => `<option value="saved:${p.id}" ${f.projectChoice === "saved:" + p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</optgroup>` : ""}
+        </select>
+      </div>
+      ${isNewProject ? `
+        <div class="project-builder">
+          <div>
+            <label class="mini-label" for="project-name">Project / event name *</label>
+            <input id="project-name" type="text" maxlength="200" value="${esc(f.projectName)}" placeholder="Example: Pediatric Seminar — Newark">
+          </div>
+          <div>
+            <label class="mini-label" for="project-owner">Owner / requester</label>
+            <input id="project-owner" type="text" value="${esc(f.projectOwner)}" placeholder="Person responsible">
+          </div>
+          <div class="two-col">
+            <div>
+              <label class="mini-label" for="project-event-date">Event date *</label>
+              <input id="project-event-date" type="date" value="${esc(f.eventDate)}">
+            </div>
+            <div>
+              <label class="mini-label" for="project-location">Event venue / location</label>
+              <input id="project-location" type="text" value="${esc(f.projectLocation)}" placeholder="Optional venue or building">
+            </div>
+          </div>
+
+          <div class="address-box">
+            <h3>Delivery address <span style="color:var(--muted);font:400 10px Inter,sans-serif;">(optional at submission)</span></h3>
+            <div>
+              <label class="mini-label" for="shipping-address1">Street address</label>
+              <input id="shipping-address1" type="text" autocomplete="shipping address-line1" value="${esc(f.shippingAddress1)}" placeholder="Street and number">
+            </div>
+            <div style="margin-top:8px;">
+              <label class="mini-label" for="shipping-address2">Suite / floor / attention</label>
+              <input id="shipping-address2" type="text" autocomplete="shipping address-line2" value="${esc(f.shippingAddress2)}" placeholder="Optional">
+            </div>
+            <div class="two-col" style="margin-top:8px;">
+              <div>
+                <label class="mini-label" for="shipping-city">City</label>
+                <input id="shipping-city" type="text" autocomplete="shipping address-level2" value="${esc(f.shippingCity)}">
+              </div>
+              <div>
+                <label class="mini-label" for="shipping-state">State</label>
+                <select id="shipping-state" autocomplete="shipping address-level1">${stateOptions(f.shippingState)}</select>
+              </div>
+            </div>
+            <div class="two-col" style="margin-top:8px;">
+              <div>
+                <label class="mini-label" for="shipping-postal-code">ZIP code</label>
+                <input id="shipping-postal-code" type="text" inputmode="numeric" autocomplete="shipping postal-code" maxlength="20" value="${esc(f.shippingPostalCode)}">
+              </div>
+              <div>
+                <label class="mini-label">UPS Ground transit</label>
+                <div class="computed-field">${f.shippingState ? `${GROUND_DAYS_BY_STATE[f.shippingState]} business day${GROUND_DAYS_BY_STATE[f.shippingState] === 1 ? "" : "s"} · automatic` : "Select a state to calculate"}</div>
+              </div>
+            </div>
+          </div>
+
+          ${plan ? `<div class="shipping-plan ${shipDateReached ? "due" : ""}">
+            <div class="plan-item"><span>Event</span><strong>${esc(f.eventDate)}</strong></div>
+            <div class="plan-item"><span>Deliver by</span><strong>${esc(plan.deliveryDate)}</strong></div>
+            <div class="plan-item"><span>UPS Ground</span><strong>${plan.days} business day${plan.days === 1 ? "" : "s"}</strong></div>
+            <div class="plan-item"><span>Ship no later than</span><strong>${esc(plan.shipByDate)}</strong></div>
+            <div class="shipping-note">${shipDateReached ? "⚠ The calculated ship date is today or has passed. Review another service level before submitting." : "Delivery is planned for the business day before the event. Weekends and common observed U.S. holidays are skipped."}</div>
+          </div>` : `<div class="project-help">${f.shippingState ? "Enter the event date to calculate shipping dates." : "Address can stay pending. Select the destination state later to calculate the latest UPS Ground ship date."}</div>`}
+
+          <div class="project-help">UPS Ground transit days are calculated automatically from the destination state and cannot be overridden.</div>
+
+          <div>
+            <label class="mini-label" for="project-attendees">Estimated attendees</label>
+            <input id="project-attendees" type="number" inputmode="numeric" min="0" step="1" value="${esc(f.attendees)}" placeholder="Optional">
+          </div>
+          <div>
+            <label class="mini-label" for="project-description">Project details</label>
+            <textarea id="project-description" placeholder="Purpose or quick description">${esc(f.projectDescription)}</textarea>
+          </div>
+          <label class="save-project">
+            <input id="save-project" type="checkbox" ${f.saveProject ? "checked" : ""}>
+            <span>Save this project so it can be selected again later. Leave unchecked for one-time events.</span>
+          </label>
+        </div>
+      ` : f.projectChoice === "none" ? `<div class="project-help">This order will not be linked to a project or event, so no event shipping deadline will be calculated.</div>` : selectedSaved ? `<div class="saved-project-card">
+          <strong>${esc(selectedSaved.name)}</strong><br>
+          ${selectedSaved.event_date ? `Event: ${esc(selectedSaved.event_date)}<br>` : ""}
+          ${selectedSaved.delivery_date ? `Deliver by: ${esc(selectedSaved.delivery_date)}<br>` : ""}
+          ${selectedSaved.ship_by_date ? `Ship by: ${esc(selectedSaved.ship_by_date)}<br>` : ""}
+          ${selectedSaved.ups_ground_days ? `UPS Ground: ${selectedSaved.ups_ground_days} business day${selectedSaved.ups_ground_days === 1 ? "" : "s"}<br>` : ""}
+          ${selectedSaved.address_mode === "fixed"
+            ? (formattedAddress(selectedSaved) ? `Ship to: ${esc(formattedAddress(selectedSaved))}` : "No saved delivery address.")
+            : `<span style="color:var(--safety)">Variable address · enter this order's destination below</span>`}
+        </div>
+        ${selectedSaved.address_mode !== "fixed" ? `<div class="project-builder">
+          <div class="two-col"><div><label class="mini-label" for="project-event-date">Event date</label><input id="project-event-date" type="date" value="${esc(f.eventDate || selectedSaved.event_date || "")}"></div><div><label class="mini-label" for="project-location">Event venue / location</label><input id="project-location" type="text" value="${esc(f.projectLocation || selectedSaved.location || "")}"></div></div>
+          <div class="address-box"><h3>Delivery address for this order</h3>
+            <div><label class="mini-label" for="shipping-address1">Street address</label><input id="shipping-address1" value="${esc(f.shippingAddress1)}"></div>
+            <div style="margin-top:8px"><label class="mini-label" for="shipping-address2">Suite / floor / attention</label><input id="shipping-address2" value="${esc(f.shippingAddress2)}"></div>
+            <div class="two-col" style="margin-top:8px"><div><label class="mini-label" for="shipping-city">City</label><input id="shipping-city" value="${esc(f.shippingCity)}"></div><div><label class="mini-label" for="shipping-state">State</label><select id="shipping-state">${stateOptions(f.shippingState)}</select></div></div>
+            <div class="two-col" style="margin-top:8px"><div><label class="mini-label" for="shipping-postal-code">ZIP code</label><input id="shipping-postal-code" value="${esc(f.shippingPostalCode)}"></div><div><label class="mini-label">UPS Ground transit</label><div class="computed-field">${f.shippingState ? `${GROUND_DAYS_BY_STATE[f.shippingState]} business day${GROUND_DAYS_BY_STATE[f.shippingState] === 1 ? "" : "s"} · automatic` : "Select a state to calculate"}</div></div></div>
+          </div>
+        </div>` : ""}
+        ` : `<div class="project-help">This order will be added to the selected saved project.</div>`}
+      ${renderOrderReadinessBox()}
+      <textarea id="slip-notes" placeholder="Notes for the approver (optional)">${esc(f.notes)}</textarea>
+      <button class="btn-primary" id="submit-order" ${!lines.length ? "disabled" : ""}>Submit Order</button>
+    </div>
+  </div>`;
+}
+
+function render() {
+  const app = document.getElementById("app");
+  if (!state.token) {
+    app.innerHTML = renderLogin();
+    wireLogin();
+    return;
+  }
+  const searchHadFocus = document.activeElement && document.activeElement.id === "search";
+  const searchCursorPos = searchHadFocus ? document.activeElement.selectionStart : null;
+  const top = `<div class="top-shell">
+    <header class="bar">
+      <div class="brand"><span class="crate">📦</span> Oti-Warehouse Swag <span class="build-badge">${APP_VERSION}</span></div>
+      <div class="who">
+        <span>${esc(state.user ? state.user.full_name || state.user.username : "")}</span>
+        ${state.user && state.user.roles.length ? `<span class="roles">${state.user.roles.join(", ").toUpperCase()}</span>` : ""}
+        <select class="theme-select" id="theme-select" aria-label="Theme">
+          <option value="warehouse-dark" ${state.theme === "warehouse-dark" ? "selected" : ""}>Warehouse Dark</option>
+          <option value="light" ${state.theme === "light" ? "selected" : ""}>Light</option>
+          <option value="high-contrast" ${state.theme === "high-contrast" ? "selected" : ""}>High Contrast</option>
+          <option value="system" ${state.theme === "system" ? "selected" : ""}>System</option>
+        </select>
+        <button class="link" id="logout-btn">Log out</button>
+      </div>
+    </header>
+    <nav class="tabs">
+      <button data-tab="catalog" class="${state.tab === "catalog" ? "active" : ""}">1. Catalog</button>
+      <button data-tab="setup" class="${state.tab === "setup" ? "active" : ""}">2. Project & Delivery (${cartCount()})</button>
+      <button data-tab="orders" class="${state.tab === "orders" ? "active" : ""}">My Orders</button>
+    </nav>
+  </div>`;
+
+  if (state.tab === "catalog") {
+    app.innerHTML = `${top}
+      <div class="filter-backdrop ${state.filterDrawerOpen ? "open" : ""}" id="filter-backdrop"></div>
+      <main class="catalog-shell ${state.filterCollapsed ? "filters-collapsed" : ""}">
+        <aside class="filter-rail ${state.filterDrawerOpen ? "open" : ""} ${state.filterCollapsed ? "collapsed" : ""}">${renderFilterRail()}</aside>
+        <section class="catalog-content view-panel">${renderCatalogTab()}</section>
+        <aside class="cart-rail">${renderCompactCart()}</aside>
+      </main>
+      <button class="mobile-cart-bar" id="mobile-cart-open" type="button"><span>Review Order</span><span class="cart-total">${cartCount()} units</span></button>`;
+  } else {
+    app.innerHTML = `${top}<main class="single-shell ${state.tab === "setup" ? "setup-mode" : ""}"><section class="view-panel">${state.tab === "setup" ? renderSlip() : renderOrdersTab()}</section></main>`;
+  }
+  wireApp(searchHadFocus, searchCursorPos);
+}
+
+// ---- event wiring ---------------------------------------------------------------
+function wireLogin() {
+  document.getElementById("login-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const button = e.target.querySelector('button[type="submit"]');
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:7px"></span>Signing in';
+    const fd = new FormData(e.target);
+    doLogin(fd.get("username"), fd.get("password"));
+  });
+  document.getElementById("toggle-server").addEventListener("click", () => {
+    state.showServerField = !state.showServerField;
+    render();
+  });
+  const serverField = document.getElementById("f-server");
+  if (serverField) {
+    serverField.addEventListener("change", (e) => {
+      state.apiBase = e.target.value.trim().replace(/\/$/, "") || DEFAULT_API_BASE;
+    });
+  }
+}
+
+function wireApp(searchHadFocus, searchCursorPos) {
+  document.getElementById("logout-btn").addEventListener("click", () => logout());
+  const themeSelect = document.getElementById("theme-select");
+  if (themeSelect) themeSelect.addEventListener("change", async (e) => {
+    const previous = state.theme;
+    applyTheme(e.target.value);
+    if (state.user) state.user.theme = state.theme;
+    try { await api("/me/preferences", {method:"PUT", body:JSON.stringify({theme:state.theme})}); }
+    catch (err) { applyTheme(previous); toast(err.message, true); }
+  });
+
+  document.querySelectorAll("nav.tabs button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      state.tab = btn.dataset.tab;
+      state.filterDrawerOpen = false;
+      renderWithTransition();
+      if (state.tab === "orders") loadMyOrders();
+    });
+  });
+
+  const goToSetup = () => {
+    state.tab = "setup";
+    state.filterDrawerOpen = false;
+    renderWithTransition();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  ["open-order-setup", "compact-open-setup", "mobile-cart-open"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("click", goToSetup);
+  });
+
+  const mobileFilterOpen = document.getElementById("mobile-filter-open");
+  if (mobileFilterOpen) mobileFilterOpen.addEventListener("click", () => { state.filterDrawerOpen = true; render(); });
+  const filterClose = document.getElementById("filter-close");
+  if (filterClose) filterClose.addEventListener("click", () => { state.filterDrawerOpen = false; render(); });
+  const backdrop = document.getElementById("filter-backdrop");
+  if (backdrop) backdrop.addEventListener("click", () => { state.filterDrawerOpen = false; render(); });
+  const filterCollapse = document.getElementById("filter-collapse");
+  if (filterCollapse) filterCollapse.addEventListener("click", () => {
+    if (window.matchMedia("(max-width: 920px)").matches) {
+      state.filterDrawerOpen = false;
+    } else {
+      state.filterCollapsed = !state.filterCollapsed;
+      localStorage.setItem("oti_filter_collapsed", state.filterCollapsed ? "1" : "0");
+    }
+    render();
+  });
+  document.querySelectorAll("[data-quick-filter]").forEach(btn => btn.addEventListener("click", () => {
+    state.quickFilter = btn.dataset.quickFilter;
+    state.filterDrawerOpen = false;
+    render();
+  }));
+  document.querySelectorAll("[data-category-choice]").forEach(btn => btn.addEventListener("click", () => {
+    state.category = btn.dataset.categoryChoice || "";
+    state.filterDrawerOpen = false;
+    render();
+  }));
+  const clearFilters = document.getElementById("clear-filters");
+  if (clearFilters) clearFilters.addEventListener("click", () => {
+    state.category = "";
+    state.quickFilter = "all";
+    render();
+  });
+
+  const searchEl = document.getElementById("search");
+  if (searchEl) {
+    searchEl.addEventListener("input", (e) => { state.search = e.target.value; render(); });
+    if (searchHadFocus) {
+      searchEl.focus();
+      searchEl.selectionStart = searchEl.selectionEnd = searchCursorPos ?? searchEl.value.length;
+    }
+  }
+  const sortEl = document.getElementById("sort-by");
+  if (sortEl) sortEl.addEventListener("change", (e) => { state.sort = e.target.value; render(); });
+
+  document.querySelectorAll(".stepper button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = Number(btn.dataset.id);
+      const item = state.catalog.find(i => i.id === id);
+      if (!item) return;
+      const cur = draftQtyFor(item);
+      const max = Number(btn.dataset.max || 999999);
+      setDraftQty(id, btn.dataset.act === "inc" ? cur + 1 : cur - 1, max);
+    });
+  });
+
+  document.querySelectorAll(".qty-input").forEach(input => {
+    const syncDraft = () => {
+      const id = Number(input.dataset.qtyId);
+      const max = Number(input.dataset.max || 0);
+      let requested = input.value === "" ? 0 : Number(input.value);
+      if (!Number.isFinite(requested) || requested < 0) requested = 0;
+      requested = Math.floor(requested);
+      if (requested > max) {
+        requested = max;
+        toast("Only " + max + " are currently available.", true);
+      }
+      state.draftQty[id] = requested;
+      input.value = requested === 0 ? "" : String(requested);
+      if (requested <= 0) state.draftEstimated[id] = false;
+      const stepper = input.closest(".stepper");
+      if (stepper) {
+        const dec = stepper.querySelector('[data-act="dec"]');
+        const inc = stepper.querySelector('[data-act="inc"]');
+        if (dec) dec.disabled = requested <= 0;
+        if (inc) inc.disabled = requested >= max;
+      }
+      const estimate = document.querySelector(`.estimated-toggle[data-estimated-id="${id}"]`);
+      if (estimate) {
+        estimate.disabled = requested <= 0;
+        if (requested <= 0) estimate.checked = false;
+      }
+      const add = document.querySelector(`[data-add-cart="${id}"]`);
+      if (add) {
+        add.disabled = requested <= 0;
+        const inCart = Number(state.cart[id] || 0);
+        const same = inCart > 0 && requested === inCart && draftEstimatedFor(id) === Boolean(state.estimated[id]);
+        add.textContent = inCart ? (same ? "In Cart" : "Update Cart") : "Add to Cart";
+        add.classList.toggle("in-cart", same);
+      }
+    };
+    input.addEventListener("input", syncDraft);
+    input.addEventListener("blur", syncDraft);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+    });
+  });
+
+  document.querySelectorAll(".estimated-toggle").forEach(toggle => {
+    toggle.addEventListener("change", () => {
+      const id = Number(toggle.dataset.estimatedId);
+      const item = state.catalog.find(i => i.id === id);
+      if (!item || draftQtyFor(item) <= 0) {
+        toggle.checked = false;
+        toggle.disabled = true;
+        state.draftEstimated[id] = false;
+      } else {
+        state.draftEstimated[id] = toggle.checked;
+      }
+      const add = document.querySelector(`[data-add-cart="${id}"]`);
+      if (add) {
+        const inCart = Number(state.cart[id] || 0);
+        const same = inCart > 0 && draftQtyFor(item) === inCart && draftEstimatedFor(id) === Boolean(state.estimated[id]);
+        add.textContent = inCart ? (same ? "In Cart" : "Update Cart") : "Add to Cart";
+        add.classList.toggle("in-cart", same);
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-add-cart]").forEach(btn => {
+    btn.addEventListener("click", () => commitItemToCart(Number(btn.dataset.addCart)));
+  });
+
+  document.querySelectorAll("[data-favorite-id]").forEach(btn => {
+    btn.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      const id = Number(btn.dataset.favoriteId);
+      const item = state.catalog.find(i => i.id === id);
+      if (!item) return;
+      const next = !item.favorite;
+      item.favorite = next;
+      render();
+      try {
+        await api(`/catalog/${id}/favorite`, {method: next ? "POST" : "DELETE"});
+        toast(next ? "Added to favorites." : "Removed from favorites.");
+      } catch (err) {
+        item.favorite = !next;
+        render();
+        toast(err.message, true);
+      }
+    });
+  });
+
+  document.querySelectorAll(".request-count").forEach(btn => {
+    btn.addEventListener("click", () => submitCountRequest(Number(btn.dataset.countId), btn.dataset.countName || "this item"));
+  });
+
+  document.querySelectorAll("[data-lightbox-src], [data-proof-id]").forEach(img => {
+    img.addEventListener("click", () => {
+      if (img.dataset.itemImageId) markRecentlyViewed(Number(img.dataset.itemImageId));
+      if (img.dataset.lightboxSrc) openLightbox(img.dataset.lightboxSrc, img.alt);
+    });
+  });
+  loadProtectedProofImages();
+
+  document.querySelectorAll(".edit-order").forEach(btn => {
+    btn.addEventListener("click", () => openOrderEditor(Number(btn.dataset.orderId)));
+  });
+
+  wireRemoveButtons();
+
+  const bindFormValue = (id, key, eventName = "input") => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(eventName, (e) => { state.orderForm[key] = e.target.value; refreshReadinessUI(); });
+  };
+  const projectChoice = document.getElementById("project-choice");
+  if (projectChoice) projectChoice.addEventListener("change", (e) => {
+    state.orderForm.projectChoice = e.target.value;
+    if (e.target.value.startsWith("saved:")) {
+      const saved = state.projects.find(p => p.id === Number(e.target.value.split(":", 2)[1]));
+      if (saved && saved.address_mode !== "fixed") {
+        state.orderForm.eventDate = saved.event_date || "";
+        state.orderForm.projectLocation = saved.location || "";
+        state.orderForm.shippingAddress1 = "";
+        state.orderForm.shippingAddress2 = "";
+        state.orderForm.shippingCity = "";
+        state.orderForm.shippingState = "";
+        state.orderForm.shippingPostalCode = "";
+      }
+    }
+    renderWithTransition();
+  });
+  bindFormValue("project-name", "projectName");
+  bindFormValue("project-owner", "projectOwner");
+  const eventDate = document.getElementById("project-event-date");
+  if (eventDate) eventDate.addEventListener("change", (e) => { syncOrderFormFromDom(); state.orderForm.eventDate = e.target.value; render(); });
+  bindFormValue("project-location", "projectLocation");
+  bindFormValue("shipping-address1", "shippingAddress1");
+  bindFormValue("shipping-address2", "shippingAddress2");
+  bindFormValue("shipping-city", "shippingCity");
+  bindFormValue("shipping-postal-code", "shippingPostalCode");
+  const shippingState = document.getElementById("shipping-state");
+  if (shippingState) shippingState.addEventListener("change", (e) => { syncOrderFormFromDom(); state.orderForm.shippingState = e.target.value; render(); });
+  bindFormValue("project-attendees", "attendees");
+  bindFormValue("project-description", "projectDescription");
+  bindFormValue("slip-notes", "notes");
+  const saveProject = document.getElementById("save-project");
+  if (saveProject) saveProject.addEventListener("change", (e) => { state.orderForm.saveProject = e.target.checked; });
+
+  const submitBtn = document.getElementById("submit-order");
+  if (submitBtn) submitBtn.addEventListener("click", submitOrder);
+}
+
+// ---- boot -------------------------------------------------------------------
+(async function boot() {
+  const lightbox = document.getElementById("lightbox");
+  lightbox.querySelector(".lightbox-close").addEventListener("click", closeLightbox);
+  lightbox.addEventListener("click", (e) => { if (e.target === lightbox) closeLightbox(); });
+  const modalRoot = document.getElementById("modal-root");
+  modalRoot.addEventListener("click", (e) => { if (e.target === modalRoot) closeModal(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      if (lightbox.classList.contains("open")) closeLightbox();
+      else if (modalRoot.classList.contains("open")) closeModal();
+    }
+  });
+  if (state.token) {
+    try {
+      state.user = await api("/me");
+      applyTheme(state.user.theme || state.theme);
+      state.orderForm = blankOrderForm();
+      await Promise.all([loadCatalog(), loadMyOrders()]);
+      pollLoop();
+    } catch (e) {
+      // logout() already called by api() on 401; other errors just show login
+    }
+  }
+  render();
+})();
+</script>
+</body>
+</html>
