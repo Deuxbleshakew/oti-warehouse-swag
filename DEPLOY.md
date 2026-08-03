@@ -109,8 +109,9 @@ yours.
   original file has already disappeared.
 - **Event shipping dates are automatic**: enter the event date and complete
   delivery address. The page targets delivery for the previous business day,
-  applies the supplied UPS Ground map estimate, and stores the latest ship date
-  with the order. Exact ZIP quotes can override the 1–6 day estimate.
+  applies the configured UPS Ground state map, and stores the latest ship date
+  with the order. Transit days are displayed as calculated text and are not
+  manually editable by requesters.
 - **Free database**: your Postgres database itself doesn't expire on
   its own, but keep an eye on Render's dashboard for any usage limits.
 
@@ -120,13 +121,36 @@ An always-on service can still be useful when you no longer want cold starts.
 Photo persistence no longer requires a separate disk because uploaded image
 bytes are stored in the database.
 
-## Confirming version 5.4 is actually live
+## Confirming version 5.9 is actually live
 
 After the deployment finishes:
 
 1. Open your service URL followed by `/health`.
-2. Confirm it shows `"build":"5.4-event-shipping"`.
-3. Return to the main URL and confirm the header shows `v5.4 EVENT SHIPPING`.
+2. Confirm it shows `"build":"5.9.0-access-polish"`.
+3. Return to the main URL and confirm the header shows `v5.9 WORKFLOW`.
 4. The signed-in page must show three tabs: **1. Catalog**, **2. Project & Delivery**, and **My Orders**.
 
 If `/health` does not show that build name, the host is still running older files. Upload the contents from inside the new `swag_system` folder to the repository root, rather than placing a second `swag_system` folder inside the existing one.
+
+---
+
+## v5.9 optional SMS alerts
+
+The application runs normally without SMS. To enable new-order text messages, add
+these environment variables to the Render web service:
+
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_FROM_NUMBER`
+- `ORDER_ALERT_TO_NUMBER`
+- `PUBLIC_APP_URL` (optional, for a link in the text)
+
+Keep all values in Render's environment settings. Do not place credentials or phone
+numbers in source files. After setting them, redeploy and submit one test order.
+Provider/network errors are logged but do not reject the order.
+
+## v5.9 database upgrade
+
+No manual SQL is required. On startup, the backend creates the new favorites,
+catalog-permission, and project-membership tables and adds the new columns to
+existing SQLite or PostgreSQL tables. The migration is additive and safe to rerun.
