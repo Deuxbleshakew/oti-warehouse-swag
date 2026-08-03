@@ -17,7 +17,7 @@ from backend.schemas.schemas import (
     AuditLogOut, CountRequestOut, CountRequestResolve,
     ProjectCreate, ProjectEdit, ProjectMembersUpdate, ProjectOut,
     AdminProjectOut, ProjectMemberOut, CatalogPermissionsUpdate,
-    NavAdjustmentOut, NavAdjustmentUpdate,
+    NavAdjustmentOut, NavAdjustmentUpdate, InventoryTransferRequest,
 )
 from backend.models.models import (
     Order, OrderLine, Item, User, AuditLog, InventoryTransaction, CountRequest,
@@ -276,7 +276,12 @@ def adjust_inventory(body: InventoryAdjustRequest, db: Session = Depends(get_db)
                      user: User = Depends(require_role("admin"))):
     return ItemOut.from_orm_item(item_service.adjust_inventory(
         db, item_id=body.item_id, delta=body.delta, reason=body.reason,
-        allow_negative=body.allow_negative, actor=user, source="admin_app"))
+        allow_negative=body.allow_negative, actor=user, source="admin_app", inventory_location=body.inventory_location))
+
+
+@router.post("/inventory/transfer", response_model=ItemOut)
+def transfer_inventory(body: InventoryTransferRequest, db: Session = Depends(get_db), user: User = Depends(require_role("admin"))):
+    return ItemOut.from_orm_item(item_service.transfer_inventory(db, item_id=body.item_id, from_location=body.from_location, to_location=body.to_location, quantity=body.quantity, reason=body.reason, actor=user, source="admin_app"))
 
 
 @router.get("/inventory/transactions", response_model=list[InventoryTransactionOut])
@@ -398,6 +403,19 @@ def delete_item_image(item_id: int, image_id: int,
     item_service.delete_item_image(db, item_id=item_id, image_id=image_id,
                                    actor=user, source="admin_app")
     return ItemOut.from_orm_item(db.query(Item).filter_by(id=item_id).first())
+
+
+@router.put("/items/{item_id}/images/order", response_model=ItemOut)
+def reorder_item_images(item_id: int, image_ids: list[int], db: Session = Depends(get_db), user: User = Depends(require_role("admin"))):
+    item = db.query(Item).filter_by(id=item_id).first()
+    if not item:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Item not found.")
+    existing = {img.id: img for img in item.images}
+    if set(image_ids) != set(existing):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Image list does not match this item.")
+    for position, image_id in enumerate(image_ids): existing[image_id].position = position
+    db.commit(); db.refresh(item)
+    return ItemOut.from_orm_item(item)
 
 
 # ---- Projects / shared status -----------------------------------------------

@@ -18,7 +18,8 @@ from fastapi.responses import HTMLResponse
 from backend.api import auth, catalog, orders, admin
 from backend.db.session import Base, engine, SessionLocal
 from backend.db.schema_upgrade import ensure_additive_columns
-from backend.services.item_service import backfill_legacy_image_blobs
+from backend.services.item_service import backfill_legacy_image_blobs, ensure_location_balances
+from backend.models.models import Item
 
 _FRONTEND_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
@@ -32,6 +33,8 @@ ensure_additive_columns(engine)
 _legacy_db = SessionLocal()
 try:
     backfill_legacy_image_blobs(_legacy_db)
+    for _item in _legacy_db.query(Item).all(): ensure_location_balances(_legacy_db, _item)
+    _legacy_db.commit()
 finally:
     _legacy_db.close()
 

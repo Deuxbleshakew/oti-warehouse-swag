@@ -74,6 +74,13 @@ class CatalogPermissionsUpdate(BaseModel):
 
 
 # ---- Items / catalog ---------------------------------------------------------
+class ItemLocationOut(BaseModel):
+    id: int
+    location_name: str
+    quantity: int
+    bin_location: str = ""
+
+
 class ItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -98,6 +105,7 @@ class ItemOut(BaseModel):
     open_count_requests: int = 0
     favorite: bool = False
     stock_status: str = "in_stock"
+    location_balances: List[ItemLocationOut] = []
 
     @classmethod
     def from_orm_item(cls, item, include_sensitive=True,
@@ -117,6 +125,7 @@ class ItemOut(BaseModel):
             images=[img.filename for img in item.images],
             image_ids=[img.id for img in item.images],
             open_count_requests=open_count_requests, favorite=favorite,
+            location_balances=[ItemLocationOut(id=b.id, location_name=b.location_name, quantity=b.quantity, bin_location=b.bin_location or "") for b in getattr(item, "location_balances", [])],
             stock_status=("not_counted" if not bool(getattr(item, "inventory_counted", True)) else
                           "out_of_stock" if item.qty_on_hand <= 0 else
                           "low_stock" if item.qty_on_hand <= item.reorder_threshold else
@@ -163,6 +172,15 @@ class InventoryAdjustRequest(BaseModel):
     delta: int
     reason: str
     allow_negative: bool = False
+    inventory_location: str = "On-site"
+
+
+class InventoryTransferRequest(BaseModel):
+    item_id: int
+    from_location: str
+    to_location: str
+    quantity: int = Field(gt=0)
+    reason: str = "Building transfer"
 
 
 class InventoryTransactionOut(BaseModel):

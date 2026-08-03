@@ -221,11 +221,25 @@ class Item(Base):
                           order_by="ItemImage.position")
     transactions = relationship("InventoryTransaction", back_populates="item")
     nav_adjustments = relationship("NavAdjustmentTask", back_populates="item")
+    location_balances = relationship("ItemLocationBalance", back_populates="item", cascade="all, delete-orphan", order_by="ItemLocationBalance.location_name")
 
     __table_args__ = (
         Index("ix_items_category", "category"),
         Index("ix_items_active", "active"),
     )
+
+
+
+class ItemLocationBalance(Base):
+    __tablename__ = "item_location_balances"
+    id = Column(Integer, primary_key=True)
+    item_id = Column(Integer, ForeignKey("items.id", ondelete="CASCADE"), nullable=False, index=True)
+    location_name = Column(String(100), nullable=False)
+    quantity = Column(Integer, nullable=False, default=0)
+    bin_location = Column(String(120), default="")
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+    item = relationship("Item", back_populates="location_balances")
+    __table_args__ = (UniqueConstraint("item_id", "location_name", name="uq_item_location_balance"),)
 
 
 class ItemImage(Base):

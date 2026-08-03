@@ -228,11 +228,15 @@ class ApiClient:
         return self._put(f"/admin/items/{item_id}", data)
 
     def adjust_inventory(self, item_id: int, delta: int, reason: str,
-                         allow_negative: bool = False) -> dict:
+                         allow_negative: bool = False, inventory_location: str = "On-site") -> dict:
         return self._post("/admin/inventory/adjust",
                           {"item_id": item_id, "delta": delta,
                            "reason": reason,
-                           "allow_negative": allow_negative})
+                           "allow_negative": allow_negative,
+                           "inventory_location": inventory_location})
+
+    def transfer_inventory(self, item_id: int, from_location: str, to_location: str, quantity: int, reason: str = "Building transfer") -> dict:
+        return self._post("/admin/inventory/transfer", {"item_id": item_id, "from_location": from_location, "to_location": to_location, "quantity": quantity, "reason": reason})
 
     def upload_item_image(self, item_id: int, filename: str,
                           content: bytes) -> dict:

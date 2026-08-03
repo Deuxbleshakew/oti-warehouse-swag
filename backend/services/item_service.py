@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 
 from backend.models.models import (Item, InventoryTransaction, User, OrderLine,
-                                    CountRequest)
+                                    CountRequest, ItemLocationBalance)
 from backend.services.audit_service import log_action
 from backend.services import access_service
 
@@ -29,6 +29,8 @@ def create_item(db: Session, *, data: dict, actor: User, source="api") -> Item:
     item = Item(**data)
     db.add(item)
     db.flush()
+    db.add(ItemLocationBalance(item_id=item.id, location_name="On-site", quantity=item.qty_on_hand, bin_location=item.location or ""))
+    db.add(ItemLocationBalance(item_id=item.id, location_name="Off-site", quantity=0, bin_location=""))
     if counted and item.qty_on_hand:
         db.add(InventoryTransaction(item_id=item.id, delta=item.qty_on_hand,
                                     reason="Initial stock", source=source,
@@ -66,7 +68,7 @@ def update_item(db: Session, *, item_id: int, data: dict, actor: User,
 
 
 def adjust_inventory(db: Session, *, item_id: int, delta: int, reason: str,
-                     allow_negative: bool, actor: User, source="api") -> Item:
+                     allow_negative: bool, actor: User, source="api", inventory_location: str = "On-site") -> Item:
     if not reason or not reason.strip():
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             "A reason is required for any stock adjustment.")
@@ -83,6 +85,15 @@ def adjust_inventory(db: Session, *, item_id: int, delta: int, reason: str,
 
     old_qty = item.qty_on_hand
     item.qty_on_hand = resulting
+    loc_name = (inventory_location or "On-site").strip() or "On-site"
+    balance = db.query(ItemLocationBalance).filter_by(item_id=item.id, location_name=loc_name).first()
+    if not balance:
+        balance = ItemLocationBalance(item_id=item.id, location_name=loc_name, quantity=0, bin_location=item.location or "")
+        db.add(balance); db.flush()
+    loc_result = balance.quantity + delta
+    if loc_result < 0 and not (allow_negative and actor.has_role("admin")):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Adjustment would take {loc_name} below zero.")
+    balance.quantity = loc_result
     db.add(InventoryTransaction(item_id=item.id, delta=delta, reason=reason,
                                 source=source, user_id=actor.id,
                                 item_code_snapshot=item.code,
@@ -403,3 +414,31 @@ def resolve_count_request(db: Session, *, request_id: int, actor: User,
     db.refresh(row)
     return row
 
+
+
+def ensure_location_balances(db: Session, item: Item) -> None:
+    if item.location_balances:
+        return
+    db.add(ItemLocationBalance(item_id=item.id, location_name="On-site", quantity=item.qty_on_hand, bin_location=item.location or ""))
+    db.add(ItemLocationBalance(item_id=item.id, location_name="Off-site", quantity=0, bin_location=""))
+    db.flush()
+
+def transfer_inventory(db: Session, *, item_id: int, from_location: str, to_location: str, quantity: int, reason: str, actor: User, source="admin_app") -> Item:
+    item = db.query(Item).filter_by(id=item_id).first()
+    if not item:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Item not found.")
+    if from_location.strip().lower() == to_location.strip().lower():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Choose two different inventory locations.")
+    ensure_location_balances(db, item)
+    def getloc(name):
+        row = db.query(ItemLocationBalance).filter_by(item_id=item.id, location_name=name.strip()).first()
+        if not row:
+            row = ItemLocationBalance(item_id=item.id, location_name=name.strip(), quantity=0)
+            db.add(row); db.flush()
+        return row
+    src, dst = getloc(from_location), getloc(to_location)
+    if src.quantity < quantity:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Only {src.quantity} available at {src.location_name}.")
+    src.quantity -= quantity; dst.quantity += quantity
+    log_action(db, user_id=actor.id, action="inventory.transfer", object_type="item", object_id=item.id, new_value={"from":src.location_name,"to":dst.location_name,"quantity":quantity,"reason":reason}, source=source)
+    db.commit(); db.refresh(item); return item

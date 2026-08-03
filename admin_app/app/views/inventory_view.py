@@ -82,18 +82,19 @@ class InventoryView(ttk.Frame):
         wrap.rowconfigure(0, weight=1)
         wrap.columnconfigure(0, weight=1)
 
-        cols = ("code", "name", "category", "qty", "reorder", "count", "nav", "location", "active")
+        cols = ("code", "name", "category", "qty", "onsite", "offsite", "reorder", "count", "nav", "location", "active")
         self.tree = ttk.Treeview(wrap, columns=cols, show="headings",
                                  selectmode="browse")
         headings = {"code": ("Code", 120), "name": ("Name", 220),
-                    "category": ("Category", 140), "qty": ("On hand", 120),
+                    "category": ("Category", 140), "qty": ("Total", 90),
+                    "onsite": ("On-site", 80), "offsite": ("Off-site", 80),
                     "reorder": ("Reorder at", 80),
                     "count": ("Count", 70),
                     "nav": ("NAV", 115),
                     "location": ("Bin", 90), "active": ("Active", 60)}
         for c, (label, width) in headings.items():
             self.tree.heading(c, text=label)
-            anchor = "e" if c in ("qty", "reorder", "count") else "w"
+            anchor = "e" if c in ("qty", "onsite", "offsite", "reorder", "count") else "w"
             self.tree.column(c, width=width, anchor=anchor)
         self.tree.grid(row=0, column=0, sticky="nsew")
         sb = ttk.Scrollbar(wrap, orient="vertical", command=self.tree.yview)
@@ -149,6 +150,8 @@ class InventoryView(ttk.Frame):
             qty_display = it["qty_on_hand"] if it.get("inventory_counted", True) else "Not Counted Yet"
             self.tree.insert("", "end", iid=str(it["id"]), values=(
                 it["code"], it["name"], it["category"], qty_display,
+                next((b.get("quantity",0) for b in it.get("location_balances",[]) if b.get("location_name")=="On-site"), it["qty_on_hand"]),
+                next((b.get("quantity",0) for b in it.get("location_balances",[]) if b.get("location_name")=="Off-site"), 0),
                 it["reorder_threshold"],
                 it.get("open_count_requests", 0) or "",
                 ((it.get("nav_item_number") or "Tracked") if it.get("nav_tracked") else ""),

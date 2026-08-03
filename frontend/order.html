@@ -703,7 +703,7 @@
   .edit-line label{ margin:0; text-transform:none; letter-spacing:0; display:flex; align-items:center; gap:5px; }
   .lightbox img{ max-width:min(1100px,94vw); max-height:88vh; object-fit:contain; border:0; box-shadow:0 20px 70px rgba(0,0,0,.55); transform:scale(.97); transition:transform .2s ease; }
   .lightbox.open img{ transform:scale(1); }
-  .lightbox-close{ position:absolute; top:18px; right:22px; background:var(--bar); color:var(--ink); border:1px solid var(--line); width:40px; height:40px; font-size:20px; }
+  .lightbox-prev,.lightbox-next{position:absolute;top:50%;transform:translateY(-50%);width:48px;height:56px;border:1px solid var(--line);background:var(--bar);color:var(--ink);font-size:34px;z-index:2}.lightbox-prev{left:18px}.lightbox-next{right:18px}.lightbox-count{position:absolute;bottom:18px;color:#fff;font:600 12px IBM Plex Mono,monospace}.lightbox-close{ position:absolute; top:18px; right:22px; background:var(--bar); color:var(--ink); border:1px solid var(--line); width:40px; height:40px; font-size:20px; }
   @media (prefers-reduced-motion:reduce){ *,*::before,*::after{ animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; scroll-behavior:auto!important; } }
 
   /* Phone-width tap targets. Placed at the END of the stylesheet on
@@ -892,7 +892,7 @@
 <div id="app"></div>
 <div id="toast"></div>
 <div id="modal-root" class="modal-backdrop" aria-hidden="true"></div>
-<div id="lightbox" class="lightbox" aria-hidden="true"><button class="lightbox-close" aria-label="Close">✕</button><img alt="Expanded item photo"></div>
+<div id="lightbox" class="lightbox" aria-hidden="true"><button class="lightbox-close" aria-label="Close">✕</button><button class="lightbox-prev" aria-label="Previous image">‹</button><img alt="Expanded item photo"><button class="lightbox-next" aria-label="Next image">›</button><div class="lightbox-count"></div></div>
 
 <script>
 /* ---------------------------------------------------------------------
@@ -1172,10 +1172,12 @@ function renderWithTransition() {
   else render();
 }
 
-function openLightbox(src, alt) {
+let lightboxGallery=[];let lightboxIndex=0;
+function showLightboxImage(){const box=document.getElementById("lightbox"),img=box.querySelector("img");if(!lightboxGallery.length)return;img.src=lightboxGallery[lightboxIndex];box.querySelector(".lightbox-count").textContent=lightboxGallery.length>1?`${lightboxIndex+1} / ${lightboxGallery.length}`:"";box.querySelector(".lightbox-prev").style.display=lightboxGallery.length>1?"block":"none";box.querySelector(".lightbox-next").style.display=lightboxGallery.length>1?"block":"none";}
+function openLightbox(src, alt, gallery) {
   const box = document.getElementById("lightbox");
   const img = box.querySelector("img");
-  img.src = src;
+  lightboxGallery=(gallery&&gallery.length?gallery:[src]);lightboxIndex=Math.max(0,lightboxGallery.indexOf(src));img.src=src;showLightboxImage();
   img.alt = alt || "Expanded photo";
   box.classList.add("open");
   box.setAttribute("aria-hidden", "false");
@@ -1289,6 +1291,11 @@ async function pollLoop() {
   }
 }
 
+// ---- saved cart -------------------------------------------------------------
+function cartStorageKey(){return state.user?`oti_saved_cart_${state.user.id}`:"oti_saved_cart_guest";}
+function saveCartDraft(){if(!state.user)return;localStorage.setItem(cartStorageKey(),JSON.stringify({cart:state.cart,estimated:state.estimated,draftQty:state.draftQty,draftEstimated:state.draftEstimated,orderForm:state.orderForm,savedAt:new Date().toISOString()}));}
+function restoreCartDraft(){if(!state.user)return;try{const saved=JSON.parse(localStorage.getItem(cartStorageKey())||"null");if(!saved)return;state.cart=saved.cart||{};state.estimated=saved.estimated||{};state.draftQty=saved.draftQty||{};state.draftEstimated=saved.draftEstimated||{};state.orderForm=Object.assign(blankOrderForm(),saved.orderForm||{});}catch(_){}}
+
 // ---- cart -------------------------------------------------------------------
 function cartCount() {
   return Object.values(state.cart).reduce((a, b) => a + b, 0);
@@ -1334,6 +1341,7 @@ function commitItemToCart(itemId) {
   state.draftQty[item.id] = qty;
   state.draftEstimated[item.id] = Boolean(state.estimated[item.id]);
   markRecentlyViewed(item.id);
+  saveCartDraft();
   render();
   toast(updating ? (item.name + " updated in the cart.") : (item.name + " added to the cart."));
 }
@@ -1458,6 +1466,7 @@ async function submitOrder() {
     state.draftQty = {};
     state.draftEstimated = {};
     state.orderForm = blankOrderForm();
+    localStorage.removeItem(cartStorageKey());
     if (savedForReuse) {
       try { state.projects = await api("/projects"); } catch (_) {}
     }
@@ -1506,6 +1515,7 @@ function esc(s) {
   return d.innerHTML;
 }
 
+function itemImageUrls(item){return (item.image_ids||[]).map(id=>`${state.apiBase}/item-images/${id}?v=${id}`);}
 function imgUrl(item) {
   if (!item.images || !item.images.length) return null;
   // The item endpoint skips stale legacy records and serves the first photo
@@ -1570,7 +1580,7 @@ function renderTagCard(item) {
   <div class="tag ${unavailable ? "out-of-stock" : ""}">
     <div class="photo">
       <button class="favorite-btn ${item.favorite ? "active" : ""}" type="button" data-favorite-id="${item.id}" aria-label="${item.favorite ? "Remove from" : "Add to"} favorites" title="${item.favorite ? "Remove favorite" : "Mark favorite"}">${item.favorite ? "★" : "☆"}</button>
-      ${photo ? `<img src="${esc(photo)}" alt="${esc(item.name)}" loading="lazy" data-item-image-id="${item.id}" data-lightbox-src="${esc(photo)}" onerror="handleImageError(this)">` : `<span class="photo-fallback">📦</span>`}
+      ${photo ? `<img src="${esc(photo)}" alt="${esc(item.name)}" loading="lazy" data-item-image-id="${item.id}" data-lightbox-src="${esc(photo)}" data-gallery="${esc(itemImageUrls(item).join("|"))}" onerror="handleImageError(this)">` : `<span class="photo-fallback">📦</span>`}
       ${item.color ? `<span class="colordot" style="background:${esc(item.color)}" title="${esc(item.color_name || item.color)}"></span>` : ""}
       ${notCounted || out || low ? `<span class="stock-badge ${notCounted ? "not_counted" : out ? "out_of_stock" : "low_stock"}">${notCounted ? "NOT COUNTED YET" : out ? "OUT OF STOCK" : "LOW STOCK · " + item.qty_on_hand}</span>` : ""}
     </div>
@@ -1578,7 +1588,7 @@ function renderTagCard(item) {
     <div class="body">
       <div class="code mono">${esc(item.code)}</div>
       <div class="name">${esc(item.name)}</div>
-      <div class="meta">${[item.category, item.location ? "Location " + item.location : "", item.measures].filter(Boolean).map(esc).join(" · ")}</div>
+      <div class="meta">${[item.category, item.location ? "Bin " + item.location : "", item.measures].filter(Boolean).map(esc).join(" · ")}</div>${(item.location_balances||[]).length?`<div class="meta mono">${item.location_balances.map(b=>`${esc(b.location_name)}: ${b.quantity}`).join(" · ")}</div>`:""}
       ${countRequests ? `<div class="count-flag">${countRequests} open recount request${countRequests === 1 ? "" : "s"}</div>` : ""}
       <div class="row-bottom">
         <div class="stock ${low || notCounted ? "low" : ""}">${notCounted ? "QTY: NOT COUNTED YET" : out ? "QTY ON HAND: 0" : "QTY ON HAND: " + item.qty_on_hand}</div>
@@ -2145,6 +2155,7 @@ function renderSlip() {
 }
 
 function render() {
+  if(state.user) saveCartDraft();
   const app = document.getElementById("app");
   if (!state.token) {
     app.innerHTML = renderLogin();
@@ -2392,7 +2403,7 @@ function wireApp(searchHadFocus, searchCursorPos) {
   document.querySelectorAll("[data-lightbox-src], [data-proof-id]").forEach(img => {
     img.addEventListener("click", () => {
       if (img.dataset.itemImageId) markRecentlyViewed(Number(img.dataset.itemImageId));
-      if (img.dataset.lightboxSrc) openLightbox(img.dataset.lightboxSrc, img.alt);
+      if (img.dataset.lightboxSrc) openLightbox(img.dataset.lightboxSrc,img.alt,(img.dataset.gallery||"").split("|").filter(Boolean));
     });
   });
   loadProtectedProofImages();
@@ -2449,6 +2460,8 @@ function wireApp(searchHadFocus, searchCursorPos) {
 (async function boot() {
   const lightbox = document.getElementById("lightbox");
   lightbox.querySelector(".lightbox-close").addEventListener("click", closeLightbox);
+  lightbox.querySelector(".lightbox-prev").addEventListener("click",e=>{e.stopPropagation();lightboxIndex=(lightboxIndex-1+lightboxGallery.length)%lightboxGallery.length;showLightboxImage();});
+  lightbox.querySelector(".lightbox-next").addEventListener("click",e=>{e.stopPropagation();lightboxIndex=(lightboxIndex+1)%lightboxGallery.length;showLightboxImage();});
   lightbox.addEventListener("click", (e) => { if (e.target === lightbox) closeLightbox(); });
   const modalRoot = document.getElementById("modal-root");
   modalRoot.addEventListener("click", (e) => { if (e.target === modalRoot) closeModal(); });
