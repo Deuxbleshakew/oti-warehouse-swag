@@ -57,6 +57,7 @@ def _table_columns_for_dialect(dialect_name: str) -> dict[str, dict[str, str]]:
             "updated_at": datetime_type,
             "item_code_snapshot": "VARCHAR(60) DEFAULT ''",
             "item_name_snapshot": "VARCHAR(200) DEFAULT ''",
+            "inventory_location": "VARCHAR(100) NOT NULL DEFAULT '0'",
         },
         "count_requests": {
             "system_qty_before": "INTEGER",

@@ -38,7 +38,7 @@ try:
 finally:
     _legacy_db.close()
 
-APP_BUILD = "1.0"
+APP_BUILD = "1.2"
 
 app = FastAPI(
     title="Oti-Warehouse Swag API",

@@ -107,7 +107,7 @@ class UsersView(ttk.Frame):
             tags = () if u["active"] else ("inactive",)
             self.tree.insert("", "end", iid=str(u["id"]), values=(
                 u["username"], u["full_name"], ", ".join(u["roles"]),
-                "Restricted" if u.get("catalog_access_mode") == "restricted" else "All items",
+                "Only selected items" if u.get("catalog_access_mode") == "restricted" else "All items",
                 "yes" if u["active"] else "no"), tags=tags)
         active_n = sum(1 for u in users if u["active"])
         self.count_lbl.configure(text=f"{len(users)} users · {active_n} active")
@@ -155,7 +155,7 @@ class UsersView(ttk.Frame):
         modes.pack(fill="x")
         ttk.Radiobutton(modes, text="All active catalog items", variable=mode,
                         value="all").pack(side="left")
-        ttk.Radiobutton(modes, text="Restricted to selections below", variable=mode,
+        ttk.Radiobutton(modes, text="Only selected catalog items", variable=mode,
                         value="restricted").pack(side="left", padx=(18, 0))
 
         loading = SpinnerLabel(outer, text="Loading catalog", style="Muted.TLabel")

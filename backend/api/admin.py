@@ -1,6 +1,8 @@
 """Approver/admin API: orders, inventory, projects, access, and users."""
 import asyncio
 import json
+import csv
+import io
 from datetime import datetime, timezone
 
 from fastapi import (APIRouter, Depends, Query, UploadFile, File, Form,
@@ -18,10 +20,12 @@ from backend.schemas.schemas import (
     ProjectCreate, ProjectEdit, ProjectMembersUpdate, ProjectOut,
     AdminProjectOut, ProjectMemberOut, CatalogPermissionsUpdate,
     NavAdjustmentOut, NavAdjustmentUpdate, InventoryTransferRequest,
+    NotificationOut, KitCreate, KitOut,
 )
 from backend.models.models import (
     Order, OrderLine, Item, User, AuditLog, InventoryTransaction, CountRequest,
     Project, ProjectMember, CatalogPermission, NavAdjustmentTask,
+    Notification, Kit, KitComponent, ItemLocationBalance,
 )
 from backend.auth.dependencies import require_role
 from backend.services import order_service, item_service, user_service
@@ -47,6 +51,7 @@ def _transaction_out(row: InventoryTransaction) -> InventoryTransactionOut:
         item_code=(row.item_code_snapshot or row.item.deleted_code or row.item.code),
         item_name=(row.item_name_snapshot or row.item.deleted_name or row.item.name),
         delta=row.delta, reason=row.reason, source=row.source,
+        inventory_location=getattr(row, "inventory_location", "0") or "0",
         user=(row.user.full_name or row.user.username) if row.user else None,
         created_at=row.created_at, updated_at=row.updated_at or row.created_at,
     )
@@ -637,3 +642,93 @@ def audit_log(limit: int = Query(200, le=1000), db: Session = Depends(get_db),
         action=r.action, object_type=r.object_type, object_id=r.object_id,
         old_value=r.old_value, new_value=r.new_value, source=r.source,
         created_at=r.created_at) for r in rows]
+
+
+# ---- Notification center -----------------------------------------------------
+def _notification_out(n):
+    return NotificationOut(id=n.id, kind=n.kind, title=n.title, message=n.message or "",
+                           object_type=n.object_type or "", object_id=n.object_id,
+                           read=n.read_at is not None, created_at=n.created_at)
+
+@router.get("/notifications", response_model=list[NotificationOut])
+def admin_notifications(db: Session = Depends(get_db), user: User = Depends(require_role("admin", "approver"))):
+    rows = db.query(Notification).filter_by(user_id=user.id).order_by(Notification.created_at.desc()).limit(100).all()
+    return [_notification_out(n) for n in rows]
+
+@router.post("/notifications/{notification_id}/read", status_code=204)
+def read_admin_notification(notification_id: int, db: Session = Depends(get_db), user: User = Depends(require_role("admin", "approver"))):
+    row=db.query(Notification).filter_by(id=notification_id,user_id=user.id).first()
+    if row: row.read_at=datetime.now(timezone.utc); db.commit()
+
+# ---- Kits -------------------------------------------------------------------
+def _kit_out(k: Kit):
+    comps=[]; buildable=None
+    for c in sorted(k.components,key=lambda x:x.position):
+        available=max(0,c.item.qty_on_hand if c.item and c.item.active else 0)
+        possible=available//max(1,c.quantity)
+        buildable=possible if buildable is None else min(buildable,possible)
+        comps.append({"id":c.id,"item_id":c.item_id,"item_code":c.item.code if c.item else "Deleted", "item_name":c.item.name if c.item else "Deleted item", "quantity":c.quantity,"position":c.position,"available":available,"image_id":(c.item.images[0].id if c.item and c.item.images else None)})
+    return KitOut(id=k.id,name=k.name,code=k.code,description=k.description or "",active=k.active,custom=k.custom,saved_for_reuse=k.saved_for_reuse,buildable_quantity=buildable or 0,components=comps)
+
+@router.get("/kits", response_model=list[KitOut])
+def list_kits(db: Session=Depends(get_db), user: User=Depends(require_role("admin"))):
+    return [_kit_out(k) for k in db.query(Kit).order_by(Kit.name).all()]
+
+@router.post("/kits", response_model=KitOut, status_code=201)
+def create_kit(body: KitCreate, db: Session=Depends(get_db), user: User=Depends(require_role("admin"))):
+    if db.query(Kit).filter(Kit.code==body.code.strip()).first(): raise HTTPException(409,"Kit code already exists.")
+    k=Kit(name=body.name.strip(),code=body.code.strip(),description=body.description,active=body.active,custom=body.custom,saved_for_reuse=body.saved_for_reuse,created_by_user_id=user.id)
+    db.add(k); db.flush()
+    for i,c in enumerate(body.components):
+        if not db.query(Item).filter_by(id=c.item_id).first(): raise HTTPException(400,f"Item {c.item_id} not found")
+        db.add(KitComponent(kit_id=k.id,item_id=c.item_id,quantity=c.quantity,position=c.position if c.position is not None else i))
+    log_action(db,user_id=user.id,action="kit.create",object_type="kit",object_id=k.id,new_value=body.model_dump(),source="admin_app")
+    db.commit(); db.refresh(k); return _kit_out(k)
+
+@router.put("/kits/{kit_id}", response_model=KitOut)
+def update_kit(kit_id:int, body:KitCreate, db:Session=Depends(get_db), user:User=Depends(require_role("admin"))):
+    k=db.query(Kit).filter_by(id=kit_id).first()
+    if not k: raise HTTPException(404,"Kit not found")
+    k.name=body.name.strip();k.code=body.code.strip();k.description=body.description;k.active=body.active;k.saved_for_reuse=body.saved_for_reuse
+    k.components.clear();db.flush()
+    for i,c in enumerate(body.components): db.add(KitComponent(kit_id=k.id,item_id=c.item_id,quantity=c.quantity,position=c.position if c.position is not None else i))
+    db.commit();db.refresh(k);return _kit_out(k)
+
+@router.delete("/kits/{kit_id}", status_code=204)
+def delete_kit(kit_id:int, db:Session=Depends(get_db), user:User=Depends(require_role("admin"))):
+    k=db.query(Kit).filter_by(id=kit_id).first()
+    if not k: raise HTTPException(404,"Kit not found")
+    db.delete(k);db.commit()
+
+# ---- CSV item import/export --------------------------------------------------
+@router.get("/items/export.csv")
+def export_items(db:Session=Depends(get_db), user:User=Depends(require_role("admin"))):
+    from fastapi.responses import Response
+    out=io.StringIO(); w=csv.writer(out); w.writerow(["code","name","description","category","brand","bin_location","qty_0","qty_2501","reorder_threshold","nav_tracked","nav_item_number","active"])
+    for item in db.query(Item).filter(Item.deleted_at.is_(None)).order_by(Item.code):
+        balances={b.location_name:b.quantity for b in item.location_balances}
+        w.writerow([item.code,item.name,item.description,item.category,item.brand,item.location,balances.get("0",0),balances.get("2501",0),item.reorder_threshold,item.nav_tracked,item.nav_item_number,item.active])
+    return Response(out.getvalue(),media_type="text/csv",headers={"Content-Disposition":"attachment; filename=oti_items.csv"})
+
+@router.post("/items/import.csv")
+async def import_items(file:UploadFile=File(...), db:Session=Depends(get_db), user:User=Depends(require_role("admin"))):
+    text=(await file.read()).decode("utf-8-sig"); rows=list(csv.DictReader(io.StringIO(text))); results=[]
+    for n,row in enumerate(rows,start=2):
+        try:
+            code=(row.get("code") or "").strip(); name=(row.get("name") or "").strip()
+            if not code or not name: raise ValueError("code and name are required")
+            item=db.query(Item).filter_by(code=code).first()
+            if not item: item=Item(code=code,name=name,qty_on_hand=0,inventory_counted=True);db.add(item);db.flush()
+            for key in ("name","description","category","brand","location","nav_item_number"):
+                source="bin_location" if key=="location" else key
+                if row.get(source) is not None: setattr(item,key,(row.get(source) or "").strip())
+            item.reorder_threshold=int(row.get("reorder_threshold") or 0); item.nav_tracked=str(row.get("nav_tracked","")).lower() in ("1","true","yes","y"); item.active=str(row.get("active","true")).lower() not in ("0","false","no","n")
+            total=0
+            for loc in ("0","2501"):
+                qty=int(row.get("qty_"+loc) or 0); total+=qty
+                bal=db.query(ItemLocationBalance).filter_by(item_id=item.id,location_name=loc).first()
+                if not bal: bal=ItemLocationBalance(item_id=item.id,location_name=loc,quantity=0);db.add(bal)
+                bal.quantity=qty
+            item.qty_on_hand=total; results.append({"row":n,"code":code,"status":"ok"})
+        except Exception as exc: results.append({"row":n,"code":row.get("code",""),"status":"error","error":str(exc)})
+    db.commit(); return {"rows":results,"imported":sum(1 for r in results if r["status"]=="ok"),"errors":sum(1 for r in results if r["status"]=="error")}

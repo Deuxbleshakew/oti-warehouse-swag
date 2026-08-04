@@ -29,7 +29,8 @@ from admin_app.app.views.users_view import UsersView  # noqa: E402
 from admin_app.app.views.projects_view import ProjectsView  # noqa: E402
 from admin_app.app.views.inventory_history_view import InventoryHistoryView  # noqa: E402
 from admin_app.app.views.nav_adjustments_view import NavAdjustmentsView  # noqa: E402
-from admin_app.app.views.widgets import SpinnerLabel  # noqa: E402
+from admin_app.app.views.widgets import SpinnerLabel
+from admin_app.app.views.kits_view import KitsView  # noqa: E402
 
 SETTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                              "settings.json")
@@ -167,8 +168,7 @@ class MainWindow(ttk.Frame):
                  padx=14, pady=10).pack(side="left")
         tk.Frame(self, bg=theme.SAFETY, height=4).pack(fill="x")
 
-        who = f'{user.get("full_name") or user["username"]}  ·  ' \
-              f'{", ".join(user.get("roles", []))}'
+        who = user.get("full_name") or user["username"]
         tk.Label(bar, text=who, bg=theme.BAR, fg=theme.MUTED,
                  font=("Segoe UI", 9)).pack(side="right", padx=(0, 6))
         logout = tk.Label(bar, text="Log out", bg=theme.BAR, fg=theme.INK,
@@ -176,6 +176,10 @@ class MainWindow(ttk.Frame):
                           padx=12)
         logout.pack(side="right")
         logout.bind("<Button-1>", lambda e: self._logout())
+        self.notification_btn=ttk.Button(bar,text="🔔 0",command=self._show_notifications)
+        self.notification_btn.pack(side="right",padx=6,pady=5)
+        self.notifications=[]
+        self.after(500,self._refresh_notifications)
 
         nb = ttk.Notebook(self)
         nb.pack(fill="both", expand=True)
@@ -184,14 +188,16 @@ class MainWindow(ttk.Frame):
         nb.add(self.orders_view, text="  Orders  ")
         nb.add(self.inventory_view, text="  Inventory  ")
         if api.has_role("admin"):
-            self.inventory_history_view = InventoryHistoryView(nb, api)
-            nb.add(self.inventory_history_view, text="  Inventory History  ")
             self.nav_adjustments_view = NavAdjustmentsView(nb, api)
-            nb.add(self.nav_adjustments_view, text="  NAV Adjustments  ")
+            nb.add(self.nav_adjustments_view, text="NAV Adjustments")
+            self.kits_view = KitsView(nb, api)
+            nb.add(self.kits_view, text="Kits")
             self.projects_view = ProjectsView(nb, api)
-            nb.add(self.projects_view, text="  Projects  ")
+            nb.add(self.projects_view, text="Projects")
             self.users_view = UsersView(nb, api)
-            nb.add(self.users_view, text="  Users & Access  ")
+            nb.add(self.users_view, text="Users & Access")
+            self.inventory_history_view = InventoryHistoryView(nb, api)
+            nb.add(self.inventory_history_view, text="Inventory History")
 
         # approving an order changes stock — keep the inventory tab honest
         self.orders_view.bind("<<InventoryChanged>>",
@@ -204,6 +210,34 @@ class MainWindow(ttk.Frame):
 
         # a dead session anywhere bounces the whole app back to login
         api.on_session_expired = lambda: self.after(0, self._logout)
+
+    def _refresh_notifications(self):
+        if not self.winfo_exists(): return
+        def work():
+            try: rows=self.api.notifications()
+            except Exception: rows=[]
+            self.after(0,lambda:self._set_notifications(rows))
+        threading.Thread(target=work,daemon=True).start()
+    def _set_notifications(self,rows):
+        if not self.winfo_exists(): return
+        self.notifications=rows or []
+        unread=sum(1 for n in self.notifications if not n.get("read"))
+        self.notification_btn.configure(text=f"🔔 {unread}")
+        self.after(30000,self._refresh_notifications)
+    def _show_notifications(self):
+        win=tk.Toplevel(self);win.title("Notifications");win.geometry("480x420");win.transient(self.winfo_toplevel())
+        frame=ttk.Frame(win,padding=12);frame.pack(fill="both",expand=True)
+        ttk.Label(frame,text="NOTIFICATIONS",style="Head.TLabel").pack(anchor="w",pady=(0,8))
+        box=tk.Listbox(frame,font=("Segoe UI",10));box.pack(fill="both",expand=True)
+        for n in self.notifications: box.insert("end",("● " if not n.get("read") else "  ")+n.get("title","")+" — "+n.get("message",""))
+        def open_selected(_=None):
+            sel=box.curselection()
+            if not sel:return
+            n=self.notifications[sel[0]]
+            try:self.api.mark_notification_read(n["id"])
+            except Exception:pass
+            win.destroy();self._refresh_notifications()
+        box.bind("<Double-1>",open_selected);ttk.Button(frame,text="Mark selected read",command=open_selected).pack(anchor="e",pady=(8,0))
 
     def _logout(self):
         try:

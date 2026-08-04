@@ -29,14 +29,14 @@ def create_item(db: Session, *, data: dict, actor: User, source="api") -> Item:
     item = Item(**data)
     db.add(item)
     db.flush()
-    db.add(ItemLocationBalance(item_id=item.id, location_name="On-site", quantity=item.qty_on_hand, bin_location=item.location or ""))
-    db.add(ItemLocationBalance(item_id=item.id, location_name="Off-site", quantity=0, bin_location=""))
+    db.add(ItemLocationBalance(item_id=item.id, location_name="0", quantity=item.qty_on_hand, bin_location=item.location or ""))
+    db.add(ItemLocationBalance(item_id=item.id, location_name="2501", quantity=0, bin_location=""))
     if counted and item.qty_on_hand:
         db.add(InventoryTransaction(item_id=item.id, delta=item.qty_on_hand,
                                     reason="Initial stock", source=source,
                                     user_id=actor.id,
                                     item_code_snapshot=item.code,
-                                    item_name_snapshot=item.name))
+                                    item_name_snapshot=item.name, inventory_location="0"))
     if not counted:
         db.add(CountRequest(item_id=item.id, requester_user_id=actor.id,
                             note="Initial count required", status="open"))
@@ -68,7 +68,7 @@ def update_item(db: Session, *, item_id: int, data: dict, actor: User,
 
 
 def adjust_inventory(db: Session, *, item_id: int, delta: int, reason: str,
-                     allow_negative: bool, actor: User, source="api", inventory_location: str = "On-site") -> Item:
+                     allow_negative: bool, actor: User, source="api", inventory_location: str = "0") -> Item:
     if not reason or not reason.strip():
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             "A reason is required for any stock adjustment.")
@@ -85,7 +85,7 @@ def adjust_inventory(db: Session, *, item_id: int, delta: int, reason: str,
 
     old_qty = item.qty_on_hand
     item.qty_on_hand = resulting
-    loc_name = (inventory_location or "On-site").strip() or "On-site"
+    loc_name = (inventory_location or "0").strip() or "0"
     balance = db.query(ItemLocationBalance).filter_by(item_id=item.id, location_name=loc_name).first()
     if not balance:
         balance = ItemLocationBalance(item_id=item.id, location_name=loc_name, quantity=0, bin_location=item.location or "")
@@ -97,7 +97,7 @@ def adjust_inventory(db: Session, *, item_id: int, delta: int, reason: str,
     db.add(InventoryTransaction(item_id=item.id, delta=delta, reason=reason,
                                 source=source, user_id=actor.id,
                                 item_code_snapshot=item.code,
-                                item_name_snapshot=item.name))
+                                item_name_snapshot=item.name, inventory_location=loc_name))
     log_action(db, user_id=actor.id, action="inventory.adjust",
               object_type="item", object_id=item.id,
               old_value={"qty_on_hand": old_qty},
@@ -419,8 +419,8 @@ def resolve_count_request(db: Session, *, request_id: int, actor: User,
 def ensure_location_balances(db: Session, item: Item) -> None:
     if item.location_balances:
         return
-    db.add(ItemLocationBalance(item_id=item.id, location_name="On-site", quantity=item.qty_on_hand, bin_location=item.location or ""))
-    db.add(ItemLocationBalance(item_id=item.id, location_name="Off-site", quantity=0, bin_location=""))
+    db.add(ItemLocationBalance(item_id=item.id, location_name="0", quantity=item.qty_on_hand, bin_location=item.location or ""))
+    db.add(ItemLocationBalance(item_id=item.id, location_name="2501", quantity=0, bin_location=""))
     db.flush()
 
 def transfer_inventory(db: Session, *, item_id: int, from_location: str, to_location: str, quantity: int, reason: str, actor: User, source="admin_app") -> Item:

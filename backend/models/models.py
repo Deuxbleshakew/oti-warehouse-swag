@@ -293,6 +293,7 @@ class InventoryTransaction(Base):
                         nullable=False)
     item_code_snapshot = Column(String(60), default="")
     item_name_snapshot = Column(String(200), default="")
+    inventory_location = Column(String(100), nullable=False, default="0")
 
     item = relationship("Item", back_populates="transactions")
     user = relationship("User")
@@ -491,3 +492,45 @@ class AppSetting(Base):
 
     key = Column(String(80), primary_key=True)
     value = Column(Text, default="")
+
+
+# ----------------------------------------------------------------------------
+# Notifications and reusable/custom kits
+# ----------------------------------------------------------------------------
+class Notification(Base):
+    __tablename__ = "notifications"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    kind = Column(String(40), nullable=False, default="info")
+    title = Column(String(160), nullable=False)
+    message = Column(String(500), default="")
+    object_type = Column(String(40), default="")
+    object_id = Column(Integer, nullable=True)
+    read_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    user = relationship("User")
+
+class Kit(Base):
+    __tablename__ = "kits"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(200), nullable=False)
+    code = Column(String(60), unique=True, nullable=False, index=True)
+    description = Column(Text, default="")
+    active = Column(Boolean, nullable=False, default=True)
+    custom = Column(Boolean, nullable=False, default=False)
+    saved_for_reuse = Column(Boolean, nullable=False, default=True)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+    components = relationship("KitComponent", back_populates="kit", cascade="all, delete-orphan", order_by="KitComponent.position")
+
+class KitComponent(Base):
+    __tablename__ = "kit_components"
+    id = Column(Integer, primary_key=True)
+    kit_id = Column(Integer, ForeignKey("kits.id", ondelete="CASCADE"), nullable=False, index=True)
+    item_id = Column(Integer, ForeignKey("items.id"), nullable=False)
+    quantity = Column(Integer, nullable=False, default=1)
+    position = Column(Integer, nullable=False, default=0)
+    kit = relationship("Kit", back_populates="components")
+    item = relationship("Item")
+    __table_args__ = (UniqueConstraint("kit_id", "item_id", "position", name="uq_kit_component_position"),)

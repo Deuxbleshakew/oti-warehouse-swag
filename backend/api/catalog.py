@@ -10,6 +10,7 @@ from backend.db.session import get_db
 from backend.schemas.schemas import ItemOut, ProjectOut
 from backend.models.models import (
     Item, ItemImage, ItemImageBlob, Project, User, CountRequest, UserFavorite,
+    Kit, Notification,
 )
 from backend.auth.dependencies import get_current_user, get_current_user_flexible
 from backend.services.item_service import resolve_stored_image_path, image_content_type
@@ -122,3 +123,29 @@ def list_projects(db: Session = Depends(get_db),
                   user: User = Depends(get_current_user)):
     projects = access_service.visible_projects_query(db, user).order_by(Project.name).all()
     return [ProjectOut.model_validate(p) for p in projects]
+
+
+@router.get("/catalog-kits")
+def catalog_kits(db: Session=Depends(get_db), user: User=Depends(get_current_user)):
+    result=[]
+    for k in db.query(Kit).filter_by(active=True).order_by(Kit.name):
+        comps=[]; buildable=None
+        for c in sorted(k.components,key=lambda x:x.position):
+            if not access_service.can_view_item(user,c.item): break
+            possible=max(0,c.item.qty_on_hand)//max(1,c.quantity)
+            buildable=possible if buildable is None else min(buildable,possible)
+            comps.append({"item_id":c.item_id,"item_code":c.item.code,"item_name":c.item.name,"quantity":c.quantity,"position":c.position,"image_id":c.item.images[0].id if c.item.images else None})
+        else:
+            result.append({"id":k.id,"name":k.name,"code":k.code,"description":k.description or "","custom":k.custom,"buildable_quantity":buildable or 0,"components":comps})
+    return result
+
+@router.get("/notifications")
+def my_notifications(db:Session=Depends(get_db), user:User=Depends(get_current_user)):
+    rows=db.query(Notification).filter_by(user_id=user.id).order_by(Notification.created_at.desc()).limit(100).all()
+    return [{"id":n.id,"kind":n.kind,"title":n.title,"message":n.message or "","object_type":n.object_type or "","object_id":n.object_id,"read":n.read_at is not None,"created_at":n.created_at.isoformat()} for n in rows]
+
+@router.post("/notifications/{notification_id}/read", status_code=204)
+def read_notification(notification_id:int,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
+    from datetime import datetime, timezone
+    n=db.query(Notification).filter_by(id=notification_id,user_id=user.id).first()
+    if n:n.read_at=datetime.now(timezone.utc);db.commit()

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
 from backend.models.models import (
-    Order, OrderLine, Item, Approval, InventoryTransaction, User, Project,
+    Order, OrderLine, Item, Approval, InventoryTransaction, User, Project, Notification,
     OrderTracking, OrderProofPhoto, ProjectMember, NavAdjustmentTask,
 )
 from backend.schemas.schemas import OrderOut, OrderLineOut, ProjectOut
@@ -260,6 +260,7 @@ def create_order(db: Session, *, requester: User, project_id: Optional[int],
                    "project_id": linked_project.id if linked_project else None,
                    "save_project": bool(save_project),
                }, source=source)
+    _notify_admins(db,"new_order",f"New order #{order.id}",f"{requester.full_name or requester.username} submitted an order.",order.id)
     db.commit()
     created = _load_order(db, order.id)
     notify_new_order_async(created)
@@ -417,6 +418,14 @@ def edit_order(db: Session, *, order_id: int, actor: User,
     return _load_order(db, order.id)
 
 
+def _notify(db, user_id:int, kind:str, title:str, message:str, object_type="order", object_id=None):
+    db.add(Notification(user_id=user_id,kind=kind,title=title,message=message,object_type=object_type,object_id=object_id))
+
+def _notify_admins(db, kind:str,title:str,message:str,object_id=None):
+    for u in db.query(User).all():
+        if u.active and u.deleted_at is None and (u.has_role("admin") or u.has_role("approver")):
+            _notify(db,u.id,kind,title,message,"order",object_id)
+
 def approve_order(db: Session, *, order_id: int, approver: User,
                   reason: str, line_overrides: Optional[Dict[int, int]],
                   allow_negative: bool, source: str = "api") -> Order:
@@ -457,6 +466,7 @@ def approve_order(db: Session, *, order_id: int, approver: User,
                 user_id=approver.id, item_code_snapshot=item.code,
                 item_name_snapshot=item.name))
     order.status = "approved"
+    _notify(db,order.requester_user_id,"approved",f"Order #{order.id} approved","Your order was approved and is waiting to be picked.",object_id=order.id)
     db.add(Approval(order_id=order.id, approver_user_id=approver.id,
                     decision="approved", reason=reason))
     log_action(db, user_id=approver.id, action="order.approve",
@@ -475,6 +485,7 @@ def reject_order(db: Session, *, order_id: int, approver: User, reason: str,
     if order.status != "pending":
         raise OrderError(f"Order is already {order.status}, not pending.")
     order.status = "rejected"
+    _notify(db,order.requester_user_id,"rejected",f"Order #{order.id} rejected",reason,object_id=order.id)
     db.add(Approval(order_id=order.id, approver_user_id=approver.id,
                     decision="rejected", reason=reason))
     log_action(db, user_id=approver.id, action="order.reject",
@@ -492,6 +503,7 @@ def start_picking(db: Session, *, order_id: int, actor: User,
     if order.status != "approved":
         raise OrderError("Only an approved order can be marked as being picked.")
     order.status = "picking"
+    _notify(db,order.requester_user_id,"picking",f"Order #{order.id} is being picked","The warehouse started gathering your items.",object_id=order.id)
     order.picking_started_at = datetime.now(timezone.utc)
     log_action(db, user_id=actor.id, action="order.pick_start",
                object_type="order", object_id=order.id,
@@ -592,6 +604,7 @@ def fulfill_order(db: Session, *, order_id: int, actor: User,
                                filename=(filename or "proof.jpg")[:255],
                                content_type=content_type, content=content))
     order.status = "fulfilled"
+    _notify(db,order.requester_user_id,"fulfilled",f"Order #{order.id} completed","Tracking and shipment proof are now available.",object_id=order.id)
     order.fulfilled_at = datetime.now(timezone.utc)
     nav_task_count = _create_nav_adjustment_tasks(db, order)
     log_action(db, user_id=actor.id, action="order.fulfill",

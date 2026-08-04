@@ -885,6 +885,9 @@
     .rail-collapse{ display:none; }
   }
 
+
+  .notification-bell{position:relative;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;width:38px;height:36px;font-size:18px}.notification-badge{position:absolute;right:-5px;top:-7px;min-width:18px;height:18px;border-radius:10px;background:var(--rust);color:white;font:700 10px/18px sans-serif}.notification-panel{position:fixed;right:18px;top:70px;width:min(380px,calc(100vw - 36px));max-height:65vh;overflow:auto;background:var(--paper);border:1px solid var(--line);z-index:80;box-shadow:0 20px 60px #0008;padding:10px}.notification-row{padding:10px;border-bottom:1px solid var(--line);cursor:pointer}.notification-row.unread{border-left:4px solid var(--safety);background:var(--surface)}
+  .kit-section{margin:14px 0;padding:14px;border:1px solid var(--line);background:var(--surface)}.kit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}.kit-card{border:1px solid var(--line);padding:12px;background:var(--paper)}.kit-parts{display:flex;gap:5px;flex-wrap:wrap;margin:8px 0}.kit-part{display:flex;align-items:center;gap:4px;font-size:10px;background:var(--surface2);padding:4px 6px}.kit-part img{width:30px;height:30px;object-fit:contain}.folder-builder{border:2px solid var(--safety);border-radius:12px;padding:14px;background:linear-gradient(145deg,var(--surface),var(--paper))}.folder-preview{min-height:170px;border:2px dashed var(--line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:6px}.folder-piece{display:flex;align-items:center;gap:8px;padding:7px;background:var(--surface2);border-left:5px solid var(--safety);animation:folderIn .25s ease}.folder-piece img{width:40px;height:40px;object-fit:contain}.folder-piece .grow{flex:1}.folder-piece button{padding:4px 7px}@keyframes folderIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
 </style>
 </head>
 <body>
@@ -908,7 +911,7 @@
 // typing a URL into a settings field is annoying. Opening the file
 // directly (file://) has no real origin to detect, so that case keeps
 // the old localhost default for local testing.
-const APP_VERSION = "1.0";
+const APP_VERSION = "1.2";
 const DEFAULT_API_BASE =
   (location.protocol === "file:" || !location.origin || location.origin === "null")
     ? "http://localhost:8000"
@@ -1028,6 +1031,7 @@ const state = {
   catalog: [],
   projects: [],
   cart: {},           // committed item_id -> qty
+  kits: [], notifications: [], folderComponents: [],
   estimated: {},      // committed item_id -> quantity is still an estimate
   draftQty: {},       // catalog controls before Add / Update Cart
   draftEstimated: {},
@@ -1167,6 +1171,14 @@ function loadingMarkup(label) {
   return `<div class="loading"><div class="spinner" aria-hidden="true"></div>${esc(label)}</div>`;
 }
 
+
+function unreadNotifications(){return (state.notifications||[]).filter(n=>!n.read).length;}
+function notificationBellHtml(){const n=unreadNotifications();return `<button class="notification-bell" id="notification-bell" aria-label="Notifications">🔔${n?`<span class="notification-badge">${n}</span>`:""}</button>`;}
+function showNotifications(){const existing=document.getElementById("notification-panel");if(existing){existing.remove();return;}const panel=document.createElement("div");panel.id="notification-panel";panel.className="notification-panel";panel.innerHTML=`<strong>Notifications</strong>${(state.notifications||[]).length?state.notifications.map(n=>`<div class="notification-row ${n.read?"":"unread"}" data-notification="${n.id}" data-object-id="${n.object_id||""}"><b>${esc(n.title)}</b><div>${esc(n.message||"")}</div><small>${new Date(n.created_at).toLocaleString()}</small></div>`).join(""):`<p class="muted">No notifications yet.</p>`}`;document.body.appendChild(panel);panel.querySelectorAll("[data-notification]").forEach(r=>r.onclick=async()=>{await api(`/notifications/${r.dataset.notification}/read`,{method:"POST"}).catch(()=>{});const n=state.notifications.find(x=>String(x.id)===r.dataset.notification);if(n)n.read=true;panel.remove();if(r.dataset.objectId){state.tab="orders";}render();});}
+function kitImage(id){return id?`${state.apiBase}/item-images/${id}?access_token=${encodeURIComponent(state.token||"")}&v=${id}`:"";}
+function renderKits(){if(!state.kits.length)return "";return `<section class="kit-section"><h2>Kits & Swag Sets</h2><div class="kit-grid">${state.kits.map(k=>`<article class="kit-card"><h3>${esc(k.name)}</h3><div class="sku">${esc(k.code)} · ${k.buildable_quantity} buildable</div><div class="kit-parts">${k.components.map(c=>`<span class="kit-part">${c.image_id?`<img src="${kitImage(c.image_id)}">`:"📦"}${c.quantity}× ${esc(c.item_code)}</span>`).join("")}</div><button data-add-kit="${k.id}" ${k.buildable_quantity<1?"disabled":""}>Add components to cart</button></article>`).join("")}</div></section>`;}
+function renderFolderBuilder(){return `<section class="folder-builder"><h2>Visual Folder Builder</h2><p class="muted">Choose catalog items, then arrange the exact packing order.</p><div class="folder-preview">${state.folderComponents.length?state.folderComponents.map((c,i)=>{const item=state.catalog.find(x=>x.id===c.item_id);return `<div class="folder-piece"><span>${i+1}</span>${itemImageUrl(item)?`<img src="${itemImageUrl(item)}">`:"📦"}<div class="grow"><b>${esc(item?.name||"Item")}</b><div>${c.qty} × ${esc(item?.code||"")}</div></div><button data-folder-up="${i}">↑</button><button data-folder-down="${i}">↓</button><button data-folder-remove="${i}">✕</button></div>`}).join(""):`<div class="empty">Add items using the Folder button on a catalog card.</div>`}</div>${state.folderComponents.length?`<button id="folder-to-cart" class="add-cart">Add Folder Components to Cart</button>`:""}</section>`;}
+
 function renderWithTransition() {
   if (document.startViewTransition) document.startViewTransition(() => render());
   else render();
@@ -1230,12 +1242,10 @@ async function loadProtectedProofImages() {
 async function loadCatalog() {
   state.loadingCatalog = true; render();
   try {
-    const [items, projects] = await Promise.all([
-      api("/catalog"),
-      api("/projects"),
+    const [items, projects, kits, notifications] = await Promise.all([
+      api("/catalog"), api("/projects"), api("/catalog-kits").catch(()=>[]), api("/notifications").catch(()=>[]),
     ]);
-    state.catalog = items;
-    state.projects = projects;
+    state.catalog = items; state.projects = projects; state.kits = kits; state.notifications = notifications;
   } catch (e) {
     toast(e.message, true);
   } finally {
@@ -1515,7 +1525,7 @@ function esc(s) {
   return d.innerHTML;
 }
 
-function itemImageUrls(item){return (item.image_ids||[]).map(id=>`${state.apiBase}/item-images/${id}?v=${id}`);}
+function itemImageUrls(item){return (item.image_ids||[]).map(id=>`${state.apiBase}/item-images/${id}?access_token=${encodeURIComponent(state.token||"")}&v=${id}`);}
 function imgUrl(item) {
   if (!item.images || !item.images.length) return null;
   // The item endpoint skips stale legacy records and serves the first photo
@@ -2169,7 +2179,7 @@ function render() {
       <div class="brand"><span class="crate">📦</span> Oti-Warehouse Swag <span class="build-badge">${APP_VERSION}</span></div>
       <div class="who">
         <span>${esc(state.user ? state.user.full_name || state.user.username : "")}</span>
-        ${state.user && state.user.roles.length ? `<span class="roles">${state.user.roles.join(", ").toUpperCase()}</span>` : ""}
+        
         <select class="theme-select" id="theme-select" aria-label="Theme">
           <option value="warehouse-dark" ${state.theme === "warehouse-dark" ? "selected" : ""}>Warehouse Dark</option>
           <option value="light" ${state.theme === "light" ? "selected" : ""}>Light</option>
@@ -2399,6 +2409,15 @@ function wireApp(searchHadFocus, searchCursorPos) {
   document.querySelectorAll(".request-count").forEach(btn => {
     btn.addEventListener("click", () => submitCountRequest(Number(btn.dataset.countId), btn.dataset.countName || "this item"));
   });
+
+
+  document.getElementById("notification-bell")?.addEventListener("click",showNotifications);
+  document.querySelectorAll("[data-add-kit]").forEach(btn=>btn.addEventListener("click",()=>{const k=state.kits.find(x=>x.id===Number(btn.dataset.addKit));if(!k)return;k.components.forEach(c=>{state.cart[c.item_id]=(Number(state.cart[c.item_id]||0)+Number(c.quantity));state.draftQty[c.item_id]=state.cart[c.item_id];});saveCartDraft();toast(k.name+" components added to cart.");render();}));
+  document.querySelectorAll("[data-folder-add]").forEach(btn=>btn.addEventListener("click",()=>{const id=Number(btn.dataset.folderAdd);const qty=Math.max(1,Number(currentDraftQty(state.catalog.find(x=>x.id===id))||1));state.folderComponents.push({item_id:id,qty});render();}));
+  document.querySelectorAll("[data-folder-up]").forEach(b=>b.onclick=()=>{const i=Number(b.dataset.folderUp);if(i>0)[state.folderComponents[i-1],state.folderComponents[i]]=[state.folderComponents[i],state.folderComponents[i-1]];render();});
+  document.querySelectorAll("[data-folder-down]").forEach(b=>b.onclick=()=>{const i=Number(b.dataset.folderDown);if(i<state.folderComponents.length-1)[state.folderComponents[i+1],state.folderComponents[i]]=[state.folderComponents[i],state.folderComponents[i+1]];render();});
+  document.querySelectorAll("[data-folder-remove]").forEach(b=>b.onclick=()=>{state.folderComponents.splice(Number(b.dataset.folderRemove),1);render();});
+  document.getElementById("folder-to-cart")?.addEventListener("click",()=>{state.folderComponents.forEach(c=>{state.cart[c.item_id]=(Number(state.cart[c.item_id]||0)+Number(c.qty));state.draftQty[c.item_id]=state.cart[c.item_id];});const seq=state.folderComponents.map((c,i)=>{const it=state.catalog.find(x=>x.id===c.item_id);return `${i+1}. ${c.qty} x ${it?.code||c.item_id} - ${it?.name||"Item"}`;}).join(" | ");state.orderForm.notes=((state.orderForm.notes||"")+`\nFOLDER BUILD ORDER: ${seq}`).trim();saveCartDraft();toast("Folder components added in the selected sequence.");render();});
 
   document.querySelectorAll("[data-lightbox-src], [data-proof-id]").forEach(img => {
     img.addEventListener("click", () => {

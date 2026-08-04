@@ -172,7 +172,7 @@ class InventoryAdjustRequest(BaseModel):
     delta: int
     reason: str
     allow_negative: bool = False
-    inventory_location: str = "On-site"
+    inventory_location: str = "0"
 
 
 class InventoryTransferRequest(BaseModel):
@@ -188,6 +188,7 @@ class InventoryTransactionOut(BaseModel):
     item_id: int
     item_code: str
     item_name: str
+    inventory_location: str = "0"
     delta: int
     reason: str
     source: str
@@ -427,3 +428,39 @@ class AuditLogOut(BaseModel):
     new_value: str
     source: str
     created_at: datetime
+
+
+class NotificationOut(BaseModel):
+    id: int
+    kind: str
+    title: str
+    message: str = ""
+    object_type: str = ""
+    object_id: Optional[int] = None
+    read: bool = False
+    created_at: datetime
+
+class KitComponentIn(BaseModel):
+    item_id: int
+    quantity: int = Field(gt=0)
+    position: int = 0
+
+class KitCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    code: str = Field(min_length=1, max_length=60)
+    description: str = ""
+    active: bool = True
+    custom: bool = False
+    saved_for_reuse: bool = True
+    components: List[KitComponentIn] = Field(min_length=1)
+
+class KitOut(BaseModel):
+    id: int
+    name: str
+    code: str
+    description: str = ""
+    active: bool
+    custom: bool
+    saved_for_reuse: bool
+    buildable_quantity: int = 0
+    components: List[dict] = Field(default_factory=list)

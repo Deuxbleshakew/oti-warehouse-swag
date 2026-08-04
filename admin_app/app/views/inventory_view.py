@@ -10,7 +10,7 @@ transaction. Same threading rules as orders_view.
 import os
 import threading
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 
 from . import theme
 from .widgets import (EyedropperOverlay, PhotoStrip, suggest_code,
@@ -56,6 +56,8 @@ class InventoryView(ttk.Frame):
         self.spinner.pack(side="left")
 
         ttk.Button(top, text="Refresh", command=self.refresh).pack(side="right")
+        ttk.Button(top,text="Export CSV",command=self._export_csv).pack(side="right",padx=4)
+        ttk.Button(top,text="Import CSV…",command=self._import_csv).pack(side="right",padx=4)
         self.delete_btn = ttk.Button(top, text="Delete", style="Danger.TButton",
                                      command=self._delete_item, state="disabled")
         self.delete_btn.pack(side="right", padx=6)
@@ -72,6 +74,10 @@ class InventoryView(ttk.Frame):
         self.edit_btn.pack(side="right", padx=6)
         ttk.Button(top, text="New Item…", style="Primary.TButton",
                    command=self._new_dialog).pack(side="right", padx=6)
+        self.location_filter=tk.StringVar(value="All")
+        ttk.Combobox(top,textvariable=self.location_filter,values=["All","0","2501"],state="readonly",width=7).pack(side="right",padx=4)
+        ttk.Label(top,text="Location",style="Muted.TLabel").pack(side="right")
+        self.location_filter.trace_add("write",lambda *_: self._set_items(self.items))
         self.low_only = tk.BooleanVar(value=False)
         ttk.Checkbutton(top, text="Needs attention only", variable=self.low_only,
                         command=lambda: self._set_items(self.items)).pack(
@@ -87,7 +93,7 @@ class InventoryView(ttk.Frame):
                                  selectmode="browse")
         headings = {"code": ("Code", 120), "name": ("Name", 220),
                     "category": ("Category", 140), "qty": ("Total", 90),
-                    "onsite": ("On-site", 80), "offsite": ("Off-site", 80),
+                    "onsite": ("Location 0", 90), "offsite": ("Location 2501", 100),
                     "reorder": ("Reorder at", 80),
                     "count": ("Count", 70),
                     "nav": ("NAV", 115),
@@ -135,6 +141,9 @@ class InventoryView(ttk.Frame):
         not_counted_count = sum(1 for it in items if it["active"]
                                 and not it.get("inventory_counted", True))
         show = items
+        loc_filter=getattr(self,"location_filter",tk.StringVar(value="All")).get()
+        if loc_filter!="All":
+            show=[it for it in show if next((b.get("quantity",0) for b in it.get("location_balances",[]) if b.get("location_name")==loc_filter),0)>0]
         if self.low_only.get():
             show = [it for it in items if it["active"]
                     and (not it.get("inventory_counted", True) or
@@ -150,8 +159,8 @@ class InventoryView(ttk.Frame):
             qty_display = it["qty_on_hand"] if it.get("inventory_counted", True) else "Not Counted Yet"
             self.tree.insert("", "end", iid=str(it["id"]), values=(
                 it["code"], it["name"], it["category"], qty_display,
-                next((b.get("quantity",0) for b in it.get("location_balances",[]) if b.get("location_name")=="On-site"), it["qty_on_hand"]),
-                next((b.get("quantity",0) for b in it.get("location_balances",[]) if b.get("location_name")=="Off-site"), 0),
+                next((b.get("quantity",0) for b in it.get("location_balances",[]) if b.get("location_name")=="0"), it["qty_on_hand"]),
+                next((b.get("quantity",0) for b in it.get("location_balances",[]) if b.get("location_name")=="2501"), 0),
                 it["reorder_threshold"],
                 it.get("open_count_requests", 0) or "",
                 ((it.get("nav_item_number") or "Tracked") if it.get("nav_tracked") else ""),
@@ -186,6 +195,25 @@ class InventoryView(ttk.Frame):
         self.delete_btn.configure(state=state)
         item = self._selected_item()
         self.count_btn.configure(state="normal" if item and item.get("open_count_requests", 0) else "disabled")
+
+    def _export_csv(self):
+        path=filedialog.asksaveasfilename(defaultextension=".csv",filetypes=[("CSV files","*.csv")],initialfile="oti_items.csv")
+        if not path:return
+        def work():
+            try:data=self.api.export_items_csv();open(path,"wb").write(data)
+            except Exception as e:self.after(0,lambda:theme.show_error(self,"Export failed",str(e)));return
+            self.after(0,lambda:messagebox.showinfo("Export complete",f"Saved item list to:\n{path}"))
+        threading.Thread(target=work,daemon=True).start()
+
+    def _import_csv(self):
+        path=filedialog.askopenfilename(filetypes=[("CSV files","*.csv"),("All files","*.*")])
+        if not path:return
+        if not messagebox.askyesno("Import items",f"Preview and import rows from {os.path.basename(path)}? Existing codes will be updated."):return
+        def work():
+            try:result=self.api.import_items_csv(os.path.basename(path),open(path,"rb").read())
+            except Exception as e:self.after(0,lambda:theme.show_error(self,"Import failed",str(e)));return
+            self.after(0,lambda:(messagebox.showinfo("Import complete",f"Imported/updated: {result.get('imported',0)}\nErrors: {result.get('errors',0)}"),self.refresh()))
+        threading.Thread(target=work,daemon=True).start()
 
     # ---- dialogs -------------------------------------------------------------
     def _new_dialog(self):
@@ -682,18 +710,22 @@ class InventoryView(ttk.Frame):
                   style="Muted.TLabel", wraplength=280).grid(
             row=3, column=0, columnspan=2, sticky="w", pady=(2, 8))
 
-        ttk.Label(frm, text="Reason *").grid(row=4, column=0, sticky="w",
+        ttk.Label(frm,text="Location *").grid(row=4,column=0,sticky="w",padx=(0,10))
+        location_var=tk.StringVar(value="0")
+        ttk.Combobox(frm,textvariable=location_var,values=["0","2501"],state="readonly",width=12).grid(row=4,column=1,sticky="w")
+
+        ttk.Label(frm, text="Reason *").grid(row=5, column=0, sticky="w",
                                               padx=(0, 10))
         reason_var = tk.StringVar()
         ttk.Entry(frm, textvariable=reason_var, width=34).grid(
-            row=4, column=1, sticky="w")
+            row=5, column=1, sticky="w")
 
         err_lbl = ttk.Label(frm, text="", style="Muted.TLabel",
                             foreground=theme.RUST, wraplength=300)
-        err_lbl.grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        err_lbl.grid(row=6, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
         btns = ttk.Frame(frm)
-        btns.grid(row=6, column=0, columnspan=2, sticky="e", pady=(12, 0))
+        btns.grid(row=7, column=0, columnspan=2, sticky="e", pady=(12, 0))
 
         def apply():
             try:
@@ -712,7 +744,7 @@ class InventoryView(ttk.Frame):
 
             def work():
                 try:
-                    self.api.adjust_inventory(item["id"], delta, reason)
+                    self.api.adjust_inventory(item["id"], delta, reason, inventory_location=location_var.get())
                 except SessionExpired:
                     return
                 except ApiError as e:

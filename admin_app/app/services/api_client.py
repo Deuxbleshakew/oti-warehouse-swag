@@ -100,6 +100,28 @@ class ApiClient:
     def _put(self, path: str, body: Any = None) -> Any:
         return self._request("PUT", path, body=body)
 
+
+    def list_kits(self): return self._get("/admin/kits")
+    def create_kit(self,data): return self._post("/admin/kits",data)
+    def update_kit(self,kit_id,data): return self._put(f"/admin/kits/{kit_id}",data)
+    def delete_kit(self,kit_id): return self._request("DELETE",f"/admin/kits/{kit_id}")
+    def notifications(self): return self._get("/admin/notifications")
+    def mark_notification_read(self,nid): return self._post(f"/admin/notifications/{nid}/read")
+    def export_items_url(self): return self.base_url+"/admin/items/export.csv"
+    def export_items_csv(self) -> bytes:
+        url=self.base_url+"/admin/items/export.csv"
+        req=urllib.request.Request(url,headers={"Authorization":"Bearer "+self.token})
+        with urllib.request.urlopen(req,timeout=self.timeout) as resp:return resp.read()
+    def import_items_csv(self,filename:str,content:bytes):
+        import secrets as _secrets
+        boundary="----otic sv".replace(" ","")+_secrets.token_hex(8)
+        head=(f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\nContent-Type: text/csv\r\n\r\n").encode()
+        body=head+content+f"\r\n--{boundary}--\r\n".encode()
+        req=urllib.request.Request(self.base_url+"/admin/items/import.csv",data=body,method="POST",headers={"Authorization":"Bearer "+self.token,"Content-Type":f"multipart/form-data; boundary={boundary}","Accept":"application/json"})
+        try:
+            with urllib.request.urlopen(req,timeout=60) as resp:return json.loads(resp.read())
+        except urllib.error.HTTPError as e:raise ApiError(e.code,e.read().decode(errors="replace"))
+
     # ---- auth ---------------------------------------------------------------
     def login(self, username: str, password: str) -> dict:
         res = self._request("POST", "/auth/login",
@@ -228,7 +250,7 @@ class ApiClient:
         return self._put(f"/admin/items/{item_id}", data)
 
     def adjust_inventory(self, item_id: int, delta: int, reason: str,
-                         allow_negative: bool = False, inventory_location: str = "On-site") -> dict:
+                         allow_negative: bool = False, inventory_location: str = "0") -> dict:
         return self._post("/admin/inventory/adjust",
                           {"item_id": item_id, "delta": delta,
                            "reason": reason,
