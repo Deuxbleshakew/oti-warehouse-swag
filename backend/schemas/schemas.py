@@ -81,6 +81,38 @@ class ItemLocationOut(BaseModel):
     bin_location: str = ""
 
 
+
+class ItemVariantOut(BaseModel):
+    id: int
+    item_id: int
+    name: str
+    color: str = ""
+    color_name: str = ""
+    details: str = ""
+    image_id: Optional[int] = None
+    qty_location_0: int = 0
+    qty_location_2501: int = 0
+    qty_on_hand: int = 0
+    reorder_threshold: int = 0
+    nav_tracked: bool = False
+    nav_item_number: str = ""
+    active: bool = True
+    position: int = 0
+
+class ItemVariantCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    color: str = ""
+    color_name: str = ""
+    details: str = Field(default="", max_length=255)
+    image_id: Optional[int] = None
+    qty_location_0: int = Field(default=0, ge=0)
+    qty_location_2501: int = Field(default=0, ge=0)
+    reorder_threshold: int = Field(default=0, ge=0)
+    nav_tracked: bool = False
+    nav_item_number: str = Field(default="", max_length=80)
+    active: bool = True
+    position: int = 0
+
 class ItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -106,6 +138,7 @@ class ItemOut(BaseModel):
     favorite: bool = False
     stock_status: str = "in_stock"
     location_balances: List[ItemLocationOut] = []
+    variants: List[ItemVariantOut] = []
 
     @classmethod
     def from_orm_item(cls, item, include_sensitive=True,
@@ -126,6 +159,7 @@ class ItemOut(BaseModel):
             image_ids=[img.id for img in item.images],
             open_count_requests=open_count_requests, favorite=favorite,
             location_balances=[ItemLocationOut(id=b.id, location_name=b.location_name, quantity=b.quantity, bin_location=b.bin_location or "") for b in getattr(item, "location_balances", [])],
+            variants=[ItemVariantOut(id=v.id,item_id=v.item_id,name=v.name,color=v.color or "",color_name=v.color_name or "",details=v.details or "",image_id=v.image_id,qty_location_0=v.qty_location_0,qty_location_2501=v.qty_location_2501,qty_on_hand=v.qty_location_0+v.qty_location_2501,reorder_threshold=v.reorder_threshold,nav_tracked=v.nav_tracked,nav_item_number=v.nav_item_number or "",active=v.active,position=v.position) for v in getattr(item,"variants",[])],
             stock_status=("not_counted" if not bool(getattr(item, "inventory_counted", True)) else
                           "out_of_stock" if item.qty_on_hand <= 0 else
                           "low_stock" if item.qty_on_hand <= item.reorder_threshold else
@@ -317,12 +351,14 @@ class OrderLineIn(BaseModel):
     item_id: int
     qty: int = Field(gt=0)
     estimated: bool = False
+    variant_id: Optional[int] = None
 
 
 class OrderEditLine(BaseModel):
     item_id: int
     qty: int = Field(gt=0)
     estimated: bool = False
+    variant_id: Optional[int] = None
 
 
 class OrderCreate(BaseModel):
@@ -353,6 +389,9 @@ class OrderLineOut(BaseModel):
     qty_approved: Optional[int]
     item_location: str = ""
     item_image_id: Optional[int] = None
+    variant_id: Optional[int] = None
+    variant_name: str = ""
+    variant_color: str = ""
 
 
 class OrderOut(BaseModel):
@@ -430,6 +469,29 @@ class AuditLogOut(BaseModel):
     created_at: datetime
 
 
+
+class PortalRequestCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    details: str = Field(default="", max_length=2000)
+
+class PortalRequestOut(BaseModel):
+    id: int
+    request_type: str
+    requester: str
+    title: str
+    details: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+class AnnouncementOut(BaseModel):
+    message: str = ""
+    active: bool = False
+
+class AnnouncementUpdate(BaseModel):
+    message: str = Field(default="", max_length=500)
+    active: Optional[bool] = None
+
 class NotificationOut(BaseModel):
     id: int
     kind: str
@@ -463,4 +525,5 @@ class KitOut(BaseModel):
     custom: bool
     saved_for_reuse: bool
     buildable_quantity: int = 0
+    image_available: bool = False
     components: List[dict] = Field(default_factory=list)

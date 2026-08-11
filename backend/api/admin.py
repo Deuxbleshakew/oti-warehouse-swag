@@ -20,12 +20,12 @@ from backend.schemas.schemas import (
     ProjectCreate, ProjectEdit, ProjectMembersUpdate, ProjectOut,
     AdminProjectOut, ProjectMemberOut, CatalogPermissionsUpdate,
     NavAdjustmentOut, NavAdjustmentUpdate, InventoryTransferRequest,
-    NotificationOut, KitCreate, KitOut,
+    NotificationOut, KitCreate, KitOut, ItemVariantCreate, AnnouncementUpdate,
 )
 from backend.models.models import (
     Order, OrderLine, Item, User, AuditLog, InventoryTransaction, CountRequest,
     Project, ProjectMember, CatalogPermission, NavAdjustmentTask,
-    Notification, Kit, KitComponent, ItemLocationBalance,
+    Notification, Kit, KitComponent, KitImage, ItemLocationBalance, ItemVariant, AppSetting, PortalRequest, ManagedCatalogOption,
 )
 from backend.auth.dependencies import require_role
 from backend.services import order_service, item_service, user_service
@@ -612,16 +612,114 @@ def update_catalog_permissions(user_id: int, body: CatalogPermissionsUpdate,
     return body.model_dump()
 
 
+BRAND_ALIASES = {
+    "OT": "Oticon",
+    "GS": "Government Services",
+    "BDG": "Bernafon",
+    "PHI": "Philips",
+    "PEDS": "Pediatrics",
+}
+
+
+def _clean_option_name(value: str) -> str:
+    return " ".join((value or "").split()).strip()
+
+
+def _option_norm(value: str) -> str:
+    return _clean_option_name(value).casefold()
+
+
+def _seed_catalog_options(db: Session) -> None:
+    for code, full_name in BRAND_ALIASES.items():
+        db.query(Item).filter(func.upper(func.trim(Item.brand)) == code).update(
+            {Item.brand: full_name}, synchronize_session=False)
+        db.query(CatalogPermission).filter(
+            CatalogPermission.scope_type == "brand",
+            func.upper(func.trim(CatalogPermission.scope_value)) == code,
+        ).update({CatalogPermission.scope_value: full_name}, synchronize_session=False)
+    for kind, field in (("category", Item.category), ("brand", Item.brand)):
+        values = [r[0] for r in db.query(field).filter(
+            Item.deleted_at.is_(None), field.isnot(None), func.trim(field) != ""
+        ).distinct().all()]
+        for raw in values:
+            name = _clean_option_name(raw); norm = _option_norm(name)
+            row = db.query(ManagedCatalogOption).filter_by(kind=kind, normalized_name=norm).first()
+            if not row:
+                db.add(ManagedCatalogOption(kind=kind, name=name,
+                                            normalized_name=norm, active=True))
+    db.commit()
+
+
+def _catalog_options_payload(db: Session):
+    _seed_catalog_options(db)
+    rows = db.query(ManagedCatalogOption).order_by(
+        ManagedCatalogOption.kind, func.lower(ManagedCatalogOption.name)).all()
+    out = {"categories": [], "brands": [], "managed_categories": [], "managed_brands": [], "items": []}
+    for row in rows:
+        entry = {"id": row.id, "name": row.name, "active": bool(row.active)}
+        out["managed_categories" if row.kind == "category" else "managed_brands"].append(entry)
+        if row.active:
+            out["categories" if row.kind == "category" else "brands"].append(row.name)
+    items = db.query(Item).filter(Item.deleted_at.is_(None)).order_by(Item.name).all()
+    out["items"] = [{"id": i.id, "code": i.code, "name": i.name,
+                     "category": i.category, "brand": i.brand} for i in items]
+    return out
+
+
 @router.get("/catalog-options")
 def catalog_options(db: Session = Depends(get_db),
                     _u: User = Depends(require_role("admin"))):
-    items = db.query(Item).filter(Item.deleted_at.is_(None)).order_by(Item.name).all()
-    return {
-        "categories": sorted({i.category for i in items if i.category}, key=str.lower),
-        "brands": sorted({i.brand for i in items if i.brand}, key=str.lower),
-        "items": [{"id": i.id, "code": i.code, "name": i.name,
-                   "category": i.category, "brand": i.brand} for i in items],
-    }
+    return _catalog_options_payload(db)
+
+
+@router.post("/catalog-options", status_code=201)
+def create_catalog_option(body: dict, db: Session = Depends(get_db),
+                          user: User = Depends(require_role("admin"))):
+    kind = (body.get("kind") or "").strip().lower()
+    name = _clean_option_name(body.get("name") or "")
+    if kind not in {"category", "brand"}: raise HTTPException(400, "kind must be category or brand")
+    if not name: raise HTTPException(400, "A name is required.")
+    norm = _option_norm(name)
+    row = db.query(ManagedCatalogOption).filter_by(kind=kind, normalized_name=norm).first()
+    if row:
+        row.name = name; row.active = True
+    else:
+        row = ManagedCatalogOption(kind=kind, name=name, normalized_name=norm, active=True); db.add(row)
+    db.commit(); db.refresh(row)
+    log_action(db, user_id=user.id, action=f"{kind}.create", object_type="catalog_option",
+               object_id=row.id, new_value={"name": name}, source="admin_app")
+    return {"id": row.id, "kind": row.kind, "name": row.name, "active": row.active}
+
+
+@router.put("/catalog-options/{option_id}")
+def update_catalog_option(option_id: int, body: dict,
+                          db: Session = Depends(get_db),
+                          user: User = Depends(require_role("admin"))):
+    row = db.query(ManagedCatalogOption).filter_by(id=option_id).first()
+    if not row: raise HTTPException(404, "Category/brand not found.")
+    old_name = row.name; new_name = _clean_option_name(body.get("name", row.name))
+    active = bool(body.get("active", row.active))
+    if not new_name: raise HTTPException(400, "A name is required.")
+    norm = _option_norm(new_name)
+    conflict = db.query(ManagedCatalogOption).filter(
+        ManagedCatalogOption.kind == row.kind,
+        ManagedCatalogOption.normalized_name == norm,
+        ManagedCatalogOption.id != row.id).first()
+    if conflict: raise HTTPException(409, f"{new_name} already exists.")
+    if new_name != old_name:
+        field = Item.category if row.kind == "category" else Item.brand
+        db.query(Item).filter(func.lower(func.trim(field)) == _option_norm(old_name)).update(
+            {field: new_name}, synchronize_session=False)
+        db.query(CatalogPermission).filter(
+            CatalogPermission.scope_type == row.kind,
+            func.lower(func.trim(CatalogPermission.scope_value)) == _option_norm(old_name),
+        ).update({CatalogPermission.scope_value: new_name}, synchronize_session=False)
+    row.name = new_name; row.normalized_name = norm; row.active = active
+    db.commit(); db.refresh(row)
+    log_action(db, user_id=user.id, action=f"{row.kind}.update", object_type="catalog_option",
+               object_id=row.id, old_value={"name": old_name},
+               new_value={"name": new_name, "active": active}, source="admin_app")
+    return {"id": row.id, "kind": row.kind, "name": row.name, "active": row.active}
 
 
 @router.delete("/users/{user_id}", status_code=204)
@@ -668,7 +766,7 @@ def _kit_out(k: Kit):
         possible=available//max(1,c.quantity)
         buildable=possible if buildable is None else min(buildable,possible)
         comps.append({"id":c.id,"item_id":c.item_id,"item_code":c.item.code if c.item else "Deleted", "item_name":c.item.name if c.item else "Deleted item", "quantity":c.quantity,"position":c.position,"available":available,"image_id":(c.item.images[0].id if c.item and c.item.images else None)})
-    return KitOut(id=k.id,name=k.name,code=k.code,description=k.description or "",active=k.active,custom=k.custom,saved_for_reuse=k.saved_for_reuse,buildable_quantity=buildable or 0,components=comps)
+    return KitOut(id=k.id,name=k.name,code=k.code,description=k.description or "",active=k.active,custom=k.custom,saved_for_reuse=k.saved_for_reuse,buildable_quantity=buildable or 0,image_available=bool(k.image),components=comps)
 
 @router.get("/kits", response_model=list[KitOut])
 def list_kits(db: Session=Depends(get_db), user: User=Depends(require_role("admin"))):
@@ -694,6 +792,30 @@ def update_kit(kit_id:int, body:KitCreate, db:Session=Depends(get_db), user:User
     for i,c in enumerate(body.components): db.add(KitComponent(kit_id=k.id,item_id=c.item_id,quantity=c.quantity,position=c.position if c.position is not None else i))
     db.commit();db.refresh(k);return _kit_out(k)
 
+
+@router.post("/kits/{kit_id}/image", response_model=KitOut)
+async def upload_kit_image(kit_id:int, file:UploadFile=File(...), db:Session=Depends(get_db), user:User=Depends(require_role("admin"))):
+    k=db.query(Kit).filter_by(id=kit_id).first()
+    if not k: raise HTTPException(404,"Kit not found")
+    content=await file.read()
+    if not content or len(content)>10*1024*1024: raise HTTPException(400,"Kit image must be between 1 byte and 10 MB.")
+    ctype=(file.content_type or "application/octet-stream").lower()
+    if ctype not in {"image/jpeg","image/png","image/webp","image/gif"}: raise HTTPException(400,"Kit image must be JPG, PNG, GIF, or WebP.")
+    if k.image:
+        k.image.filename=(file.filename or "kit.png")[:255]; k.image.content_type=ctype; k.image.content=content
+    else:
+        db.add(KitImage(kit_id=k.id,filename=(file.filename or "kit.png")[:255],content_type=ctype,content=content))
+    log_action(db,user_id=user.id,action="kit.image.update",object_type="kit",object_id=k.id,new_value={"filename":file.filename},source="admin_app")
+    db.commit();db.refresh(k);return _kit_out(k)
+
+@router.delete("/kits/{kit_id}/image", response_model=KitOut)
+def delete_kit_image(kit_id:int, db:Session=Depends(get_db), user:User=Depends(require_role("admin"))):
+    k=db.query(Kit).filter_by(id=kit_id).first()
+    if not k: raise HTTPException(404,"Kit not found")
+    if k.image: db.delete(k.image)
+    log_action(db,user_id=user.id,action="kit.image.delete",object_type="kit",object_id=k.id,source="admin_app")
+    db.commit();db.refresh(k);return _kit_out(k)
+
 @router.delete("/kits/{kit_id}", status_code=204)
 def delete_kit(kit_id:int, db:Session=Depends(get_db), user:User=Depends(require_role("admin"))):
     k=db.query(Kit).filter_by(id=kit_id).first()
@@ -703,32 +825,234 @@ def delete_kit(kit_id:int, db:Session=Depends(get_db), user:User=Depends(require
 # ---- CSV item import/export --------------------------------------------------
 @router.get("/items/export.csv")
 def export_items(db:Session=Depends(get_db), user:User=Depends(require_role("admin"))):
+    """Export an editable master-data sheet.
+
+    record_id is the stable key for updates, so an admin may change the visible
+    part number/code without losing the link to the existing item.  New rows
+    should leave record_id blank; their imported quantities are deliberately
+    ignored until a physical count is completed.
+    """
     from fastapi.responses import Response
-    out=io.StringIO(); w=csv.writer(out); w.writerow(["code","name","description","category","brand","bin_location","qty_0","qty_2501","reorder_threshold","nav_tracked","nav_item_number","active"])
+    headers = [
+        "record_id","code","name","description","category","brand",
+        "color","color_name","measures","bin_location","qty_0","qty_2501",
+        "inventory_counted","reorder_threshold","cost","nav_tracked",
+        "nav_item_number","active","variants_json"
+    ]
+    out=io.StringIO(); w=csv.DictWriter(out,fieldnames=headers); w.writeheader()
     for item in db.query(Item).filter(Item.deleted_at.is_(None)).order_by(Item.code):
         balances={b.location_name:b.quantity for b in item.location_balances}
-        w.writerow([item.code,item.name,item.description,item.category,item.brand,item.location,balances.get("0",0),balances.get("2501",0),item.reorder_threshold,item.nav_tracked,item.nav_item_number,item.active])
-    return Response(out.getvalue(),media_type="text/csv",headers={"Content-Disposition":"attachment; filename=oti_items.csv"})
+        variants=[{
+            "name":v.name,"color":v.color or "","color_name":v.color_name or "",
+            "details":v.details or "","image_id":v.image_id,
+            "qty_location_0":v.qty_location_0,"qty_location_2501":v.qty_location_2501,
+            "reorder_threshold":v.reorder_threshold,"nav_tracked":bool(v.nav_tracked),
+            "nav_item_number":v.nav_item_number or "","active":bool(v.active),
+            "position":v.position,
+        } for v in item.variants]
+        w.writerow({
+            "record_id":item.id,"code":item.code,"name":item.name,
+            "description":item.description or "","category":item.category or "",
+            "brand":item.brand or "","color":item.color or "",
+            "color_name":item.color_name or "","measures":item.measures or "",
+            "bin_location":item.location or "","qty_0":balances.get("0",0),
+            "qty_2501":balances.get("2501",0),
+            "inventory_counted":bool(item.inventory_counted),
+            "reorder_threshold":item.reorder_threshold,"cost":item.cost,
+            "nav_tracked":bool(item.nav_tracked),"nav_item_number":item.nav_item_number or "",
+            "active":bool(item.active),"variants_json":json.dumps(variants,separators=(",",":")) if variants else "",
+        })
+    return Response(out.getvalue(),media_type="text/csv",headers={"Content-Disposition":"attachment; filename=oti_inventory_master.csv"})
+
+
+def _csv_bool(value, default=False):
+    if value is None or str(value).strip()=="": return default
+    return str(value).strip().lower() in ("1","true","yes","y","on")
+
+
+def _set_import_balance(db, item, loc, new_qty, user):
+    balance=db.query(ItemLocationBalance).filter_by(item_id=item.id,location_name=loc).first()
+    if not balance:
+        balance=ItemLocationBalance(item_id=item.id,location_name=loc,quantity=0,bin_location=item.location or "")
+        db.add(balance); db.flush()
+    old=int(balance.quantity or 0); new=int(new_qty)
+    if old == new: return 0
+    delta=new-old; balance.quantity=new
+    db.add(InventoryTransaction(item_id=item.id,delta=delta,
+        reason="Master inventory import",source="admin_app",user_id=user.id,
+        item_code_snapshot=item.code,item_name_snapshot=item.name,inventory_location=loc))
+    return delta
+
 
 @router.post("/items/import.csv")
 async def import_items(file:UploadFile=File(...), db:Session=Depends(get_db), user:User=Depends(require_role("admin"))):
-    text=(await file.read()).decode("utf-8-sig"); rows=list(csv.DictReader(io.StringIO(text))); results=[]
+    text=(await file.read()).decode("utf-8-sig")
+    rows=list(csv.DictReader(io.StringIO(text))); results=[]
+    seen_codes=set()
     for n,row in enumerate(rows,start=2):
         try:
-            code=(row.get("code") or "").strip(); name=(row.get("name") or "").strip()
+            record_id=(row.get("record_id") or "").strip()
+            code=(row.get("code") or "").strip().upper(); name=(row.get("name") or "").strip()
             if not code or not name: raise ValueError("code and name are required")
-            item=db.query(Item).filter_by(code=code).first()
-            if not item: item=Item(code=code,name=name,qty_on_hand=0,inventory_counted=True);db.add(item);db.flush()
-            for key in ("name","description","category","brand","location","nav_item_number"):
-                source="bin_location" if key=="location" else key
-                if row.get(source) is not None: setattr(item,key,(row.get(source) or "").strip())
-            item.reorder_threshold=int(row.get("reorder_threshold") or 0); item.nav_tracked=str(row.get("nav_tracked","")).lower() in ("1","true","yes","y"); item.active=str(row.get("active","true")).lower() not in ("0","false","no","n")
-            total=0
-            for loc in ("0","2501"):
-                qty=int(row.get("qty_"+loc) or 0); total+=qty
-                bal=db.query(ItemLocationBalance).filter_by(item_id=item.id,location_name=loc).first()
-                if not bal: bal=ItemLocationBalance(item_id=item.id,location_name=loc,quantity=0);db.add(bal)
-                bal.quantity=qty
-            item.qty_on_hand=total; results.append({"row":n,"code":code,"status":"ok"})
-        except Exception as exc: results.append({"row":n,"code":row.get("code",""),"status":"error","error":str(exc)})
-    db.commit(); return {"rows":results,"imported":sum(1 for r in results if r["status"]=="ok"),"errors":sum(1 for r in results if r["status"]=="error")}
+            norm_code=code.casefold()
+            if norm_code in seen_codes: raise ValueError("duplicate code inside import file")
+            seen_codes.add(norm_code)
+            item=None
+            if record_id:
+                try:item=db.query(Item).filter_by(id=int(record_id)).first()
+                except ValueError: raise ValueError("record_id must be a whole number")
+                if not item or item.deleted_at is not None: raise ValueError("record_id does not match an active item")
+            if not item:
+                item=db.query(Item).filter(Item.code==code,Item.deleted_at.is_(None)).first()
+            is_new=item is None
+            if is_new:
+                # New imported items always enter the physical-count workflow.
+                data={
+                    "code":code,"name":name,"description":_clean_option_name(row.get("description") or ""),
+                    "category":_clean_option_name(row.get("category") or ""),
+                    "brand":_clean_option_name(row.get("brand") or ""),
+                    "color":(row.get("color") or "").strip(),"color_name":_clean_option_name(row.get("color_name") or ""),
+                    "measures":_clean_option_name(row.get("measures") or ""),"location":_clean_option_name(row.get("bin_location") or ""),
+                    "qty_on_hand":None,"nav_tracked":_csv_bool(row.get("nav_tracked")),
+                    "nav_item_number":_clean_option_name(row.get("nav_item_number") or ""),
+                    "reorder_threshold":int(row.get("reorder_threshold") or 0),
+                    "cost":float(row.get("cost") or 0),"active":_csv_bool(row.get("active"),True),
+                }
+                item=item_service.create_item(db,data=data,actor=user,source="admin_app")
+                # create_item committed; reload for variant work below.
+                item=db.query(Item).filter_by(id=item.id).first()
+            else:
+                conflict=db.query(Item).filter(Item.code==code,Item.id!=item.id,Item.deleted_at.is_(None)).first()
+                if conflict: raise ValueError(f"code {code} is already used by another item")
+                old_code=item.code
+                editable={
+                    "code":code,"name":name,"description":row.get("description") or "",
+                    "category":_clean_option_name(row.get("category") or ""),
+                    "brand":_clean_option_name(row.get("brand") or ""),
+                    "color":(row.get("color") or "").strip(),"color_name":_clean_option_name(row.get("color_name") or ""),
+                    "measures":_clean_option_name(row.get("measures") or ""),"location":_clean_option_name(row.get("bin_location") or ""),
+                    "reorder_threshold":int(row.get("reorder_threshold") or 0),
+                    "cost":float(row.get("cost") or 0),"nav_tracked":_csv_bool(row.get("nav_tracked")),
+                    "nav_item_number":_clean_option_name(row.get("nav_item_number") or ""),
+                    "active":_csv_bool(row.get("active"),True),
+                    "inventory_counted":_csv_bool(row.get("inventory_counted"),bool(item.inventory_counted)),
+                }
+                if not editable["nav_tracked"]: editable["nav_item_number"]=""
+                old={k:getattr(item,k) for k in editable if hasattr(item,k)}
+                for k,v in editable.items(): setattr(item,k,v)
+                if old_code != code:
+                    # Historical rows already carry snapshots; future transactions use the new code.
+                    pass
+                if not item.inventory_counted and not db.query(CountRequest).filter_by(item_id=item.id,status="open").first():
+                    db.add(CountRequest(item_id=item.id,requester_user_id=user.id,note="Initial count required",status="open"))
+                log_action(db,user_id=user.id,action="item.master_import_update",object_type="item",object_id=item.id,
+                           old_value=old,new_value=editable,source="admin_app")
+
+            variants_raw=(row.get("variants_json") or "").strip()
+            if variants_raw:
+                try: variants_data=json.loads(variants_raw)
+                except json.JSONDecodeError as exc: raise ValueError(f"variants_json is invalid JSON: {exc.msg}")
+                if not isinstance(variants_data,list): raise ValueError("variants_json must contain a JSON list")
+                existing_by_name={v.name.casefold():v for v in item.variants}
+                keep_ids=set()
+                for idx,vdata in enumerate(variants_data):
+                    vname=_clean_option_name(str(vdata.get("name") or ""))
+                    if not vname: raise ValueError("every variant needs a name")
+                    v=existing_by_name.get(vname.casefold())
+                    if not v:
+                        v=ItemVariant(item_id=item.id,name=vname); db.add(v); db.flush()
+                    keep_ids.add(v.id)
+                    v.name=vname; v.color=str(vdata.get("color") or "").strip(); v.color_name=_clean_option_name(str(vdata.get("color_name") or ""))
+                    v.details=str(vdata.get("details") or "").strip(); v.image_id=vdata.get("image_id") or None
+                    # Brand-new item quantities are ignored until its first physical count.
+                    v.qty_location_0=0 if is_new else int(vdata.get("qty_location_0") or 0)
+                    v.qty_location_2501=0 if is_new else int(vdata.get("qty_location_2501") or 0)
+                    v.reorder_threshold=int(vdata.get("reorder_threshold") or 0); v.nav_tracked=bool(vdata.get("nav_tracked",False))
+                    v.nav_item_number=str(vdata.get("nav_item_number") or "").strip() if v.nav_tracked else ""
+                    v.active=bool(vdata.get("active",True)); v.position=int(vdata.get("position",idx))
+                for oldv in list(item.variants):
+                    if oldv.id not in keep_ids: db.delete(oldv)
+                db.flush(); _sync_parent_variant_total(db,item)
+            elif not is_new and item.inventory_counted:
+                q0=int(row.get("qty_0") or 0); q2501=int(row.get("qty_2501") or 0)
+                _set_import_balance(db,item,"0",q0,user); _set_import_balance(db,item,"2501",q2501,user)
+                item.qty_on_hand=q0+q2501
+            # For a new item, imported qty_0 / qty_2501 are intentionally ignored.
+            db.commit()
+            results.append({"row":n,"record_id":item.id,"code":item.code,
+                            "status":"created-needs-count" if is_new else "updated"})
+        except Exception as exc:
+            db.rollback()
+            results.append({"row":n,"code":row.get("code",""),"status":"error","error":str(exc)})
+    _seed_catalog_options(db)
+    return {"rows":results,
+            "imported":sum(1 for r in results if r["status"]!="error"),
+            "created_needs_count":sum(1 for r in results if r["status"]=="created-needs-count"),
+            "errors":sum(1 for r in results if r["status"]=="error")}
+
+
+def _variant_out(v):
+    return {"id":v.id,"item_id":v.item_id,"name":v.name,"color":v.color or "","color_name":v.color_name or "","details":v.details or "","image_id":v.image_id,"qty_location_0":v.qty_location_0,"qty_location_2501":v.qty_location_2501,"qty_on_hand":v.qty_location_0+v.qty_location_2501,"reorder_threshold":v.reorder_threshold,"nav_tracked":v.nav_tracked,"nav_item_number":v.nav_item_number or "","active":v.active,"position":v.position}
+
+def _sync_parent_variant_total(db,item):
+    active=[v for v in item.variants if v.active]
+    if active:
+        q0=sum(v.qty_location_0 for v in active); q2501=sum(v.qty_location_2501 for v in active)
+        item.qty_on_hand=q0+q2501
+        for loc,qty in (("0",q0),("2501",q2501)):
+            bal=next((b for b in item.location_balances if b.location_name==loc),None)
+            if bal: bal.quantity=qty
+
+@router.get("/items/{item_id}/variants")
+def item_variants(item_id:int,db:Session=Depends(get_db),user:User=Depends(require_role("admin"))):
+    item=db.query(Item).filter_by(id=item_id).first()
+    if not item: raise HTTPException(404,"Item not found.")
+    return [_variant_out(v) for v in item.variants]
+
+@router.post("/items/{item_id}/variants",status_code=201)
+def create_item_variant(item_id:int,body:ItemVariantCreate,db:Session=Depends(get_db),user:User=Depends(require_role("admin"))):
+    item=db.query(Item).filter_by(id=item_id).first()
+    if not item: raise HTTPException(404,"Item not found.")
+    if body.image_id and not any(img.id==body.image_id for img in item.images): raise HTTPException(400,"Variant image must belong to the product.")
+    v=ItemVariant(item_id=item.id,**body.model_dump());db.add(v);db.flush();_sync_parent_variant_total(db,item);db.commit();db.refresh(v);return _variant_out(v)
+
+@router.put("/items/{item_id}/variants/{variant_id}")
+def update_item_variant(item_id:int,variant_id:int,body:ItemVariantCreate,db:Session=Depends(get_db),user:User=Depends(require_role("admin"))):
+    item=db.query(Item).filter_by(id=item_id).first();v=db.query(ItemVariant).filter_by(id=variant_id,item_id=item_id).first()
+    if not item or not v: raise HTTPException(404,"Variant not found.")
+    if body.image_id and not any(img.id==body.image_id for img in item.images): raise HTTPException(400,"Variant image must belong to the product.")
+    for k,val in body.model_dump().items(): setattr(v,k,val)
+    _sync_parent_variant_total(db,item);db.commit();db.refresh(v);return _variant_out(v)
+
+@router.delete("/items/{item_id}/variants/{variant_id}",status_code=204)
+def delete_item_variant(item_id:int,variant_id:int,db:Session=Depends(get_db),user:User=Depends(require_role("admin"))):
+    item=db.query(Item).filter_by(id=item_id).first();v=db.query(ItemVariant).filter_by(id=variant_id,item_id=item_id).first()
+    if not item or not v: raise HTTPException(404,"Variant not found.")
+    db.delete(v);db.flush();_sync_parent_variant_total(db,item);db.commit()
+
+@router.get("/announcement")
+def admin_announcement(db:Session=Depends(get_db),user:User=Depends(require_role("admin"))):
+    msg=db.query(AppSetting).filter_by(key="announcement_message").first(); active=db.query(AppSetting).filter_by(key="announcement_active").first()
+    return {"message":msg.value if msg else "","active":bool(active and (active.value or "").lower()=="true")}
+
+@router.put("/announcement")
+def update_announcement(body:AnnouncementUpdate,db:Session=Depends(get_db),user:User=Depends(require_role("admin"))):
+    def setv(key,value):
+        row=db.query(AppSetting).filter_by(key=key).first()
+        if not row: row=AppSetting(key=key,value=value);db.add(row)
+        else: row.value=value
+    setv("announcement_message",body.message.strip())
+    if body.active is not None:setv("announcement_active","true" if body.active else "false")
+    db.commit();return admin_announcement(db,user)
+
+@router.get("/portal-requests")
+def admin_portal_requests(db:Session=Depends(get_db),user:User=Depends(require_role("admin"))):
+    rows=db.query(PortalRequest).order_by(PortalRequest.created_at.desc()).limit(200).all()
+    return [{"id":r.id,"request_type":r.request_type,"requester":r.requester.full_name or r.requester.username,"title":r.title,"details":r.details or "","status":r.status,"created_at":r.created_at} for r in rows]
+
+@router.put("/portal-requests/{request_id}")
+def update_portal_request(request_id:int,status_value:str,db:Session=Depends(get_db),user:User=Depends(require_role("admin"))):
+    if status_value not in {"open","in_progress","done","rejected"}: raise HTTPException(400,"Invalid status.")
+    row=db.query(PortalRequest).filter_by(id=request_id).first()
+    if not row: raise HTTPException(404,"Request not found.")
+    row.status=status_value;db.commit();return {"id":row.id,"status":row.status}

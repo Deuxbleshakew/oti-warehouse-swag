@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
 from backend.models.models import (
-    Order, OrderLine, Item, Approval, InventoryTransaction, User, Project, Notification,
+    Order, OrderLine, Item, ItemVariant, Approval, InventoryTransaction, User, Project, Notification,
     OrderTracking, OrderProofPhoto, ProjectMember, NavAdjustmentTask,
 )
 from backend.schemas.schemas import OrderOut, OrderLineOut, ProjectOut
@@ -234,9 +234,11 @@ def create_order(db: Session, *, requester: User, project_id: Optional[int],
 
     seen = set()
     for ln in lines:
-        if ln.item_id in seen:
-            raise OrderError("Each item can appear only once in an order.")
-        seen.add(ln.item_id)
+        variant_id = getattr(ln, "variant_id", None)
+        line_key = (ln.item_id, variant_id)
+        if line_key in seen:
+            raise OrderError("Each item/color combination can appear only once in an order.")
+        seen.add(line_key)
         item = db.query(Item).filter_by(id=ln.item_id, active=True).first()
         if not item or not access_service.can_view_item(requester, item):
             raise OrderError(f"Item {ln.item_id} is not available to this user.")
@@ -244,7 +246,25 @@ def create_order(db: Session, *, requester: User, project_id: Optional[int],
             raise OrderError(f"{item.code} has not been counted yet and cannot be ordered.")
         if ln.qty <= 0:
             raise OrderError(f"Quantity for item {ln.item_id} must be positive.")
+        variant = None
+        if variant_id is not None:
+            variant = db.query(ItemVariant).filter_by(id=variant_id, item_id=item.id, active=True).first()
+            if not variant:
+                raise OrderError(f"The selected color/variant is not available for {item.code}.")
+            if ln.qty > (variant.qty_location_0 + variant.qty_location_2501):
+                raise OrderError(f"Not enough stock for {item.code} / {variant.name}.")
+        elif item.variants and any(v.active for v in item.variants):
+            raise OrderError(f"Choose a color/variant for {item.code}.")
+        loc0 = (variant.qty_location_0 if variant else next((b.quantity for b in item.location_balances if b.location_name == "0"), item.qty_on_hand))
+        total_available = (variant.qty_location_0 + variant.qty_location_2501) if variant else item.qty_on_hand
+        if loc0 < ln.qty <= total_available:
+            label = f"{item.name} / {variant.name}" if variant else item.name
+            _notify_admins(db, "other_location_stock", f"Order #{order.id}: off-site stock needed",
+                           f"{label}: location 0 has {loc0}, request needs {ln.qty}. Pick/transfer the remainder from 2501.", order.id)
         db.add(OrderLine(order_id=order.id, item_id=item.id,
+                         variant_id=variant.id if variant else None,
+                         variant_name_snapshot=variant.name if variant else "",
+                         variant_color_snapshot=(variant.color_name or variant.color or "") if variant else "",
                          qty_requested=ln.qty,
                          qty_estimated=bool(getattr(ln, "estimated", False)),
                          item_code_snapshot=item.code,
@@ -254,7 +274,7 @@ def create_order(db: Session, *, requester: User, project_id: Optional[int],
     log_action(db, user_id=requester.id, action="order.create",
                object_type="order", object_id=order.id,
                new_value={
-                   "lines": [{"item_id": l.item_id, "qty": l.qty,
+                   "lines": [{"item_id": l.item_id, "variant_id": getattr(l,"variant_id",None), "qty": l.qty,
                               "estimated": bool(getattr(l, "estimated", False))}
                              for l in lines],
                    "project_id": linked_project.id if linked_project else None,
@@ -450,21 +470,35 @@ def approve_order(db: Session, *, order_id: int, approver: User,
             raise OrderError(
                 f"Approved qty for item {item.code} must be between 0 and "
                 f"the requested {line.qty_requested}.")
-        if item.qty_on_hand - approved_qty < 0 and not allow_negative:
-            raise OrderError(
-                f"Not enough stock for {item.code}: has {item.qty_on_hand}, "
-                f"needs {approved_qty}.")
-        planned.append((line, item, approved_qty))
+        variant = line.variant if getattr(line,"variant_id",None) else None
+        available = (variant.qty_location_0 + variant.qty_location_2501) if variant else item.qty_on_hand
+        if available - approved_qty < 0 and not allow_negative:
+            label = f"{item.code} / {variant.name}" if variant else item.code
+            raise OrderError(f"Not enough stock for {label}: has {available}, needs {approved_qty}.")
+        planned.append((line, item, approved_qty, variant))
 
-    for line, item, approved_qty in planned:
+    for line, item, approved_qty, variant in planned:
         line.qty_approved = approved_qty
         if approved_qty:
-            item.qty_on_hand -= approved_qty
+            inventory_location = "0"
+            if variant:
+                take0=min(variant.qty_location_0, approved_qty); remainder=approved_qty-take0
+                variant.qty_location_0 -= take0
+                variant.qty_location_2501 -= remainder
+                inventory_location = "0" if remainder == 0 else ("2501" if take0 == 0 else "0+2501")
+                # mirror parent totals
+                item.qty_on_hand=sum(v.qty_location_0+v.qty_location_2501 for v in item.variants if v.active)
+                for bal in item.location_balances:
+                    if bal.location_name=="0": bal.quantity=sum(v.qty_location_0 for v in item.variants if v.active)
+                    elif bal.location_name=="2501": bal.quantity=sum(v.qty_location_2501 for v in item.variants if v.active)
+            else:
+                item.qty_on_hand -= approved_qty
             db.add(InventoryTransaction(
                 item_id=item.id, delta=-approved_qty,
-                reason=f"Order #{order.id} approved", source=source,
+                reason=f"Order #{order.id} approved" + (f" [{variant.name}]" if variant else ""), source=source,
                 user_id=approver.id, item_code_snapshot=item.code,
-                item_name_snapshot=item.name))
+                item_name_snapshot=item.name + (f" / {variant.name}" if variant else ""),
+                inventory_location=inventory_location))
     order.status = "approved"
     _notify(db,order.requester_user_id,"approved",f"Order #{order.id} approved","Your order was approved and is waiting to be picked.",object_id=order.id)
     db.add(Approval(order_id=order.id, approver_user_id=approver.id,
@@ -473,7 +507,7 @@ def approve_order(db: Session, *, order_id: int, approver: User,
                object_type="order", object_id=order.id,
                old_value={"status": "pending"},
                new_value={"status": "approved",
-                          "lines": [{"item_id": p[1].id, "qty": p[2]}
+                          "lines": [{"item_id": p[1].id, "qty": p[2], "variant_id": p[3].id if p[3] else None}
                                     for p in planned]}, source=source)
     db.commit()
     return _load_order(db, order.id)
@@ -554,7 +588,9 @@ def _create_nav_adjustment_tasks(db: Session, order: Order) -> int:
     project_name = order.project.name if order.project else ""
     for line in order.lines:
         item = line.item
-        if not item or not bool(getattr(item, "nav_tracked", False)):
+        variant = line.variant if getattr(line,"variant_id",None) else None
+        tracked = bool(getattr(variant,"nav_tracked",False)) if variant else bool(getattr(item,"nav_tracked",False))
+        if not item or not tracked:
             continue
         quantity = line.qty_approved if line.qty_approved is not None else line.qty_requested
         if not quantity or quantity <= 0:
@@ -567,8 +603,8 @@ def _create_nav_adjustment_tasks(db: Session, order: Order) -> int:
             order_id=order.id, order_line_id=line.id, item_id=item.id,
             project_snapshot=project_name or "",
             item_code_snapshot=(line.item_code_snapshot or item.deleted_code or item.code or ""),
-            item_name_snapshot=(line.item_name_snapshot or item.deleted_name or item.name or ""),
-            nav_item_number=(getattr(item, "nav_item_number", "") or ""),
+            item_name_snapshot=(line.item_name_snapshot or item.deleted_name or item.name or "") + (f" / {variant.name}" if variant else ""),
+            nav_item_number=((getattr(variant,"nav_item_number","") if variant else getattr(item, "nav_item_number", "")) or ""),
             quantity_shipped=int(quantity), status="pending", notes="",
             fulfilled_at=fulfilled_at,
         ))
@@ -653,6 +689,9 @@ def to_order_out(order: Order, viewer: User | None = None, db: Session | None = 
             qty_approved=line.qty_approved,
             item_location=(line.item_location_snapshot or
                            (line.item.location if line.item else "")),
-            item_image_id=(line.item.images[0].id if line.item and line.item.images else None),
+            item_image_id=((line.variant.image_id if getattr(line,"variant",None) and line.variant.image_id else None) or (line.item.images[0].id if line.item and line.item.images else None)),
+            variant_id=getattr(line,"variant_id",None),
+            variant_name=(line.variant_name_snapshot or (line.variant.name if getattr(line,"variant",None) else "")),
+            variant_color=(line.variant_color_snapshot or ((line.variant.color_name or line.variant.color) if getattr(line,"variant",None) else "")),
         ) for line in order.lines],
     )

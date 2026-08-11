@@ -52,6 +52,9 @@ def _table_columns_for_dialect(dialect_name: str) -> dict[str, dict[str, str]]:
             "item_code_snapshot": "VARCHAR(60) DEFAULT ''",
             "item_name_snapshot": "VARCHAR(200) DEFAULT ''",
             "item_location_snapshot": "VARCHAR(120) DEFAULT ''",
+            "variant_id": "INTEGER",
+            "variant_name_snapshot": "VARCHAR(80) DEFAULT ''",
+            "variant_color_snapshot": "VARCHAR(80) DEFAULT ''",
         },
         "inventory_transactions": {
             "updated_at": datetime_type,

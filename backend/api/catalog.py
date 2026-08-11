@@ -7,10 +7,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from backend.db.session import get_db
-from backend.schemas.schemas import ItemOut, ProjectOut
+from backend.schemas.schemas import ItemOut, ProjectOut, PortalRequestCreate
 from backend.models.models import (
     Item, ItemImage, ItemImageBlob, Project, User, CountRequest, UserFavorite,
-    Kit, Notification,
+    Kit, KitImage, Notification, AppSetting, PortalRequest,
 )
 from backend.auth.dependencies import get_current_user, get_current_user_flexible
 from backend.services.item_service import resolve_stored_image_path, image_content_type
@@ -125,6 +125,16 @@ def list_projects(db: Session = Depends(get_db),
     return [ProjectOut.model_validate(p) for p in projects]
 
 
+
+@router.get("/kit-images/{kit_id}", include_in_schema=False)
+def get_kit_image(kit_id:int, db:Session=Depends(get_db), user:User=Depends(get_current_user_flexible)):
+    k=db.query(Kit).filter_by(id=kit_id,active=True).first()
+    if not k or not k.image: raise HTTPException(status.HTTP_404_NOT_FOUND,"Kit image not found.")
+    # A kit is visible only when every component is visible to this user.
+    if any(not access_service.can_view_item(user,c.item) for c in k.components):
+        raise HTTPException(status.HTTP_404_NOT_FOUND,"Kit image not found.")
+    return Response(content=k.image.content,media_type=k.image.content_type,headers={"Cache-Control":"private, max-age=3600"})
+
 @router.get("/catalog-kits")
 def catalog_kits(db: Session=Depends(get_db), user: User=Depends(get_current_user)):
     result=[]
@@ -136,7 +146,7 @@ def catalog_kits(db: Session=Depends(get_db), user: User=Depends(get_current_use
             buildable=possible if buildable is None else min(buildable,possible)
             comps.append({"item_id":c.item_id,"item_code":c.item.code,"item_name":c.item.name,"quantity":c.quantity,"position":c.position,"image_id":c.item.images[0].id if c.item.images else None})
         else:
-            result.append({"id":k.id,"name":k.name,"code":k.code,"description":k.description or "","custom":k.custom,"buildable_quantity":buildable or 0,"components":comps})
+            result.append({"id":k.id,"name":k.name,"code":k.code,"description":k.description or "","custom":k.custom,"buildable_quantity":buildable or 0,"image_available":bool(k.image),"components":comps})
     return result
 
 @router.get("/notifications")
@@ -149,3 +159,28 @@ def read_notification(notification_id:int,db:Session=Depends(get_db),user:User=D
     from datetime import datetime, timezone
     n=db.query(Notification).filter_by(id=notification_id,user_id=user.id).first()
     if n:n.read_at=datetime.now(timezone.utc);db.commit()
+
+
+@router.get("/announcement")
+def active_announcement(db: Session=Depends(get_db), user:User=Depends(get_current_user)):
+    msg=db.query(AppSetting).filter_by(key="announcement_message").first()
+    active=db.query(AppSetting).filter_by(key="announcement_active").first()
+    is_active=bool(active and (active.value or "").lower()=="true")
+    return {"message": (msg.value if msg else "") if is_active else "", "active": is_active}
+
+@router.post("/admin-requests/{request_type}", status_code=201)
+def create_admin_portal_request(request_type:str, body:PortalRequestCreate, db:Session=Depends(get_db), user:User=Depends(get_current_user)):
+    if not user.has_role("admin"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN,"Admin access required.")
+    if request_type not in {"new_user","new_item"}:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,"Unknown request type.")
+    row=PortalRequest(request_type=request_type,requested_by_user_id=user.id,title=body.title.strip(),details=body.details.strip(),status="open")
+    db.add(row);db.commit();db.refresh(row)
+    return {"id":row.id,"request_type":row.request_type,"title":row.title,"details":row.details,"status":row.status,"created_at":row.created_at}
+
+@router.get("/admin-requests")
+def my_admin_portal_requests(db:Session=Depends(get_db), user:User=Depends(get_current_user)):
+    if not user.has_role("admin"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN,"Admin access required.")
+    rows=db.query(PortalRequest).order_by(PortalRequest.created_at.desc()).limit(100).all()
+    return [{"id":r.id,"request_type":r.request_type,"requester":r.requester.full_name or r.requester.username,"title":r.title,"details":r.details or "","status":r.status,"created_at":r.created_at} for r in rows]

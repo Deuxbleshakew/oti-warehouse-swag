@@ -186,6 +186,23 @@ class ProjectMember(Base):
     )
 
 
+class ManagedCatalogOption(Base):
+    """Admin-managed category/brand value used by item setup and filters."""
+    __tablename__ = "managed_catalog_options"
+
+    id = Column(Integer, primary_key=True)
+    kind = Column(String(20), nullable=False, index=True)  # category|brand
+    name = Column(String(120), nullable=False)
+    normalized_name = Column(String(120), nullable=False)
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("kind", "normalized_name", name="uq_managed_catalog_option"),
+    )
+
+
 # ----------------------------------------------------------------------------
 # Items / inventory
 # ----------------------------------------------------------------------------
@@ -222,6 +239,7 @@ class Item(Base):
     transactions = relationship("InventoryTransaction", back_populates="item")
     nav_adjustments = relationship("NavAdjustmentTask", back_populates="item")
     location_balances = relationship("ItemLocationBalance", back_populates="item", cascade="all, delete-orphan", order_by="ItemLocationBalance.location_name")
+    variants = relationship("ItemVariant", back_populates="item", cascade="all, delete-orphan", order_by="ItemVariant.position")
 
     __table_args__ = (
         Index("ix_items_category", "category"),
@@ -229,6 +247,29 @@ class Item(Base):
     )
 
 
+
+
+class ItemVariant(Base):
+    __tablename__ = "item_variants"
+    id = Column(Integer, primary_key=True)
+    item_id = Column(Integer, ForeignKey("items.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(80), nullable=False)
+    color = Column(String(20), default="")
+    color_name = Column(String(80), default="")
+    details = Column(String(255), default="")
+    image_id = Column(Integer, ForeignKey("item_images.id", ondelete="SET NULL"), nullable=True)
+    qty_location_0 = Column(Integer, nullable=False, default=0)
+    qty_location_2501 = Column(Integer, nullable=False, default=0)
+    reorder_threshold = Column(Integer, nullable=False, default=0)
+    nav_tracked = Column(Boolean, nullable=False, default=False)
+    nav_item_number = Column(String(80), default="")
+    active = Column(Boolean, nullable=False, default=True)
+    position = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+    item = relationship("Item", back_populates="variants")
+    image = relationship("ItemImage")
+    __table_args__ = (UniqueConstraint("item_id", "name", name="uq_item_variant_name"),)
 
 class ItemLocationBalance(Base):
     __tablename__ = "item_location_balances"
@@ -354,6 +395,10 @@ class OrderLine(Base):
     item_code_snapshot = Column(String(60), default="")
     item_name_snapshot = Column(String(200), default="")
     item_location_snapshot = Column(String(120), default="")
+    variant_id = Column(Integer, ForeignKey("item_variants.id", ondelete="SET NULL"), nullable=True, index=True)
+    variant_name_snapshot = Column(String(80), default="")
+    variant_color_snapshot = Column(String(80), default="")
+    variant = relationship("ItemVariant")
 
     order = relationship("Order", back_populates="lines")
     item = relationship("Item")
@@ -497,6 +542,19 @@ class AppSetting(Base):
 # ----------------------------------------------------------------------------
 # Notifications and reusable/custom kits
 # ----------------------------------------------------------------------------
+
+class PortalRequest(Base):
+    __tablename__ = "portal_requests"
+    id = Column(Integer, primary_key=True)
+    request_type = Column(String(30), nullable=False)
+    requested_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    title = Column(String(200), nullable=False)
+    details = Column(Text, default="")
+    status = Column(String(20), nullable=False, default="open")
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+    requester = relationship("User")
+
 class Notification(Base):
     __tablename__ = "notifications"
     id = Column(Integer, primary_key=True)
@@ -523,6 +581,18 @@ class Kit(Base):
     created_at = Column(DateTime, default=utcnow, nullable=False)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
     components = relationship("KitComponent", back_populates="kit", cascade="all, delete-orphan", order_by="KitComponent.position")
+    image = relationship("KitImage", back_populates="kit", cascade="all, delete-orphan", uselist=False)
+
+
+
+class KitImage(Base):
+    __tablename__ = "kit_images"
+    kit_id = Column(Integer, ForeignKey("kits.id", ondelete="CASCADE"), primary_key=True)
+    filename = Column(String(255), nullable=False, default="kit.png")
+    content_type = Column(String(80), nullable=False, default="image/png")
+    content = Column(LargeBinary, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+    kit = relationship("Kit", back_populates="image")
 
 class KitComponent(Base):
     __tablename__ = "kit_components"

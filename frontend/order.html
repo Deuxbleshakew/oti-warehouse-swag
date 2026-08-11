@@ -224,6 +224,7 @@
   }
   .toolbar input[type=search]{ flex:1; min-width:180px; }
 
+  .kit-section{margin-top:24px}.kit-section .cat-head{margin-bottom:12px}.kit-parts{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 8px}.kit-part{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);background:var(--surface2);padding:4px 6px;font-size:10px}.kit-part img{width:24px;height:24px;object-fit:contain}.kit-product-card .photo-fallback{font-size:48px}
   .grid{
     display:grid;
     grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
@@ -888,6 +889,10 @@
 
   .notification-bell{position:relative;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;width:38px;height:36px;font-size:18px}.notification-badge{position:absolute;right:-5px;top:-7px;min-width:18px;height:18px;border-radius:10px;background:var(--rust);color:white;font:700 10px/18px sans-serif}.notification-panel{position:fixed;right:18px;top:70px;width:min(380px,calc(100vw - 36px));max-height:65vh;overflow:auto;background:var(--paper);border:1px solid var(--line);z-index:80;box-shadow:0 20px 60px #0008;padding:10px}.notification-row{padding:10px;border-bottom:1px solid var(--line);cursor:pointer}.notification-row.unread{border-left:4px solid var(--safety);background:var(--surface)}
   .kit-section{margin:14px 0;padding:14px;border:1px solid var(--line);background:var(--surface)}.kit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}.kit-card{border:1px solid var(--line);padding:12px;background:var(--paper)}.kit-parts{display:flex;gap:5px;flex-wrap:wrap;margin:8px 0}.kit-part{display:flex;align-items:center;gap:4px;font-size:10px;background:var(--surface2);padding:4px 6px}.kit-part img{width:30px;height:30px;object-fit:contain}.folder-builder{border:2px solid var(--safety);border-radius:12px;padding:14px;background:linear-gradient(145deg,var(--surface),var(--paper))}.folder-preview{min-height:170px;border:2px dashed var(--line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:6px}.folder-piece{display:flex;align-items:center;gap:8px;padding:7px;background:var(--surface2);border-left:5px solid var(--safety);animation:folderIn .25s ease}.folder-piece img{width:40px;height:40px;object-fit:contain}.folder-piece .grow{flex:1}.folder-piece button{padding:4px 7px}@keyframes folderIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+
+  .announcement{background:var(--safety);color:#161616;font-weight:800;text-align:center;padding:8px 14px;border-bottom:1px solid #0004}
+  .location-badges{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.loc-badge{display:inline-flex;gap:7px;align-items:center;border:1px solid var(--line);background:var(--surface);padding:5px 8px;border-radius:7px;font:700 11px/1.1 monospace}.loc-badge.primary{border-color:var(--safety)}.loc-badge.zero{opacity:.45}.other-location-note{margin-top:7px;padding:7px 9px;border:1px solid var(--safety);background:color-mix(in srgb,var(--safety) 12%,transparent);font-size:11px;font-weight:750}
+  .variant-picker{margin:9px 0 4px}.variant-picker label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:4px}.variant-picker select{width:100%;padding:8px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:7px}.admin-quick{display:flex;gap:6px}.admin-quick button{font-size:11px;padding:7px 9px}.request-history{max-height:220px;overflow:auto;margin-top:12px}.request-history-row{padding:8px;border-bottom:1px solid var(--line)}
 </style>
 </head>
 <body>
@@ -911,7 +916,7 @@
 // typing a URL into a settings field is annoying. Opening the file
 // directly (file://) has no real origin to detect, so that case keeps
 // the old localhost default for local testing.
-const APP_VERSION = "1.2";
+const APP_VERSION = "1.0";
 const DEFAULT_API_BASE =
   (location.protocol === "file:" || !location.origin || location.origin === "null")
     ? "http://localhost:8000"
@@ -1031,7 +1036,7 @@ const state = {
   catalog: [],
   projects: [],
   cart: {},           // committed item_id -> qty
-  kits: [], notifications: [], folderComponents: [],
+  kits: [], kitCart: {}, kitDraftQty: {}, notifications: [], folderComponents: [], announcement: {message:"",active:false}, selectedVariants: {}, cartVariants: {},
   estimated: {},      // committed item_id -> quantity is still an estimate
   draftQty: {},       // catalog controls before Add / Update Cart
   draftEstimated: {},
@@ -1055,6 +1060,7 @@ const state = {
   proofUrls: {},       // proof photo id -> authenticated object URL
   search: "",
   category: "",
+  brand: "",
   sort: "name",
   quickFilter: "all",
   filterDrawerOpen: false,
@@ -1144,6 +1150,7 @@ function logout(message) {
   state.token = null;
   state.user = null;
   state.cart = {};
+  state.kitCart = {}; state.kitDraftQty = {};
   state.estimated = {};
   state.draftQty = {};
   state.draftEstimated = {};
@@ -1176,7 +1183,14 @@ function unreadNotifications(){return (state.notifications||[]).filter(n=>!n.rea
 function notificationBellHtml(){const n=unreadNotifications();return `<button class="notification-bell" id="notification-bell" aria-label="Notifications">🔔${n?`<span class="notification-badge">${n}</span>`:""}</button>`;}
 function showNotifications(){const existing=document.getElementById("notification-panel");if(existing){existing.remove();return;}const panel=document.createElement("div");panel.id="notification-panel";panel.className="notification-panel";panel.innerHTML=`<strong>Notifications</strong>${(state.notifications||[]).length?state.notifications.map(n=>`<div class="notification-row ${n.read?"":"unread"}" data-notification="${n.id}" data-object-id="${n.object_id||""}"><b>${esc(n.title)}</b><div>${esc(n.message||"")}</div><small>${new Date(n.created_at).toLocaleString()}</small></div>`).join(""):`<p class="muted">No notifications yet.</p>`}`;document.body.appendChild(panel);panel.querySelectorAll("[data-notification]").forEach(r=>r.onclick=async()=>{await api(`/notifications/${r.dataset.notification}/read`,{method:"POST"}).catch(()=>{});const n=state.notifications.find(x=>String(x.id)===r.dataset.notification);if(n)n.read=true;panel.remove();if(r.dataset.objectId){state.tab="orders";}render();});}
 function kitImage(id){return id?`${state.apiBase}/item-images/${id}?access_token=${encodeURIComponent(state.token||"")}&v=${id}`:"";}
-function renderKits(){if(!state.kits.length)return "";return `<section class="kit-section"><h2>Kits & Swag Sets</h2><div class="kit-grid">${state.kits.map(k=>`<article class="kit-card"><h3>${esc(k.name)}</h3><div class="sku">${esc(k.code)} · ${k.buildable_quantity} buildable</div><div class="kit-parts">${k.components.map(c=>`<span class="kit-part">${c.image_id?`<img src="${kitImage(c.image_id)}">`:"📦"}${c.quantity}× ${esc(c.item_code)}</span>`).join("")}</div><button data-add-kit="${k.id}" ${k.buildable_quantity<1?"disabled":""}>Add components to cart</button></article>`).join("")}</div></section>`;}
+function kitImageUrl(k){return k&&k.image_available?`${state.apiBase}/kit-images/${k.id}?access_token=${encodeURIComponent(state.token||"")}&v=${k.id}`:"";}
+function renderKits(){
+  if(!state.kits.length)return "";
+  return `<section class="kit-section"><div class="cat-head"><span>Kits & Swag Sets</span><span class="n">${state.kits.length}</span></div><div class="grid">${state.kits.map(k=>{
+    const draft=Number(state.kitDraftQty[k.id] ?? state.kitCart[k.id] ?? 0), inCart=Number(state.kitCart[k.id]||0), max=Number(k.buildable_quantity||0), photo=kitImageUrl(k), same=inCart>0&&draft===inCart;
+    return `<article class="tag kit-product-card"><div class="photo">${photo?`<img src="${esc(photo)}" alt="${esc(k.name)}" loading="lazy" data-lightbox-src="${esc(photo)}" onerror="handleImageError(this)">`:`<span class="photo-fallback">🎁</span>`}${max<1?`<span class="stock-badge out_of_stock">OUT OF STOCK</span>`:""}</div><div class="perf"></div><div class="body"><div class="code mono">${esc(k.code)}</div><div class="name">${esc(k.name)}</div><div class="meta">Kit / Swag Set${k.description?` · ${esc(k.description)}`:""}</div><div class="kit-parts">${k.components.map(c=>`<span class="kit-part">${c.image_id?`<img src="${kitImage(c.image_id)}">`:"📦"}${c.quantity}× ${esc(c.item_name||c.item_code)}</span>`).join("")}</div><div class="row-bottom"><div class="stock">BUILDABLE: ${max}</div><div class="stepper"><button data-kit-act="dec" data-kit-id="${k.id}" ${draft<=0?"disabled":""}>−</button><input class="qty kit-qty-input" type="number" min="0" max="${max}" value="${draft||""}" data-kit-qty="${k.id}" ${max<1?"disabled":""}><button data-kit-act="inc" data-kit-id="${k.id}" ${draft>=max?"disabled":""}>+</button></div></div><div class="card-buy"><button class="add-cart ${same?"in-cart":""}" data-add-kit="${k.id}" ${max<1||draft<1?"disabled":""}>${inCart?(same?"In Cart":"Update Cart"):"Add to Cart"}</button><div class="draft-note">${inCart?`Cart: ${inCart} kit${inCart===1?"":"s"}`:"Not in cart"}</div></div></div></article>`;
+  }).join("")}</div></section>`;
+}
 function renderFolderBuilder(){return `<section class="folder-builder"><h2>Visual Folder Builder</h2><p class="muted">Choose catalog items, then arrange the exact packing order.</p><div class="folder-preview">${state.folderComponents.length?state.folderComponents.map((c,i)=>{const item=state.catalog.find(x=>x.id===c.item_id);return `<div class="folder-piece"><span>${i+1}</span>${itemImageUrl(item)?`<img src="${itemImageUrl(item)}">`:"📦"}<div class="grow"><b>${esc(item?.name||"Item")}</b><div>${c.qty} × ${esc(item?.code||"")}</div></div><button data-folder-up="${i}">↑</button><button data-folder-down="${i}">↓</button><button data-folder-remove="${i}">✕</button></div>`}).join(""):`<div class="empty">Add items using the Folder button on a catalog card.</div>`}</div>${state.folderComponents.length?`<button id="folder-to-cart" class="add-cart">Add Folder Components to Cart</button>`:""}</section>`;}
 
 function renderWithTransition() {
@@ -1242,10 +1256,10 @@ async function loadProtectedProofImages() {
 async function loadCatalog() {
   state.loadingCatalog = true; render();
   try {
-    const [items, projects, kits, notifications] = await Promise.all([
-      api("/catalog"), api("/projects"), api("/catalog-kits").catch(()=>[]), api("/notifications").catch(()=>[]),
+    const [items, projects, kits, notifications, announcement] = await Promise.all([
+      api("/catalog"), api("/projects"), api("/catalog-kits").catch(()=>[]), api("/notifications").catch(()=>[]), api("/announcement").catch(()=>({message:"",active:false})),
     ]);
-    state.catalog = items; state.projects = projects; state.kits = kits; state.notifications = notifications;
+    state.catalog = items; state.projects = projects; state.kits = kits; state.notifications = notifications; state.announcement=announcement||{message:"",active:false};
   } catch (e) {
     toast(e.message, true);
   } finally {
@@ -1303,12 +1317,12 @@ async function pollLoop() {
 
 // ---- saved cart -------------------------------------------------------------
 function cartStorageKey(){return state.user?`oti_saved_cart_${state.user.id}`:"oti_saved_cart_guest";}
-function saveCartDraft(){if(!state.user)return;localStorage.setItem(cartStorageKey(),JSON.stringify({cart:state.cart,estimated:state.estimated,draftQty:state.draftQty,draftEstimated:state.draftEstimated,orderForm:state.orderForm,savedAt:new Date().toISOString()}));}
-function restoreCartDraft(){if(!state.user)return;try{const saved=JSON.parse(localStorage.getItem(cartStorageKey())||"null");if(!saved)return;state.cart=saved.cart||{};state.estimated=saved.estimated||{};state.draftQty=saved.draftQty||{};state.draftEstimated=saved.draftEstimated||{};state.orderForm=Object.assign(blankOrderForm(),saved.orderForm||{});}catch(_){}}
+function saveCartDraft(){if(!state.user)return;localStorage.setItem(cartStorageKey(),JSON.stringify({cart:state.cart,kitCart:state.kitCart,kitDraftQty:state.kitDraftQty,estimated:state.estimated,draftQty:state.draftQty,draftEstimated:state.draftEstimated,cartVariants:state.cartVariants,selectedVariants:state.selectedVariants,orderForm:state.orderForm,savedAt:new Date().toISOString()}));}
+function restoreCartDraft(){if(!state.user)return;try{const saved=JSON.parse(localStorage.getItem(cartStorageKey())||"null");if(!saved)return;state.cart=saved.cart||{};state.kitCart=saved.kitCart||{};state.kitDraftQty=saved.kitDraftQty||{};state.estimated=saved.estimated||{};state.draftQty=saved.draftQty||{};state.draftEstimated=saved.draftEstimated||{};state.cartVariants=saved.cartVariants||{};state.selectedVariants=saved.selectedVariants||{};state.orderForm=Object.assign(blankOrderForm(),saved.orderForm||{});}catch(_){}}
 
 // ---- cart -------------------------------------------------------------------
 function cartCount() {
-  return Object.values(state.cart).reduce((a, b) => a + b, 0);
+  return Object.values(state.cart).reduce((a,b)=>a+Number(b||0),0)+Object.values(state.kitCart||{}).reduce((a,b)=>a+Number(b||0),0);
 }
 function hasOwn(object, key) {
   return Object.prototype.hasOwnProperty.call(object, key);
@@ -1340,12 +1354,14 @@ function commitItemToCart(itemId) {
     toast("Enter a quantity before adding this item.", true);
     return;
   }
-  if (qty > item.qty_on_hand) {
-    toast("Only " + item.qty_on_hand + " are currently available.", true);
+  const maxQty=itemAvailability(item);
+  if (qty > maxQty) {
+    toast("Only " + maxQty + " are currently available for this selection.", true);
     return;
   }
   const updating = Boolean(state.cart[item.id]);
   state.cart[item.id] = qty;
+  const variant=selectedVariant(item); if(variant) state.cartVariants[item.id]=variant.id; else delete state.cartVariants[item.id];
   if (draftEstimatedFor(item.id)) state.estimated[item.id] = true;
   else delete state.estimated[item.id];
   state.draftQty[item.id] = qty;
@@ -1451,9 +1467,15 @@ function buildProjectPayload() {
 
 async function submitOrder() {
   syncOrderFormFromDom();
-  const lines = Object.entries(state.cart).map(([item_id, qty]) => ({
-    item_id: Number(item_id), qty, estimated: Boolean(state.estimated[item_id])
-  }));
+  const merged = new Map();
+  Object.entries(state.cart).forEach(([item_id, qty]) => { const id=Number(item_id); merged.set(id,{item_id:id,qty:Number(qty),estimated:Boolean(state.estimated[item_id]),variant_id:state.cartVariants[item_id]?Number(state.cartVariants[item_id]):null}); });
+  const kitSummary=[];
+  for (const [kit_id, kitQty] of Object.entries(state.kitCart||{})) {
+    const k=state.kits.find(x=>Number(x.id)===Number(kit_id)); if(!k) continue; const q=Number(kitQty||0); if(q<=0) continue;
+    kitSummary.push(`${k.code} ${k.name} ×${q}`);
+    for (const c of k.components) { const id=Number(c.item_id), add=Number(c.quantity)*q, prev=merged.get(id); if(prev){ if(prev.variant_id){ toast(`Kit ${k.name} contains an item also selected as a color variant. Remove the separate variant line first.`,true); return; } prev.qty+=add; } else merged.set(id,{item_id:id,qty:add,estimated:false,variant_id:null}); }
+  }
+  const lines=[...merged.values()];
   if (!lines.length) return;
   let projectPayload;
   try {
@@ -1466,12 +1488,12 @@ async function submitOrder() {
     const order = await api("/orders", {
       method: "POST",
       body: JSON.stringify(Object.assign({
-        notes: state.orderForm.notes.trim(),
+        notes: (state.orderForm.notes.trim() + (kitSummary.length ? `\nKIT / SWAG SETS: ${kitSummary.join(" | ")}` : "")).trim(),
         lines,
       }, projectPayload)),
     });
     const savedForReuse = Boolean(projectPayload.save_project);
-    state.cart = {};
+    state.cart = {}; state.kitCart = {}; state.kitDraftQty = {};
     state.estimated = {};
     state.draftQty = {};
     state.draftEstimated = {};
@@ -1574,50 +1596,47 @@ function renderLogin() {
   </div>`;
 }
 
+function activeVariants(item){return (item.variants||[]).filter(v=>v.active);}
+function selectedVariant(item){const vs=activeVariants(item);if(!vs.length)return null;let id=Number(state.selectedVariants[item.id]||state.cartVariants[item.id]||vs[0].id);let v=vs.find(x=>Number(x.id)===id)||vs[0];state.selectedVariants[item.id]=v.id;return v;}
+function itemAvailability(item){const v=selectedVariant(item);return v?Number(v.qty_on_hand||0):Number(item.qty_on_hand||0);}
+function locationQuantities(item){const v=selectedVariant(item);if(v)return {"0":Number(v.qty_location_0||0),"2501":Number(v.qty_location_2501||0)};const b={"0":0,"2501":0};(item.location_balances||[]).forEach(x=>b[x.location_name]=Number(x.quantity||0));return b;}
+function itemPhotoForVariant(item){const v=selectedVariant(item);if(v&&v.image_id)return `${state.apiBase}/item-images/${v.image_id}?access_token=${encodeURIComponent(state.token||"")}&v=${v.image_id}`;return imgUrl(item);}
+
 function renderTagCard(item) {
+  const variant = selectedVariant(item);
+  const maxQty = itemAvailability(item);
   const inCart = Number(state.cart[item.id] || 0);
-  const draftQty = draftQtyFor(item);
+  const draftQty = hasOwn(state.draftQty,item.id)?Number(state.draftQty[item.id]||0):inCart;
   const draftEstimated = draftEstimatedFor(item.id);
   const notCounted = item.stock_status === "not_counted" || item.inventory_counted === false;
-  const out = !notCounted && item.qty_on_hand <= 0;
-  const low = !notCounted && item.qty_on_hand > 0 && item.qty_on_hand <= item.reorder_threshold;
+  const out = !notCounted && maxQty <= 0;
+  const threshold = variant ? Number(variant.reorder_threshold||0) : Number(item.reorder_threshold||0);
+  const low = !notCounted && maxQty > 0 && maxQty <= threshold;
   const unavailable = notCounted || out;
-  const photo = imgUrl(item);
+  const photo = itemPhotoForVariant(item);
   const countRequests = Number(item.open_count_requests || 0);
-  const sameAsCart = inCart > 0 && draftQty === inCart && draftEstimated === Boolean(state.estimated[item.id]);
+  const sameAsCart = inCart > 0 && draftQty === inCart && draftEstimated === Boolean(state.estimated[item.id]) && Number(state.cartVariants[item.id]||0)===Number(variant?.id||0);
   const buttonText = inCart ? (sameAsCart ? "In Cart" : "Update Cart") : "Add to Cart";
+  const loc=locationQuantities(item); const otherLoc=loc["0"]<draftQty && (loc["0"]+loc["2501"])>=draftQty && draftQty>0;
   return `
   <div class="tag ${unavailable ? "out-of-stock" : ""}">
     <div class="photo">
-      <button class="favorite-btn ${item.favorite ? "active" : ""}" type="button" data-favorite-id="${item.id}" aria-label="${item.favorite ? "Remove from" : "Add to"} favorites" title="${item.favorite ? "Remove favorite" : "Mark favorite"}">${item.favorite ? "★" : "☆"}</button>
+      <button class="favorite-btn ${item.favorite ? "active" : ""}" type="button" data-favorite-id="${item.id}">${item.favorite ? "★" : "☆"}</button>
       ${photo ? `<img src="${esc(photo)}" alt="${esc(item.name)}" loading="lazy" data-item-image-id="${item.id}" data-lightbox-src="${esc(photo)}" data-gallery="${esc(itemImageUrls(item).join("|"))}" onerror="handleImageError(this)">` : `<span class="photo-fallback">📦</span>`}
-      ${item.color ? `<span class="colordot" style="background:${esc(item.color)}" title="${esc(item.color_name || item.color)}"></span>` : ""}
-      ${notCounted || out || low ? `<span class="stock-badge ${notCounted ? "not_counted" : out ? "out_of_stock" : "low_stock"}">${notCounted ? "NOT COUNTED YET" : out ? "OUT OF STOCK" : "LOW STOCK · " + item.qty_on_hand}</span>` : ""}
+      ${notCounted || out || low ? `<span class="stock-badge ${notCounted ? "not_counted" : out ? "out_of_stock" : "low_stock"}">${notCounted ? "NOT COUNTED YET" : out ? "OUT OF STOCK" : "LOW STOCK · " + maxQty}</span>` : ""}
     </div>
-    <div class="perf"></div>
-    <div class="body">
-      <div class="code mono">${esc(item.code)}</div>
-      <div class="name">${esc(item.name)}</div>
-      <div class="meta">${[item.category, item.location ? "Bin " + item.location : "", item.measures].filter(Boolean).map(esc).join(" · ")}</div>${(item.location_balances||[]).length?`<div class="meta mono">${item.location_balances.map(b=>`${esc(b.location_name)}: ${b.quantity}`).join(" · ")}</div>`:""}
+    <div class="perf"></div><div class="body">
+      <div class="code mono">${esc(item.code)}</div><div class="name">${esc(item.name)}</div>
+      <div class="meta">${[item.category, item.location ? "Bin " + item.location : "", item.measures].filter(Boolean).map(esc).join(" · ")}</div>
+      ${activeVariants(item).length?`<div class="variant-picker"><label>Color</label><select data-variant-select="${item.id}">${activeVariants(item).map(v=>`<option value="${v.id}" ${variant&&v.id===variant.id?"selected":""}>${esc(v.color_name||v.name)} · ${v.qty_on_hand} available</option>`).join("")}</select>${variant?.details?`<div class="meta">${esc(variant.details)}</div>`:""}</div>`:""}
+      <div class="location-badges"><span class="loc-badge primary ${loc["0"]===0?"zero":""}"><b>0</b><span>${loc["0"]}</span></span><span class="loc-badge ${loc["2501"]===0?"zero":""}"><b>2501</b><span>${loc["2501"]}</span></span></div>
+      ${otherLoc?`<div class="other-location-note">🔔 Available at location 2501. Warehouse transfer/off-site pick required.</div>`:""}
       ${countRequests ? `<div class="count-flag">${countRequests} open recount request${countRequests === 1 ? "" : "s"}</div>` : ""}
-      <div class="row-bottom">
-        <div class="stock ${low || notCounted ? "low" : ""}">${notCounted ? "QTY: NOT COUNTED YET" : out ? "QTY ON HAND: 0" : "QTY ON HAND: " + item.qty_on_hand}</div>
-        <div class="stepper">
-          <button data-act="dec" data-id="${item.id}" data-max="${item.qty_on_hand}" ${draftQty <= 0 ? "disabled" : ""}>−</button>
-          <input class="qty qty-input" type="number" inputmode="numeric" min="0" max="${item.qty_on_hand}" step="1" value="${draftQty || ""}" data-qty-id="${item.id}" data-max="${item.qty_on_hand}" aria-label="Quantity for ${esc(item.name)}" ${unavailable ? "disabled" : ""}>
-          <button data-act="inc" data-id="${item.id}" data-max="${item.qty_on_hand}" ${unavailable || draftQty >= item.qty_on_hand ? "disabled" : ""}>+</button>
-        </div>
-      </div>
-      <div class="card-actions">
-        <label class="estimated-mark"><input class="estimated-toggle" type="checkbox" data-estimated-id="${item.id}" ${draftEstimated ? "checked" : ""} ${!draftQty ? "disabled" : ""}> Quantity estimated</label>
-        <button class="request-count" type="button" data-count-id="${item.id}" data-count-name="${esc(item.name)}">Request Count</button>
-      </div>
-      <div class="card-buy">
-        <button class="add-cart ${sameAsCart ? "in-cart" : ""}" type="button" data-add-cart="${item.id}" ${unavailable || !draftQty ? "disabled" : ""}>${buttonText}</button>
-        <div class="draft-note" data-draft-note="${item.id}">${inCart ? `Cart: ${inCart}${state.estimated[item.id] ? " est." : ""}` : "Not in cart"}</div>
-      </div>
-    </div>
-  </div>`;
+      <div class="row-bottom"><div class="stock ${low || notCounted ? "low" : ""}">${notCounted ? "QTY: NOT COUNTED YET" : "AVAILABLE: " + maxQty}</div>
+      <div class="stepper"><button data-act="dec" data-id="${item.id}" data-max="${maxQty}" ${draftQty<=0?"disabled":""}>−</button><input class="qty qty-input" type="number" min="0" max="${maxQty}" value="${draftQty||""}" data-qty-id="${item.id}" data-max="${maxQty}" ${unavailable?"disabled":""}><button data-act="inc" data-id="${item.id}" data-max="${maxQty}" ${unavailable||draftQty>=maxQty?"disabled":""}>+</button></div></div>
+      <div class="card-actions"><label class="estimated-mark"><input class="estimated-toggle" type="checkbox" data-estimated-id="${item.id}" ${draftEstimated?"checked":""} ${!draftQty?"disabled":""}> Quantity estimated</label><button class="request-count" type="button" data-count-id="${item.id}" data-count-name="${esc(item.name)}">Request Count</button></div>
+      <div class="card-buy"><button class="add-cart ${sameAsCart?"in-cart":""}" type="button" data-add-cart="${item.id}" ${unavailable||!draftQty?"disabled":""}>${buttonText}</button><div class="draft-note">${inCart?`Cart: ${inCart}${variant?` · ${esc(variant.color_name||variant.name)}`:""}`:"Not in cart"}</div></div>
+    </div></div>`;
 }
 
 function frequentItemIds() {
@@ -1647,6 +1666,7 @@ function filteredCatalog() {
   const recent = new Set(state.recentlyViewed.map(Number));
   const items = state.catalog.filter(i => {
     if (state.category && i.category !== state.category) return false;
+    if (state.brand && (i.brand || "Unbranded") !== state.brand) return false;
     if (state.quickFilter === "low" && i.qty_on_hand > i.reorder_threshold) return false;
     if (state.quickFilter === "recount" && Number(i.open_count_requests || 0) <= 0) return false;
     if (state.quickFilter === "frequent" && !frequent.has(Number(i.id))) return false;
@@ -1683,6 +1703,8 @@ function renderFilterRail() {
   const counts = quickFilterCounts();
   const categories = [...new Set(state.catalog.map(i => i.category || "Uncategorized"))].sort((a,b) => a.localeCompare(b));
   const categoryCount = cat => state.catalog.filter(i => (i.category || "Uncategorized") === cat).length;
+  const brands = [...new Set(state.catalog.map(i => i.brand || "Unbranded"))].sort((a,b)=>a.localeCompare(b));
+  const brandCount = brand => state.catalog.filter(i => (i.brand || "Unbranded") === brand).length;
   const quick = [
     ["all", "All items", counts.all],
     ["favorites", "Favorites", counts.favorites],
@@ -1708,6 +1730,11 @@ function renderFilterRail() {
       <button class="filter-option ${!state.category ? "active" : ""}" data-category-choice=""><span>All categories</span><span class="filter-n">${state.catalog.length}</span></button>
       ${categories.map(cat => `<button class="filter-option ${state.category === cat ? "active" : ""}" data-category-choice="${esc(cat)}"><span>${esc(cat)}</span><span class="filter-n">${categoryCount(cat)}</span></button>`).join("")}
     </div>
+    <div class="filter-group">
+      <div class="filter-title">Brands</div>
+      <button class="filter-option ${!state.brand ? "active" : ""}" data-brand-choice=""><span>All brands</span><span class="filter-n">${state.catalog.length}</span></button>
+      ${brands.map(brand => `<button class="filter-option ${state.brand === brand ? "active" : ""}" data-brand-choice="${esc(brand)}"><span>${esc(brand)}</span><span class="filter-n">${brandCount(brand)}</span></button>`).join("")}
+    </div>
   </div>`;
 }
 
@@ -1722,9 +1749,9 @@ function renderCatalogTab() {
     // Categories now live in the left rail, so one continuous responsive grid
     // can actually use the available desktop width instead of leaving a blank
     // column whenever a category only contains one item.
-    body = `<div class="grid">${items.map(renderTagCard).join("")}</div>`;
+    body = `<div class="grid">${items.map(renderTagCard).join("")}</div>${renderKits()}`;
   }
-  const activeDescription = state.category || (state.quickFilter !== "all" ? state.quickFilter.replace(/\b\w/g, c => c.toUpperCase()) : "");
+  const activeDescription = state.brand || state.category || (state.quickFilter !== "all" ? state.quickFilter.replace(/\b\w/g, c => c.toUpperCase()) : "");
   return `
     <div class="feature-banner">
       <div>
@@ -1907,24 +1934,30 @@ function openOrderEditor(orderId) {
   };
 }
 
+function kitCartLinesData(){return Object.entries(state.kitCart||{}).map(([id,qty])=>{const kit=state.kits.find(k=>Number(k.id)===Number(id));return kit?{kit,qty:Number(qty)}:null;}).filter(Boolean);}
+
 function cartLinesData() {
   return Object.entries(state.cart).map(([id, qty]) => {
     const item = state.catalog.find(i => i.id === Number(id));
-    return item ? { item, qty, estimated: Boolean(state.estimated[id]) } : null;
+    const variant=item ? (item.variants||[]).find(v=>Number(v.id)===Number(state.cartVariants[id]||0)) : null;
+    return item ? { item, variant, qty, estimated: Boolean(state.estimated[id]) } : null;
   }).filter(Boolean);
 }
 
 function cartLinesHtml(lines) {
-  return lines.length ? lines.map(({ item, qty, estimated }) => {
-    const photo = imgUrl(item);
+  const kitLines=kitCartLinesData();
+  const itemHtml = lines.length ? lines.map(({ item, variant, qty, estimated }) => {
+    const photo = variant&&variant.image_id ? `${state.apiBase}/item-images/${variant.image_id}?access_token=${encodeURIComponent(state.token||"")}&v=${variant.image_id}` : imgUrl(item);
     return `
     <div class="line">
       <div class="cart-thumb">${photo ? `<img src="${esc(photo)}" alt="${esc(item.name)}" loading="lazy" onerror="this.remove();this.parentElement.textContent='📦'">` : "📦"}</div>
-      <div class="nm">${esc(item.name)}${estimated ? ` <span class="estimate-pill">EST.</span>` : ""}<span class="cd">${esc(item.code)}</span></div>
+      <div class="nm">${esc(item.name)}${variant?` <b>· ${esc(variant.color_name||variant.name)}</b>`:""}${estimated ? ` <span class="estimate-pill">EST.</span>` : ""}<span class="cd">${esc(item.code)}</span></div>
       <div class="mono">×${qty}</div>
       <button class="rm" data-rm="${item.id}" title="Remove">✕</button>
     </div>`;
-  }).join("") : `<div class="empty">Add items from the catalog to build an order.</div>`;
+  }).join("") : "";
+  const kitHtml=kitLines.map(({kit,qty})=>{const photo=kitImageUrl(kit);return `<div class="line"><div class="cart-thumb">${photo?`<img src="${esc(photo)}" alt="${esc(kit.name)}" loading="lazy">`:"🎁"}</div><div class="nm">${esc(kit.name)} <span class="estimate-pill">KIT</span><span class="cd">${esc(kit.code)}</span></div><div class="mono">×${qty}</div><button class="rm" data-rm-kit="${kit.id}" title="Remove">✕</button></div>`;}).join("");
+  return itemHtml+kitHtml || `<div class="empty">Add items from the catalog to build an order.</div>`;
 }
 
 function selectedProjectForReadiness() {
@@ -1938,12 +1971,13 @@ function selectedProjectForReadiness() {
 function orderReadiness() {
   const f = state.orderForm;
   const lines = cartLinesData();
+  const kitLines = kitCartLinesData();
   const estimatedCount = lines.filter(line => line.estimated).length;
   const saved = selectedProjectForReadiness();
   let project = "Pending", eventDate = "Pending", address = "Pending", shipBy = "Pending";
   const issues = [];
 
-  if (!lines.length) issues.push("Add at least one item.");
+  if (!lines.length && !kitLines.length) issues.push("Add at least one item.");
   if (f.projectChoice === "new") {
     project = f.projectName.trim() || "Pending";
     eventDate = f.eventDate || "Pending";
@@ -1979,7 +2013,7 @@ function orderReadiness() {
   return {
     lines, estimatedCount, issues,
     rows: [
-      ["Items", lines.length ? cartCount() + " units" : "None", lines.length ? "good" : "warn"],
+      ["Items", (lines.length||kitLines.length) ? cartCount() + " units" : "None", (lines.length||kitLines.length) ? "good" : "warn"],
       ["Project", project, project === "Pending" ? "warn" : "good"],
       ["Event", eventDate, eventDate === "Pending" ? "warn" : "good"],
       ["Address", address, address === "Complete" ? "good" : "warn"],
@@ -2009,17 +2043,19 @@ function renderCompactCart() {
     <div class="lines">${cartLinesHtml(lines)}</div>
     <div class="readiness"><h3>Order Readiness</h3>${renderReadinessRows(readiness)}</div>
     <div class="compact-foot">
-      <div class="total-count">${cartCount()} unit${cartCount() === 1 ? "" : "s"} · ${lines.length} line${lines.length === 1 ? "" : "s"}</div>
+      <div class="total-count">${cartCount()} unit${cartCount() === 1 ? "" : "s"} · ${lines.length + kitCartLinesData().length} line${lines.length + kitCartLinesData().length === 1 ? "" : "s"}</div>
       <button class="btn-primary" id="compact-open-setup" type="button">Project & Delivery</button>
     </div>
   </div>`;
 }
 
 function wireRemoveButtons() {
+  document.querySelectorAll("[data-rm-kit]").forEach(btn=>btn.addEventListener("click",()=>{const id=Number(btn.dataset.rmKit);delete state.kitCart[id];delete state.kitDraftQty[id];saveCartDraft();render();}));
   document.querySelectorAll(".rm").forEach(btn => {
     btn.addEventListener("click", () => {
       const id = Number(btn.dataset.rm);
       delete state.cart[id];
+      delete state.cartVariants[id];
       delete state.estimated[id];
       state.draftQty[id] = 0;
       state.draftEstimated[id] = false;
@@ -2178,6 +2214,8 @@ function render() {
     <header class="bar">
       <div class="brand"><span class="crate">📦</span> Oti-Warehouse Swag <span class="build-badge">${APP_VERSION}</span></div>
       <div class="who">
+        ${state.user?.roles?.includes("admin")?`<div class="admin-quick"><button class="link" id="request-new-user">+ User</button><button class="link" id="request-new-item">+ Item</button><button class="link" id="request-history">Requests</button></div>`:""}
+        ${notificationBellHtml()}
         <span>${esc(state.user ? state.user.full_name || state.user.username : "")}</span>
         
         <select class="theme-select" id="theme-select" aria-label="Theme">
@@ -2189,6 +2227,7 @@ function render() {
         <button class="link" id="logout-btn">Log out</button>
       </div>
     </header>
+    ${state.announcement?.active&&state.announcement?.message?`<div class="announcement">${esc(state.announcement.message)}</div>`:""}
     <nav class="tabs">
       <button data-tab="catalog" class="${state.tab === "catalog" ? "active" : ""}">1. Catalog</button>
       <button data-tab="setup" class="${state.tab === "setup" ? "active" : ""}">2. Project & Delivery (${cartCount()})</button>
@@ -2290,9 +2329,10 @@ function wireApp(searchHadFocus, searchCursorPos) {
     state.filterDrawerOpen = false;
     render();
   }));
+  document.querySelectorAll("[data-brand-choice]").forEach(btn=>btn.addEventListener("click",()=>{state.brand=btn.dataset.brandChoice||"";state.filterDrawerOpen=false;render();}));
   const clearFilters = document.getElementById("clear-filters");
   if (clearFilters) clearFilters.addEventListener("click", () => {
-    state.category = "";
+    state.category = ""; state.brand = "";
     state.quickFilter = "all";
     render();
   });
@@ -2412,7 +2452,14 @@ function wireApp(searchHadFocus, searchCursorPos) {
 
 
   document.getElementById("notification-bell")?.addEventListener("click",showNotifications);
-  document.querySelectorAll("[data-add-kit]").forEach(btn=>btn.addEventListener("click",()=>{const k=state.kits.find(x=>x.id===Number(btn.dataset.addKit));if(!k)return;k.components.forEach(c=>{state.cart[c.item_id]=(Number(state.cart[c.item_id]||0)+Number(c.quantity));state.draftQty[c.item_id]=state.cart[c.item_id];});saveCartDraft();toast(k.name+" components added to cart.");render();}));
+  document.querySelectorAll("[data-variant-select]").forEach(sel=>sel.addEventListener("change",()=>{const id=Number(sel.dataset.variantSelect);state.selectedVariants[id]=Number(sel.value);state.draftQty[id]=0;state.draftEstimated[id]=false;saveCartDraft();render();}));
+  const requestDialog=(type)=>{const label=type==="new_user"?"Request New User":"Request New Item";showModal(`<div class="modal-head"><h2>${label}</h2><button class="modal-x" id="modal-x">×</button></div><div class="field"><label>Short title</label><input id="portal-request-title"></div><div class="field"><label>Details / notes</label><textarea id="portal-request-details" rows="5"></textarea></div><div class="err-line" id="portal-request-error"></div><button class="btn-primary" id="portal-request-send">Submit Request</button>`);document.getElementById("modal-x").onclick=closeModal;document.getElementById("portal-request-send").onclick=async()=>{try{await api(`/admin-requests/${type}`,{method:"POST",body:JSON.stringify({title:document.getElementById("portal-request-title").value.trim(),details:document.getElementById("portal-request-details").value.trim()})});closeModal();toast(label+" sent.");}catch(e){document.getElementById("portal-request-error").textContent=e.message;}}};
+  document.getElementById("request-new-user")?.addEventListener("click",()=>requestDialog("new_user"));
+  document.getElementById("request-new-item")?.addEventListener("click",()=>requestDialog("new_item"));
+  document.getElementById("request-history")?.addEventListener("click",async()=>{try{const rows=await api("/admin-requests");showModal(`<div class="modal-head"><h2>Admin Requests</h2><button class="modal-x" id="modal-x">×</button></div><div class="request-history">${rows.length?rows.map(r=>`<div class="request-history-row"><b>${r.request_type==="new_user"?"New User":"New Item"} · ${esc(r.title)}</b><div>${esc(r.details||"")}</div><small>${esc(r.status)} · ${new Date(r.created_at).toLocaleString()}</small></div>`).join(""):`<div class="empty">No requests yet.</div>`}</div>`);document.getElementById("modal-x").onclick=closeModal;}catch(e){toast(e.message,true);}});
+  document.querySelectorAll("[data-kit-act]").forEach(btn=>btn.addEventListener("click",()=>{const id=Number(btn.dataset.kitId),k=state.kits.find(x=>x.id===id),max=Number(k?.buildable_quantity||0),cur=Number(state.kitDraftQty[id]??state.kitCart[id]??0);state.kitDraftQty[id]=Math.max(0,Math.min(max,cur+(btn.dataset.kitAct==="inc"?1:-1)));render();}));
+  document.querySelectorAll("[data-kit-qty]").forEach(inp=>inp.addEventListener("input",()=>{const id=Number(inp.dataset.kitQty),k=state.kits.find(x=>x.id===id),max=Number(k?.buildable_quantity||0);state.kitDraftQty[id]=Math.max(0,Math.min(max,Number(inp.value||0)));}));
+  document.querySelectorAll("[data-add-kit]").forEach(btn=>btn.addEventListener("click",()=>{const id=Number(btn.dataset.addKit),k=state.kits.find(x=>x.id===id);if(!k)return;const q=Math.max(0,Math.min(Number(k.buildable_quantity||0),Number(state.kitDraftQty[id]??state.kitCart[id]??0)));if(q<1)return;state.kitCart[id]=q;state.kitDraftQty[id]=q;saveCartDraft();toast(k.name+" added to cart.");render();}));
   document.querySelectorAll("[data-folder-add]").forEach(btn=>btn.addEventListener("click",()=>{const id=Number(btn.dataset.folderAdd);const qty=Math.max(1,Number(currentDraftQty(state.catalog.find(x=>x.id===id))||1));state.folderComponents.push({item_id:id,qty});render();}));
   document.querySelectorAll("[data-folder-up]").forEach(b=>b.onclick=()=>{const i=Number(b.dataset.folderUp);if(i>0)[state.folderComponents[i-1],state.folderComponents[i]]=[state.folderComponents[i],state.folderComponents[i-1]];render();});
   document.querySelectorAll("[data-folder-down]").forEach(b=>b.onclick=()=>{const i=Number(b.dataset.folderDown);if(i<state.folderComponents.length-1)[state.folderComponents[i+1],state.folderComponents[i]]=[state.folderComponents[i],state.folderComponents[i+1]];render();});
