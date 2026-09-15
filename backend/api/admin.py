@@ -342,6 +342,7 @@ def resolve_count_request(request_id: int, body: CountRequestResolve,
     row = item_service.resolve_count_request(
         db, request_id=request_id, actor=user,
         physical_quantity=body.physical_quantity,
+        inventory_location=body.inventory_location,
         resolution_note=body.resolution_note, source="admin_app")
     return _count_out(row)
 
@@ -766,7 +767,7 @@ def _kit_out(k: Kit):
         possible=available//max(1,c.quantity)
         buildable=possible if buildable is None else min(buildable,possible)
         comps.append({"id":c.id,"item_id":c.item_id,"item_code":c.item.code if c.item else "Deleted", "item_name":c.item.name if c.item else "Deleted item", "quantity":c.quantity,"position":c.position,"available":available,"image_id":(c.item.images[0].id if c.item and c.item.images else None)})
-    return KitOut(id=k.id,name=k.name,code=k.code,description=k.description or "",active=k.active,custom=k.custom,saved_for_reuse=k.saved_for_reuse,buildable_quantity=buildable or 0,image_available=bool(k.image),components=comps)
+    return KitOut(id=k.id,name=k.name,code=k.code,brand=k.brand or "",description=k.description or "",active=k.active,custom=k.custom,saved_for_reuse=k.saved_for_reuse,buildable_quantity=buildable or 0,image_available=bool(k.image),components=comps)
 
 @router.get("/kits", response_model=list[KitOut])
 def list_kits(db: Session=Depends(get_db), user: User=Depends(require_role("admin"))):
@@ -775,7 +776,7 @@ def list_kits(db: Session=Depends(get_db), user: User=Depends(require_role("admi
 @router.post("/kits", response_model=KitOut, status_code=201)
 def create_kit(body: KitCreate, db: Session=Depends(get_db), user: User=Depends(require_role("admin"))):
     if db.query(Kit).filter(Kit.code==body.code.strip()).first(): raise HTTPException(409,"Kit code already exists.")
-    k=Kit(name=body.name.strip(),code=body.code.strip(),description=body.description,active=body.active,custom=body.custom,saved_for_reuse=body.saved_for_reuse,created_by_user_id=user.id)
+    k=Kit(name=body.name.strip(),code=body.code.strip(),brand=body.brand.strip(),description=body.description,active=body.active,custom=body.custom,saved_for_reuse=body.saved_for_reuse,created_by_user_id=user.id)
     db.add(k); db.flush()
     for i,c in enumerate(body.components):
         if not db.query(Item).filter_by(id=c.item_id).first(): raise HTTPException(400,f"Item {c.item_id} not found")
@@ -787,7 +788,7 @@ def create_kit(body: KitCreate, db: Session=Depends(get_db), user: User=Depends(
 def update_kit(kit_id:int, body:KitCreate, db:Session=Depends(get_db), user:User=Depends(require_role("admin"))):
     k=db.query(Kit).filter_by(id=kit_id).first()
     if not k: raise HTTPException(404,"Kit not found")
-    k.name=body.name.strip();k.code=body.code.strip();k.description=body.description;k.active=body.active;k.saved_for_reuse=body.saved_for_reuse
+    k.name=body.name.strip();k.code=body.code.strip();k.brand=body.brand.strip();k.description=body.description;k.active=body.active;k.saved_for_reuse=body.saved_for_reuse
     k.components.clear();db.flush()
     for i,c in enumerate(body.components): db.add(KitComponent(kit_id=k.id,item_id=c.item_id,quantity=c.quantity,position=c.position if c.position is not None else i))
     db.commit();db.refresh(k);return _kit_out(k)
@@ -835,7 +836,7 @@ def export_items(db:Session=Depends(get_db), user:User=Depends(require_role("adm
     from fastapi.responses import Response
     headers = [
         "record_id","code","name","description","category","brand",
-        "color","color_name","measures","bin_location","qty_0","qty_2501",
+        "color","color_name","measures","bin_location","qty_0","qty_2501","total_qty",
         "inventory_counted","reorder_threshold","cost","nav_tracked",
         "nav_item_number","active","variants_json"
     ]
@@ -856,7 +857,7 @@ def export_items(db:Session=Depends(get_db), user:User=Depends(require_role("adm
             "brand":item.brand or "","color":item.color or "",
             "color_name":item.color_name or "","measures":item.measures or "",
             "bin_location":item.location or "","qty_0":balances.get("0",0),
-            "qty_2501":balances.get("2501",0),
+            "qty_2501":balances.get("2501",0),"total_qty":balances.get("0",0)+balances.get("2501",0),
             "inventory_counted":bool(item.inventory_counted),
             "reorder_threshold":item.reorder_threshold,"cost":item.cost,
             "nav_tracked":bool(item.nav_tracked),"nav_item_number":item.nav_item_number or "",

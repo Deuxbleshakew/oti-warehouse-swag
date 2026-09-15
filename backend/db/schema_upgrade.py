@@ -43,6 +43,7 @@ def _table_columns_for_dialect(dialect_name: str) -> dict[str, dict[str, str]]:
             "nav_item_number": "VARCHAR(80) DEFAULT ''",
         },
         "orders": {
+            "order_number": "VARCHAR(30)",
             "picking_started_at": datetime_type,
             "fulfilled_at": datetime_type,
             "deleted_at": datetime_type,
@@ -66,6 +67,9 @@ def _table_columns_for_dialect(dialect_name: str) -> dict[str, dict[str, str]]:
             "system_qty_before": "INTEGER",
             "physical_qty": "INTEGER",
             "adjustment_delta": "INTEGER",
+        },
+        "kits": {
+            "brand": "VARCHAR(80) DEFAULT ''",
         },
     }
 
@@ -186,6 +190,13 @@ def ensure_additive_columns(engine) -> None:
                     "UPDATE inventory_transactions SET updated_at = created_at "
                     "WHERE updated_at IS NULL"
                 ))
+
+        if "orders" in tables and "order_number" in _column_names(connection, "orders"):
+            rows = connection.execute(text("SELECT id, order_number FROM orders ORDER BY id")).mappings().all()
+            for row in rows:
+                if not (row["order_number"] or "").strip():
+                    connection.execute(text("UPDATE orders SET order_number=:n WHERE id=:id"),
+                                       {"n": f"ORD-{int(row['id']):06d}", "id": row["id"]})
 
         _backfill_item_snapshots(connection, tables)
         _release_legacy_deleted_codes(connection, tables)

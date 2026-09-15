@@ -396,6 +396,7 @@ class OrderLineOut(BaseModel):
 
 class OrderOut(BaseModel):
     id: int
+    order_number: str = ""
     status: str
     requester: str
     project: Optional[str]
@@ -437,6 +438,7 @@ class CountRequestCreate(BaseModel):
 
 class CountRequestResolve(BaseModel):
     physical_quantity: int = Field(ge=0)
+    inventory_location: str = Field(default="0", pattern="^(0|2501)$")
     resolution_note: str = Field(default="", max_length=255)
 
 
@@ -510,6 +512,7 @@ class KitComponentIn(BaseModel):
 class KitCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     code: str = Field(min_length=1, max_length=60)
+    brand: str = Field(default="", max_length=80)
     description: str = ""
     active: bool = True
     custom: bool = False
@@ -520,6 +523,7 @@ class KitOut(BaseModel):
     id: int
     name: str
     code: str
+    brand: str = ""
     description: str = ""
     active: bool
     custom: bool

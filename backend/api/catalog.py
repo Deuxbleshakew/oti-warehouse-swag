@@ -146,7 +146,7 @@ def catalog_kits(db: Session=Depends(get_db), user: User=Depends(get_current_use
             buildable=possible if buildable is None else min(buildable,possible)
             comps.append({"item_id":c.item_id,"item_code":c.item.code,"item_name":c.item.name,"quantity":c.quantity,"position":c.position,"image_id":c.item.images[0].id if c.item.images else None})
         else:
-            result.append({"id":k.id,"name":k.name,"code":k.code,"description":k.description or "","custom":k.custom,"buildable_quantity":buildable or 0,"image_available":bool(k.image),"components":comps})
+            result.append({"id":k.id,"name":k.name,"code":k.code,"brand":k.brand or "","description":k.description or "","custom":k.custom,"buildable_quantity":buildable or 0,"image_available":bool(k.image),"components":comps})
     return result
 
 @router.get("/notifications")

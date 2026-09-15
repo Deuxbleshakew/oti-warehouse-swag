@@ -371,6 +371,7 @@ def create_count_request(db: Session, *, item_id: int, requester: User,
 
 def resolve_count_request(db: Session, *, request_id: int, actor: User,
                           physical_quantity: int, resolution_note: str,
+                          inventory_location: str = "0",
                           source="admin_app") -> CountRequest:
     row = db.query(CountRequest).filter_by(id=request_id).first()
     if not row:
@@ -382,33 +383,56 @@ def resolve_count_request(db: Session, *, request_id: int, actor: User,
     if physical_quantity < 0:
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             "Physical quantity cannot be negative.")
+    location_name = (inventory_location or "0").strip()
+    if location_name not in {"0", "2501"}:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Inventory location must be 0 or 2501.")
+
     item = row.item
-    before = int(item.qty_on_hand)
-    delta = physical_quantity - before
-    item.qty_on_hand = physical_quantity
+    ensure_location_balances(db, item)
+    balance = (db.query(ItemLocationBalance)
+               .filter_by(item_id=item.id, location_name=location_name).first())
+    if not balance:
+        balance = ItemLocationBalance(item_id=item.id, location_name=location_name,
+                                      quantity=0, bin_location=item.location or "")
+        db.add(balance)
+        db.flush()
+
+    before_location = int(balance.quantity or 0)
+    before_total = int(item.qty_on_hand or 0)
+    delta = physical_quantity - before_location
+    balance.quantity = physical_quantity
     item.inventory_counted = True
-    if delta:
-        db.add(InventoryTransaction(
-            item_id=item.id, delta=delta,
-            reason=f"Physical recount request #{row.id}: "
-                   f"system {before}, counted {physical_quantity}",
-            source=source, user_id=actor.id,
-            item_code_snapshot=item.deleted_code or item.code,
-            item_name_snapshot=item.deleted_name or item.name,
-        ))
+    db.flush()
+    item.qty_on_hand = sum(int(b.quantity or 0) for b in item.location_balances)
+
+    # Always record a recount transaction, even when delta is zero, so the
+    # physical check and its building are visible in Inventory History.
+    db.add(InventoryTransaction(
+        item_id=item.id, delta=delta,
+        reason=f"Physical recount request #{row.id} at location {location_name}: "
+               f"system {before_location}, counted {physical_quantity}",
+        source=source, user_id=actor.id,
+        item_code_snapshot=item.deleted_code or item.code,
+        item_name_snapshot=item.deleted_name or item.name,
+        inventory_location=location_name,
+    ))
     row.status = "resolved"
     row.resolved_by_user_id = actor.id
     row.resolution_note = (resolution_note or "Physical recount completed").strip()[:255]
-    row.system_qty_before = before
+    row.system_qty_before = before_location
     row.physical_qty = physical_quantity
     row.adjustment_delta = delta
     row.resolved_at = datetime.now(timezone.utc)
     log_action(db, user_id=actor.id, action="count_request.resolve",
                object_type="count_request", object_id=row.id,
-               old_value={"status": "open", "system_qty": before},
+               old_value={"status": "open", "location": location_name,
+                          "location_qty": before_location, "total_qty": before_total},
                new_value={"status": "resolved",
+                          "inventory_location": location_name,
                           "physical_qty": physical_quantity,
                           "adjustment_delta": delta,
+                          "total_qty": item.qty_on_hand,
                           "resolution_note": row.resolution_note}, source=source)
     db.commit()
     db.refresh(row)
@@ -417,10 +441,26 @@ def resolve_count_request(db: Session, *, request_id: int, actor: User,
 
 
 def ensure_location_balances(db: Session, item: Item) -> None:
-    if item.location_balances:
-        return
-    db.add(ItemLocationBalance(item_id=item.id, location_name="0", quantity=item.qty_on_hand, bin_location=item.location or ""))
-    db.add(ItemLocationBalance(item_id=item.id, location_name="2501", quantity=0, bin_location=""))
+    """Ensure location rows exist and keep the legacy total/location invariant.
+
+    Older builds could update ``qty_on_hand`` during a recount without assigning
+    the quantity to a building.  When that left Total > 0 while location rows
+    summed to less than Total, place the orphaned balance into primary location
+    0.  This preserves stock while repairing upgraded databases.
+    """
+    by_name = {b.location_name: b for b in item.location_balances}
+    if "0" not in by_name:
+        row = ItemLocationBalance(item_id=item.id, location_name="0", quantity=0,
+                                  bin_location=item.location or "")
+        db.add(row); db.flush(); by_name["0"] = row
+    if "2501" not in by_name:
+        row = ItemLocationBalance(item_id=item.id, location_name="2501", quantity=0,
+                                  bin_location="")
+        db.add(row); db.flush(); by_name["2501"] = row
+    location_total = sum(int(b.quantity or 0) for b in item.location_balances)
+    legacy_total = int(item.qty_on_hand or 0)
+    if location_total != legacy_total:
+        by_name["0"].quantity += legacy_total - location_total
     db.flush()
 
 def transfer_inventory(db: Session, *, item_id: int, from_location: str, to_location: str, quantity: int, reason: str, actor: User, source="admin_app") -> Item:

@@ -351,6 +351,7 @@ class Order(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True)
+    order_number = Column(String(30), unique=True, nullable=True, index=True)
     requester_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
     status = Column(String(20), nullable=False, default="pending")
@@ -573,6 +574,7 @@ class Kit(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(200), nullable=False)
     code = Column(String(60), unique=True, nullable=False, index=True)
+    brand = Column(String(80), default="")
     description = Column(Text, default="")
     active = Column(Boolean, nullable=False, default=True)
     custom = Column(Boolean, nullable=False, default=False)

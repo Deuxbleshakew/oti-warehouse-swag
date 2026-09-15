@@ -579,8 +579,11 @@
   .order-card.incomplete{ border-left:4px solid var(--rust); }
   .order-card .top-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
   .order-card .oid{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted); }
-  .order-card .proj{ font-size:13px; color:var(--muted); margin-top:2px; }
+  .order-card .proj{ font:600 18px 'Oswald',sans-serif; color:var(--ink); margin-top:4px; letter-spacing:.01em; }
   .order-card .proj-meta{ font-size:11.5px; color:var(--muted); margin-top:3px; }
+  .order-card .order-meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:8px;margin-top:12px;padding:10px;background:var(--surface2);border:1px solid var(--line);border-radius:var(--radius)}
+  .order-card .meta-cell{min-width:0}.order-card .meta-label{display:block;font:600 9px 'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:2px}.order-card .meta-value{font-size:12px;color:var(--ink);word-break:break-word}
+  .order-card .items-head{display:grid;grid-template-columns:minmax(0,1fr) 110px 70px;gap:10px;margin-top:12px;padding:0 8px 5px;font:600 9px 'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
   .stamp{
     font:700 11px 'Oswald',sans-serif;
     text-transform:uppercase;
@@ -597,14 +600,15 @@
   .stamp.rejected{ color:var(--rust); }
   .stamp.fulfilled{ color:var(--ink); }
   .order-card .lines-mini{ margin-top:10px; font-size:12.5px; color:var(--ink); }
-  .order-card .lines-mini div{ display:flex; justify-content:space-between; padding:2px 0; border-bottom:1px dotted var(--line); }
+  .order-card .lines-mini div{ display:grid; grid-template-columns:minmax(0,1fr) 110px 70px; gap:10px; align-items:center; padding:7px 8px; border-bottom:1px dotted var(--line); }
+  .order-card .lines-mini .line-code{color:var(--muted);font-size:11px}.order-card .lines-mini .line-qty{text-align:right;font-weight:700}
   .order-card .lines-mini div:last-child{ border-bottom:none; }
   .order-card .notes{ margin-top:8px; font-size:12.5px; color:var(--muted); font-style:italic; }
   .incomplete-note{ margin-top:8px; padding:7px 9px; border:1px dashed var(--rust); color:var(--rust); font-size:11.5px; background:rgba(224,98,72,.06); }
   .order-actions{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
   .btn-secondary{ background:var(--surface2); color:var(--ink); border:1px solid var(--line); padding:8px 10px; border-radius:var(--radius); font:600 11px 'Oswald',sans-serif; text-transform:uppercase; letter-spacing:.04em; }
   .estimate-pill{ color:var(--safety); font-size:9px; border:1px solid rgba(242,183,5,.45); padding:1px 4px; margin-left:5px; }
-  .tracking-box{ margin-top:10px; border-top:1px dashed var(--line); padding-top:9px; font-size:12px; }
+  .tracking-box{ margin-top:12px; border:1px solid var(--line); border-left:3px solid var(--safety); background:var(--surface2); padding:10px 12px; font-size:12px; border-radius:var(--radius); }
   .proof-strip{ display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
   .proof-strip img{ width:88px; height:70px; object-fit:cover; border:1px solid var(--line); cursor:zoom-in; transition:transform .18s ease, border-color .18s ease; }
   .proof-strip img:hover{ transform:translateY(-2px); border-color:var(--safety); }
@@ -1184,9 +1188,20 @@ function notificationBellHtml(){const n=unreadNotifications();return `<button cl
 function showNotifications(){const existing=document.getElementById("notification-panel");if(existing){existing.remove();return;}const panel=document.createElement("div");panel.id="notification-panel";panel.className="notification-panel";panel.innerHTML=`<strong>Notifications</strong>${(state.notifications||[]).length?state.notifications.map(n=>`<div class="notification-row ${n.read?"":"unread"}" data-notification="${n.id}" data-object-id="${n.object_id||""}"><b>${esc(n.title)}</b><div>${esc(n.message||"")}</div><small>${new Date(n.created_at).toLocaleString()}</small></div>`).join(""):`<p class="muted">No notifications yet.</p>`}`;document.body.appendChild(panel);panel.querySelectorAll("[data-notification]").forEach(r=>r.onclick=async()=>{await api(`/notifications/${r.dataset.notification}/read`,{method:"POST"}).catch(()=>{});const n=state.notifications.find(x=>String(x.id)===r.dataset.notification);if(n)n.read=true;panel.remove();if(r.dataset.objectId){state.tab="orders";}render();});}
 function kitImage(id){return id?`${state.apiBase}/item-images/${id}?access_token=${encodeURIComponent(state.token||"")}&v=${id}`:"";}
 function kitImageUrl(k){return k&&k.image_available?`${state.apiBase}/kit-images/${k.id}?access_token=${encodeURIComponent(state.token||"")}&v=${k.id}`:"";}
+function visibleKits(){
+  return (state.kits||[]).filter(k=>!state.brand || (k.brand||"Unbranded")===state.brand);
+}
+function catalogBrands(){
+  const values=[...state.catalog.map(i=>i.brand||"Unbranded"),...(state.kits||[]).map(k=>k.brand||"Unbranded")];
+  return [...new Set(values)].sort((a,b)=>a.localeCompare(b));
+}
+function catalogBrandCount(brand){
+  return state.catalog.filter(i=>(i.brand||"Unbranded")===brand).length + (state.kits||[]).filter(k=>(k.brand||"Unbranded")===brand).length;
+}
 function renderKits(){
-  if(!state.kits.length)return "";
-  return `<section class="kit-section"><div class="cat-head"><span>Kits & Swag Sets</span><span class="n">${state.kits.length}</span></div><div class="grid">${state.kits.map(k=>{
+  const kits=visibleKits();
+  if(!kits.length)return "";
+  return `<section class="kit-section"><div class="cat-head"><span>Kits & Swag Sets</span><span class="n">${kits.length}</span></div><div class="grid">${kits.map(k=>{
     const draft=Number(state.kitDraftQty[k.id] ?? state.kitCart[k.id] ?? 0), inCart=Number(state.kitCart[k.id]||0), max=Number(k.buildable_quantity||0), photo=kitImageUrl(k), same=inCart>0&&draft===inCart;
     return `<article class="tag kit-product-card"><div class="photo">${photo?`<img src="${esc(photo)}" alt="${esc(k.name)}" loading="lazy" data-lightbox-src="${esc(photo)}" onerror="handleImageError(this)">`:`<span class="photo-fallback">🎁</span>`}${max<1?`<span class="stock-badge out_of_stock">OUT OF STOCK</span>`:""}</div><div class="perf"></div><div class="body"><div class="code mono">${esc(k.code)}</div><div class="name">${esc(k.name)}</div><div class="meta">Kit / Swag Set${k.description?` · ${esc(k.description)}`:""}</div><div class="kit-parts">${k.components.map(c=>`<span class="kit-part">${c.image_id?`<img src="${kitImage(c.image_id)}">`:"📦"}${c.quantity}× ${esc(c.item_name||c.item_code)}</span>`).join("")}</div><div class="row-bottom"><div class="stock">BUILDABLE: ${max}</div><div class="stepper"><button data-kit-act="dec" data-kit-id="${k.id}" ${draft<=0?"disabled":""}>−</button><input class="qty kit-qty-input" type="number" min="0" max="${max}" value="${draft||""}" data-kit-qty="${k.id}" ${max<1?"disabled":""}><button data-kit-act="inc" data-kit-id="${k.id}" ${draft>=max?"disabled":""}>+</button></div></div><div class="card-buy"><button class="add-cart ${same?"in-cart":""}" data-add-kit="${k.id}" ${max<1||draft<1?"disabled":""}>${inCart?(same?"In Cart":"Update Cart"):"Add to Cart"}</button><div class="draft-note">${inCart?`Cart: ${inCart} kit${inCart===1?"":"s"}`:"Not in cart"}</div></div></div></article>`;
   }).join("")}</div></section>`;
@@ -1305,7 +1320,7 @@ async function pollLoop() {
         state.myOrders = Object.values(byId).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         if (state.tab === "orders") render();
         res.orders.forEach(o => {
-          toast(o.deleted ? ("Order #" + o.id + " was deleted.") : ("Order #" + o.id + " is now " + o.status + "."));
+          toast(o.deleted ? ((o.order_number || ("ORD-" + String(o.id).padStart(6,"0"))) + " was deleted.") : ((o.order_number || ("ORD-" + String(o.id).padStart(6,"0"))) + " is now " + o.status + "."));
         });
       }
     } catch (e) {
@@ -1502,7 +1517,7 @@ async function submitOrder() {
     if (savedForReuse) {
       try { state.projects = await api("/projects"); } catch (_) {}
     }
-    toast("Order #" + order.id + " submitted — pending approval.");
+    toast((order.order_number || ("ORD-" + String(order.id).padStart(6,"0"))) + " submitted — pending approval.");
     state.tab = "orders";
     await loadMyOrders();
   } catch (e) {
@@ -1703,8 +1718,8 @@ function renderFilterRail() {
   const counts = quickFilterCounts();
   const categories = [...new Set(state.catalog.map(i => i.category || "Uncategorized"))].sort((a,b) => a.localeCompare(b));
   const categoryCount = cat => state.catalog.filter(i => (i.category || "Uncategorized") === cat).length;
-  const brands = [...new Set(state.catalog.map(i => i.brand || "Unbranded"))].sort((a,b)=>a.localeCompare(b));
-  const brandCount = brand => state.catalog.filter(i => (i.brand || "Unbranded") === brand).length;
+  const brands = catalogBrands();
+  const brandCount = brand => catalogBrandCount(brand);
   const quick = [
     ["all", "All items", counts.all],
     ["favorites", "Favorites", counts.favorites],
@@ -1722,8 +1737,9 @@ function renderFilterRail() {
       </div>
     </div>
     <div class="filter-group">
-      <div class="filter-title">Quick views</div>
-      ${quick.map(([key,label,n]) => `<button class="filter-option ${state.quickFilter === key ? "active" : ""}" data-quick-filter="${key}"><span>${esc(label)}</span><span class="filter-n">${n}</span></button>`).join("")}
+      <div class="filter-title">Brands</div>
+      <button class="filter-option ${!state.brand ? "active" : ""}" data-brand-choice=""><span>All brands</span><span class="filter-n">${state.catalog.length + (state.kits||[]).length}</span></button>
+      ${brands.map(brand => `<button class="filter-option ${state.brand === brand ? "active" : ""}" data-brand-choice="${esc(brand)}"><span>${esc(brand)}</span><span class="filter-n">${brandCount(brand)}</span></button>`).join("")}
     </div>
     <div class="filter-group">
       <div class="filter-title">Categories</div>
@@ -1731,9 +1747,8 @@ function renderFilterRail() {
       ${categories.map(cat => `<button class="filter-option ${state.category === cat ? "active" : ""}" data-category-choice="${esc(cat)}"><span>${esc(cat)}</span><span class="filter-n">${categoryCount(cat)}</span></button>`).join("")}
     </div>
     <div class="filter-group">
-      <div class="filter-title">Brands</div>
-      <button class="filter-option ${!state.brand ? "active" : ""}" data-brand-choice=""><span>All brands</span><span class="filter-n">${state.catalog.length}</span></button>
-      ${brands.map(brand => `<button class="filter-option ${state.brand === brand ? "active" : ""}" data-brand-choice="${esc(brand)}"><span>${esc(brand)}</span><span class="filter-n">${brandCount(brand)}</span></button>`).join("")}
+      <div class="filter-title">Quick views</div>
+      ${quick.map(([key,label,n]) => `<button class="filter-option ${state.quickFilter === key ? "active" : ""}" data-quick-filter="${key}"><span>${esc(label)}</span><span class="filter-n">${n}</span></button>`).join("")}
     </div>
   </div>`;
 }
@@ -1763,6 +1778,10 @@ function renderCatalogTab() {
     <div class="toolbar">
       <button class="mobile-filter-btn" id="mobile-filter-open" type="button">☰ Filters</button>
       <input type="search" id="search" placeholder="Search item, part #, or location…" value="${esc(state.search)}">
+      <select id="brand-top" aria-label="Filter catalog by brand">
+        <option value="">All Brands</option>
+        ${catalogBrands().map(brand=>`<option value="${esc(brand)}" ${state.brand===brand?"selected":""}>${esc(brand)} (${catalogBrandCount(brand)})</option>`).join("")}
+      </select>
       <select id="sort-by">
         <option value="name" ${state.sort === "name" ? "selected" : ""}>Sort: Name</option>
         <option value="code" ${state.sort === "code" ? "selected" : ""}>Sort: Part #</option>
@@ -1775,6 +1794,12 @@ function renderCatalogTab() {
   `;
 }
 
+function displayDate(value) {
+  if (!value) return "";
+  const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[2]}/${m[3]}/${m[1]}` : String(value);
+}
+
 function renderOrdersTab() {
   if (state.loadingOrders && !state.myOrders.length) return loadingMarkup("Loading your orders…");
   if (!state.myOrders.length) return `<div class="empty-state">No orders yet — build one from the Catalog tab.</div>`;
@@ -1783,32 +1808,36 @@ function renderOrdersTab() {
     const address = formattedAddress(p);
     const proof = (o.proof_photo_ids || []).map(id => {
       const cached = state.proofUrls[id] || "";
-      return `<img ${cached ? `src="${esc(cached)}" data-lightbox-src="${esc(cached)}"` : ""} data-proof-id="${id}" alt="Completion proof for order ${o.id}">`;
+      return `<img ${cached ? `src="${esc(cached)}" data-lightbox-src="${esc(cached)}"` : ""} data-proof-id="${id}" alt="Completion proof for ${esc(o.order_number || ('order '+o.id))}">`;
     }).join("");
+    const orderNo = o.order_number || `ORD-${String(o.id).padStart(6,"0")}`;
+    const meta = p ? [
+      ["Event", displayDate(p.event_date) || "Pending"],
+      ["Deliver by", displayDate(p.delivery_date) || "Pending"],
+      ["Ship by", displayDate(p.ship_by_date) || "Pending"],
+      ["UPS Ground", p.ups_ground_days ? `${p.ups_ground_days} business day${p.ups_ground_days===1?"":"s"}` : "Pending"],
+      ["Venue", p.location || "—"],
+      ["Ship to", address || "Address pending"],
+      ["Attendees", p.attendees != null ? String(p.attendees) : "—"],
+    ] : [["Ship to","Address pending"]];
     return `
     <div class="order-card ${o.incomplete ? "incomplete" : ""}">
       <div class="top-row">
         <div>
-          <div class="oid">ORDER #${o.id}</div>
-          ${o.project ? `<div class="proj">${esc(o.project)}</div>` : ""}
-          ${p ? `<div class="proj-meta">${[
-            p.event_date ? "Event: " + p.event_date : "",
-            p.delivery_date ? "Deliver: " + p.delivery_date : "",
-            p.ship_by_date ? "Ship by: " + p.ship_by_date : "",
-            p.ups_ground_days ? "UPS Ground: " + p.ups_ground_days + " business day" + (p.ups_ground_days === 1 ? "" : "s") : "",
-            p.location ? "Venue: " + p.location : "",
-            address ? "Ship to: " + address : "Address pending",
-            p.attendees != null ? p.attendees + " attendees" : "",
-          ].filter(Boolean).map(esc).join(" · ")}</div>` : `<div class="proj-meta">Address pending</div>`}
+          <div class="oid">${esc(orderNo)}</div>
+          <div class="proj">${esc(o.project || "General Order")}</div>
+          <div class="proj-meta">Requested by ${esc(o.requester || "")}</div>
         </div>
         <div class="stamp ${o.status}">${esc(o.status)}</div>
       </div>
+      <div class="order-meta-grid">${meta.map(([label,value])=>`<div class="meta-cell"><span class="meta-label">${esc(label)}</span><span class="meta-value">${esc(value)}</span></div>`).join("")}</div>
       ${o.incomplete ? `<div class="incomplete-note">INCOMPLETE · ${o.incomplete_reasons.map(esc).join(" · ")}</div>` : ""}
+      <div class="items-head"><span>Item</span><span>Part #</span><span style="text-align:right">Qty</span></div>
       <div class="lines-mini">
-        ${o.lines.map(l => `<div><span>${esc(l.item_name)} ${l.qty_estimated ? `<span class="estimate-pill">ESTIMATED</span>` : ""} <span class="mono" style="color:var(--muted);font-size:11px;">${esc(l.item_code)}</span></span><span class="mono">${l.qty_approved != null ? l.qty_approved + " / " : ""}${l.qty_requested}</span></div>`).join("")}
+        ${o.lines.map(l => `<div><span>${esc(l.item_name)}${l.variant_name ? ` · ${esc(l.variant_name)}` : ""} ${l.qty_estimated ? `<span class="estimate-pill">ESTIMATED</span>` : ""}</span><span class="mono line-code">${esc(l.item_code)}</span><span class="mono line-qty">${l.qty_approved != null ? l.qty_approved + " / " : ""}${l.qty_requested}</span></div>`).join("")}
       </div>
-      ${o.notes ? `<div class="notes">"${esc(o.notes)}"</div>` : ""}
-      ${(o.tracking_numbers || []).length ? `<div class="tracking-box"><strong>Tracking:</strong> ${o.tracking_numbers.map(esc).join(", ")}${proof ? `<div class="proof-strip">${proof}</div>` : ""}</div>` : ""}
+      ${o.notes ? `<div class="notes">“${esc(o.notes)}”</div>` : ""}
+      ${(o.tracking_numbers || []).length ? `<div class="tracking-box"><strong>TRACKING</strong><div style="margin-top:4px" class="mono">${o.tracking_numbers.map(esc).join(" · ")}</div>${proof ? `<div class="proof-strip">${proof}</div>` : ""}</div>` : ""}
       ${o.can_self_edit ? `<div class="order-actions"><button class="btn-secondary edit-order" data-order-id="${o.id}">Edit Pending Order</button></div>` : ""}
     </div>`;
   }).join("")}</div>`;
@@ -1858,7 +1887,7 @@ function openOrderEditor(orderId) {
       <label class="estimated-edit"><input class="edit-estimated" data-item-id="${line.item_id}" type="checkbox" ${line.qty_estimated ? "checked" : ""}> Estimated</label>
     </div>`).join("");
   openModal(`
-    <h2>Edit Pending Order #${order.id}</h2>
+    <h2>Edit Pending ${esc(order.order_number || (`ORD-${String(order.id).padStart(6,"0")}`))}</h2>
     <div class="modal-sub">You can change quantities and delivery details until the order is approved or rejected.</div>
     <div class="modal-grid">
       <div><label>Project / event name</label><input id="edit-project-name" value="${esc(p.name || order.project || `Order ${order.id} delivery`)}"></div>
@@ -1924,7 +1953,7 @@ function openOrderEditor(orderId) {
         }),
       });
       closeModal();
-      toast("Order #" + order.id + " updated.");
+      toast((order.order_number || ("ORD-" + String(order.id).padStart(6,"0"))) + " updated.");
       await loadMyOrders();
     } catch (e) {
       error.textContent = e.message;
@@ -2337,6 +2366,9 @@ function wireApp(searchHadFocus, searchCursorPos) {
     render();
   });
 
+  const brandTop = document.getElementById("brand-top");
+  if (brandTop) brandTop.addEventListener("change", (e) => { state.brand = e.target.value || ""; render(); });
+
   const searchEl = document.getElementById("search");
   if (searchEl) {
     searchEl.addEventListener("input", (e) => { state.search = e.target.value; render(); });
@@ -2453,10 +2485,10 @@ function wireApp(searchHadFocus, searchCursorPos) {
 
   document.getElementById("notification-bell")?.addEventListener("click",showNotifications);
   document.querySelectorAll("[data-variant-select]").forEach(sel=>sel.addEventListener("change",()=>{const id=Number(sel.dataset.variantSelect);state.selectedVariants[id]=Number(sel.value);state.draftQty[id]=0;state.draftEstimated[id]=false;saveCartDraft();render();}));
-  const requestDialog=(type)=>{const label=type==="new_user"?"Request New User":"Request New Item";showModal(`<div class="modal-head"><h2>${label}</h2><button class="modal-x" id="modal-x">×</button></div><div class="field"><label>Short title</label><input id="portal-request-title"></div><div class="field"><label>Details / notes</label><textarea id="portal-request-details" rows="5"></textarea></div><div class="err-line" id="portal-request-error"></div><button class="btn-primary" id="portal-request-send">Submit Request</button>`);document.getElementById("modal-x").onclick=closeModal;document.getElementById("portal-request-send").onclick=async()=>{try{await api(`/admin-requests/${type}`,{method:"POST",body:JSON.stringify({title:document.getElementById("portal-request-title").value.trim(),details:document.getElementById("portal-request-details").value.trim()})});closeModal();toast(label+" sent.");}catch(e){document.getElementById("portal-request-error").textContent=e.message;}}};
+  const requestDialog=(type)=>{const isUser=type==="new_user",label=isUser?"Request New User":"Request New Item",titleLabel=isUser?"User name / request title":"Item name / request title";openModal(`<div class="modal-head"><h2>${label}</h2><button class="modal-x" id="modal-x">×</button></div><div class="field"><label>${titleLabel} *</label><input id="portal-request-title" maxlength="200" autofocus></div><div class="field"><label>Details / notes</label><textarea id="portal-request-details" rows="5" maxlength="2000"></textarea></div><div class="err-line" id="portal-request-error"></div><button class="btn-primary" id="portal-request-send">Submit Request</button>`);document.getElementById("modal-x").onclick=closeModal;document.getElementById("portal-request-send").onclick=async()=>{const title=document.getElementById("portal-request-title").value.trim(),details=document.getElementById("portal-request-details").value.trim(),err=document.getElementById("portal-request-error");if(!title){err.textContent="Enter a name or short title for this request.";return;}err.textContent="";try{await api(`/admin-requests/${type}`,{method:"POST",body:JSON.stringify({title,details})});closeModal();toast(label+" sent.");}catch(e){err.textContent=e.message;}}};
   document.getElementById("request-new-user")?.addEventListener("click",()=>requestDialog("new_user"));
   document.getElementById("request-new-item")?.addEventListener("click",()=>requestDialog("new_item"));
-  document.getElementById("request-history")?.addEventListener("click",async()=>{try{const rows=await api("/admin-requests");showModal(`<div class="modal-head"><h2>Admin Requests</h2><button class="modal-x" id="modal-x">×</button></div><div class="request-history">${rows.length?rows.map(r=>`<div class="request-history-row"><b>${r.request_type==="new_user"?"New User":"New Item"} · ${esc(r.title)}</b><div>${esc(r.details||"")}</div><small>${esc(r.status)} · ${new Date(r.created_at).toLocaleString()}</small></div>`).join(""):`<div class="empty">No requests yet.</div>`}</div>`);document.getElementById("modal-x").onclick=closeModal;}catch(e){toast(e.message,true);}});
+  document.getElementById("request-history")?.addEventListener("click",async()=>{try{const rows=await api("/admin-requests");openModal(`<div class="modal-head"><h2>Admin Requests</h2><button class="modal-x" id="modal-x">×</button></div><div class="request-history">${rows.length?rows.map(r=>`<div class="request-history-row"><b>${r.request_type==="new_user"?"New User":"New Item"} · ${esc(r.title)}</b><div>${esc(r.details||"")}</div><small>${esc(r.status)} · ${new Date(r.created_at).toLocaleString()}</small></div>`).join(""):`<div class="empty">No requests yet.</div>`}</div>`);document.getElementById("modal-x").onclick=closeModal;}catch(e){toast(e.message,true);}});
   document.querySelectorAll("[data-kit-act]").forEach(btn=>btn.addEventListener("click",()=>{const id=Number(btn.dataset.kitId),k=state.kits.find(x=>x.id===id),max=Number(k?.buildable_quantity||0),cur=Number(state.kitDraftQty[id]??state.kitCart[id]??0);state.kitDraftQty[id]=Math.max(0,Math.min(max,cur+(btn.dataset.kitAct==="inc"?1:-1)));render();}));
   document.querySelectorAll("[data-kit-qty]").forEach(inp=>inp.addEventListener("input",()=>{const id=Number(inp.dataset.kitQty),k=state.kits.find(x=>x.id===id),max=Number(k?.buildable_quantity||0);state.kitDraftQty[id]=Math.max(0,Math.min(max,Number(inp.value||0)));}));
   document.querySelectorAll("[data-add-kit]").forEach(btn=>btn.addEventListener("click",()=>{const id=Number(btn.dataset.addKit),k=state.kits.find(x=>x.id===id);if(!k)return;const q=Math.max(0,Math.min(Number(k.buildable_quantity||0),Number(state.kitDraftQty[id]??state.kitCart[id]??0)));if(q<1)return;state.kitCart[id]=q;state.kitDraftQty[id]=q;saveCartDraft();toast(k.name+" added to cart.");render();}));

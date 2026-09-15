@@ -142,6 +142,10 @@ def _ensure_private_project(db: Session, order: Order) -> Project:
     return clone
 
 
+def order_label(order: Order) -> str:
+    return order.order_number or f"ORD-{order.id:06d}"
+
+
 def incomplete_reasons(order: Order) -> list[str]:
     reasons: list[str] = []
     project = order.project
@@ -231,6 +235,8 @@ def create_order(db: Session, *, requester: User, project_id: Optional[int],
                   status="pending", notes=(notes or "").strip())
     db.add(order)
     db.flush()
+    order.order_number = f"ORD-{order.id:06d}"
+    db.flush()
 
     seen = set()
     for ln in lines:
@@ -259,7 +265,7 @@ def create_order(db: Session, *, requester: User, project_id: Optional[int],
         total_available = (variant.qty_location_0 + variant.qty_location_2501) if variant else item.qty_on_hand
         if loc0 < ln.qty <= total_available:
             label = f"{item.name} / {variant.name}" if variant else item.name
-            _notify_admins(db, "other_location_stock", f"Order #{order.id}: off-site stock needed",
+            _notify_admins(db, "other_location_stock", f"{order_label(order)}: off-site stock needed",
                            f"{label}: location 0 has {loc0}, request needs {ln.qty}. Pick/transfer the remainder from 2501.", order.id)
         db.add(OrderLine(order_id=order.id, item_id=item.id,
                          variant_id=variant.id if variant else None,
@@ -280,7 +286,7 @@ def create_order(db: Session, *, requester: User, project_id: Optional[int],
                    "project_id": linked_project.id if linked_project else None,
                    "save_project": bool(save_project),
                }, source=source)
-    _notify_admins(db,"new_order",f"New order #{order.id}",f"{requester.full_name or requester.username} submitted an order.",order.id)
+    _notify_admins(db,"new_order",f"New order {order.order_number or f'ORD-{order.id:06d}'}",f"{requester.full_name or requester.username} submitted an order.",order.id)
     db.commit()
     created = _load_order(db, order.id)
     notify_new_order_async(created)
@@ -385,7 +391,7 @@ def edit_order(db: Session, *, order_id: int, actor: User,
                     line.item.qty_on_hand += returned
                     db.add(InventoryTransaction(
                         item_id=item_id, delta=returned,
-                        reason=f"Order #{order.id} edit returned removed line",
+                        reason=f"{order_label(order)} edit returned removed line",
                         source=source, user_id=actor.id,
                         item_code_snapshot=line.item_code_snapshot or line.item.code,
                         item_name_snapshot=line.item_name_snapshot or line.item.name))
@@ -406,7 +412,7 @@ def edit_order(db: Session, *, order_id: int, actor: User,
                     item.qty_on_hand -= delta_from_stock
                     db.add(InventoryTransaction(
                         item_id=item.id, delta=-delta_from_stock,
-                        reason=f"Order #{order.id} quantity edited",
+                        reason=f"{order_label(order)} quantity edited",
                         source=source, user_id=actor.id,
                         item_code_snapshot=item.code,
                         item_name_snapshot=item.name))
@@ -495,12 +501,12 @@ def approve_order(db: Session, *, order_id: int, approver: User,
                 item.qty_on_hand -= approved_qty
             db.add(InventoryTransaction(
                 item_id=item.id, delta=-approved_qty,
-                reason=f"Order #{order.id} approved" + (f" [{variant.name}]" if variant else ""), source=source,
+                reason=f"{order_label(order)} approved" + (f" [{variant.name}]" if variant else ""), source=source,
                 user_id=approver.id, item_code_snapshot=item.code,
                 item_name_snapshot=item.name + (f" / {variant.name}" if variant else ""),
                 inventory_location=inventory_location))
     order.status = "approved"
-    _notify(db,order.requester_user_id,"approved",f"Order #{order.id} approved","Your order was approved and is waiting to be picked.",object_id=order.id)
+    _notify(db,order.requester_user_id,"approved",f"{order_label(order)} approved","Your order was approved and is waiting to be picked.",object_id=order.id)
     db.add(Approval(order_id=order.id, approver_user_id=approver.id,
                     decision="approved", reason=reason))
     log_action(db, user_id=approver.id, action="order.approve",
@@ -519,7 +525,7 @@ def reject_order(db: Session, *, order_id: int, approver: User, reason: str,
     if order.status != "pending":
         raise OrderError(f"Order is already {order.status}, not pending.")
     order.status = "rejected"
-    _notify(db,order.requester_user_id,"rejected",f"Order #{order.id} rejected",reason,object_id=order.id)
+    _notify(db,order.requester_user_id,"rejected",f"{order_label(order)} rejected",reason,object_id=order.id)
     db.add(Approval(order_id=order.id, approver_user_id=approver.id,
                     decision="rejected", reason=reason))
     log_action(db, user_id=approver.id, action="order.reject",
@@ -537,7 +543,7 @@ def start_picking(db: Session, *, order_id: int, actor: User,
     if order.status != "approved":
         raise OrderError("Only an approved order can be marked as being picked.")
     order.status = "picking"
-    _notify(db,order.requester_user_id,"picking",f"Order #{order.id} is being picked","The warehouse started gathering your items.",object_id=order.id)
+    _notify(db,order.requester_user_id,"picking",f"{order_label(order)} is being picked","The warehouse started gathering your items.",object_id=order.id)
     order.picking_started_at = datetime.now(timezone.utc)
     log_action(db, user_id=actor.id, action="order.pick_start",
                object_type="order", object_id=order.id,
@@ -567,7 +573,7 @@ def delete_order(db: Session, *, order_id: int, actor: User,
     order.proof_photos.clear()
     # Keep the stock ledger, but make its orphaned source obvious after the
     # order itself disappears from the order-history screens.
-    prefix = f"Order #{order.id}"
+    prefix = order_label(order)
     for tx in (db.query(InventoryTransaction)
                .filter(InventoryTransaction.reason.like(prefix + "%")).all()):
         tx.reason = "Deleted " + tx.reason
@@ -640,7 +646,7 @@ def fulfill_order(db: Session, *, order_id: int, actor: User,
                                filename=(filename or "proof.jpg")[:255],
                                content_type=content_type, content=content))
     order.status = "fulfilled"
-    _notify(db,order.requester_user_id,"fulfilled",f"Order #{order.id} completed","Tracking and shipment proof are now available.",object_id=order.id)
+    _notify(db,order.requester_user_id,"fulfilled",f"{order_label(order)} completed","Tracking and shipment proof are now available.",object_id=order.id)
     order.fulfilled_at = datetime.now(timezone.utc)
     nav_task_count = _create_nav_adjustment_tasks(db, order)
     log_action(db, user_id=actor.id, action="order.fulfill",
@@ -660,7 +666,7 @@ def to_order_out(order: Order, viewer: User | None = None, db: Session | None = 
         project_out = project_out.model_copy(update={"name": project_label, "deleted": True, "active": False})
     reasons = incomplete_reasons(order)
     return OrderOut(
-        id=order.id, status=order.status,
+        id=order.id, order_number=(order.order_number or f"ORD-{order.id:06d}"), status=order.status,
         requester=order.requester.full_name or order.requester.username,
         project=project_label,
         project_id=order.project_id, project_details=project_out,
