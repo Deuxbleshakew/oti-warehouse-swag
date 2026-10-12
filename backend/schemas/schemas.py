@@ -1,0 +1,543 @@
+"""Pydantic request/response models for the API contract."""
+from datetime import datetime
+from typing import List, Optional, Dict
+
+from pydantic import BaseModel, Field, ConfigDict
+
+
+# ---- Auth -------------------------------------------------------------------
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    username: str
+    full_name: str
+    active: bool
+    theme: str = "warehouse-dark"
+    catalog_access_mode: str = "all"
+    roles: List[str] = []
+
+    @classmethod
+    def from_orm_user(cls, user):
+        return cls(id=user.id, username=user.username, full_name=user.full_name,
+                   active=user.active, theme=user.theme or "warehouse-dark",
+                   catalog_access_mode=user.catalog_access_mode or "all",
+                   roles=[r.name for r in user.roles])
+
+
+class TokenResponse(BaseModel):
+    token: str
+    expires_at: datetime
+    user: UserOut
+
+
+class UserCreate(BaseModel):
+    username: str
+    full_name: str = ""
+    password: str
+    roles: List[str] = Field(default_factory=list)
+
+
+class UserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    active: Optional[bool] = None
+    roles: Optional[List[str]] = None
+    password: Optional[str] = None
+    catalog_access_mode: Optional[str] = Field(default=None, pattern="^(all|restricted)$")
+
+
+class UserPreferencesOut(BaseModel):
+    theme: str = "warehouse-dark"
+    favorite_item_ids: List[int] = []
+
+
+class UserPreferencesUpdate(BaseModel):
+    theme: str = Field(pattern="^(warehouse-dark|light|high-contrast|system)$")
+
+
+class CatalogPermissionOut(BaseModel):
+    id: int
+    user_id: int
+    scope_type: str
+    scope_value: str
+
+
+class CatalogPermissionsUpdate(BaseModel):
+    catalog_access_mode: str = Field(pattern="^(all|restricted)$")
+    item_ids: List[int] = Field(default_factory=list)
+    categories: List[str] = Field(default_factory=list)
+    brands: List[str] = Field(default_factory=list)
+
+
+# ---- Items / catalog ---------------------------------------------------------
+class ItemLocationOut(BaseModel):
+    id: int
+    location_name: str
+    quantity: int
+    bin_location: str = ""
+
+
+
+class ItemVariantOut(BaseModel):
+    id: int
+    item_id: int
+    name: str
+    color: str = ""
+    color_name: str = ""
+    details: str = ""
+    image_id: Optional[int] = None
+    qty_location_0: int = 0
+    qty_location_2501: int = 0
+    qty_on_hand: int = 0
+    reorder_threshold: int = 0
+    nav_tracked: bool = False
+    nav_item_number: str = ""
+    active: bool = True
+    position: int = 0
+
+class ItemVariantCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    color: str = ""
+    color_name: str = ""
+    details: str = Field(default="", max_length=255)
+    image_id: Optional[int] = None
+    qty_location_0: int = Field(default=0, ge=0)
+    qty_location_2501: int = Field(default=0, ge=0)
+    reorder_threshold: int = Field(default=0, ge=0)
+    nav_tracked: bool = False
+    nav_item_number: str = Field(default="", max_length=80)
+    active: bool = True
+    position: int = 0
+
+class ItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    code: str
+    name: str
+    description: str
+    category: str
+    brand: str
+    color: str
+    color_name: str
+    measures: str
+    location: str
+    qty_on_hand: int
+    inventory_counted: bool = True
+    nav_tracked: bool = False
+    nav_item_number: str = ""
+    reorder_threshold: int
+    cost: float
+    active: bool
+    images: List[str] = []
+    image_ids: List[int] = []
+    open_count_requests: int = 0
+    favorite: bool = False
+    stock_status: str = "in_stock"
+    last_count_at: Optional[datetime] = None
+    last_count_quantity: Optional[int] = None
+    last_count_location: str = ""
+    location_balances: List[ItemLocationOut] = []
+    variants: List[ItemVariantOut] = []
+
+    @classmethod
+    def from_orm_item(cls, item, include_sensitive=True,
+                      open_count_requests: int = 0, favorite: bool = False,
+                      last_count_at=None, last_count_quantity=None, last_count_location=""):
+        return cls(
+            id=item.id, code=item.code, name=item.name,
+            description=item.description, category=item.category,
+            brand=item.brand, color=item.color, color_name=item.color_name,
+            measures=item.measures, location=item.location,
+            qty_on_hand=item.qty_on_hand if include_sensitive else -1,
+            inventory_counted=bool(getattr(item, "inventory_counted", True)),
+            nav_tracked=bool(getattr(item, "nav_tracked", False)),
+            nav_item_number=(getattr(item, "nav_item_number", "") or ""),
+            reorder_threshold=item.reorder_threshold,
+            cost=item.cost if include_sensitive else 0.0,
+            active=item.active,
+            images=[img.filename for img in item.images],
+            image_ids=[img.id for img in item.images],
+            open_count_requests=open_count_requests, favorite=favorite,
+            last_count_at=last_count_at, last_count_quantity=last_count_quantity,
+            last_count_location=last_count_location or "",
+            location_balances=[ItemLocationOut(id=b.id, location_name=b.location_name, quantity=b.quantity, bin_location=b.bin_location or "") for b in getattr(item, "location_balances", [])],
+            variants=[ItemVariantOut(id=v.id,item_id=v.item_id,name=v.name,color=v.color or "",color_name=v.color_name or "",details=v.details or "",image_id=v.image_id,qty_location_0=v.qty_location_0,qty_location_2501=v.qty_location_2501,qty_on_hand=v.qty_location_0+v.qty_location_2501,reorder_threshold=v.reorder_threshold,nav_tracked=v.nav_tracked,nav_item_number=v.nav_item_number or "",active=v.active,position=v.position) for v in getattr(item,"variants",[])],
+            stock_status=("not_counted" if not bool(getattr(item, "inventory_counted", True)) else
+                          "out_of_stock" if item.qty_on_hand <= 0 else
+                          "low_stock" if item.qty_on_hand <= item.reorder_threshold else
+                          "in_stock"),
+        )
+
+
+class ItemCreate(BaseModel):
+    code: str
+    name: str
+    description: str = ""
+    category: str = ""
+    brand: str = ""
+    color: str = ""
+    color_name: str = ""
+    measures: str = ""
+    location: str = ""
+    qty_on_hand: Optional[int] = Field(default=None, ge=0)
+    nav_tracked: bool = False
+    nav_item_number: str = Field(default="", max_length=80)
+    reorder_threshold: int = 0
+    cost: float = 0.0
+    active: bool = True
+
+
+class ItemUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    brand: Optional[str] = None
+    color: Optional[str] = None
+    color_name: Optional[str] = None
+    measures: Optional[str] = None
+    location: Optional[str] = None
+    nav_tracked: Optional[bool] = None
+    nav_item_number: Optional[str] = Field(default=None, max_length=80)
+    reorder_threshold: Optional[int] = None
+    cost: Optional[float] = None
+    active: Optional[bool] = None
+
+
+class InventoryAdjustRequest(BaseModel):
+    item_id: int
+    delta: int
+    reason: str
+    allow_negative: bool = False
+    inventory_location: str = "0"
+
+
+class InventoryTransferRequest(BaseModel):
+    item_id: int
+    from_location: str
+    to_location: str
+    quantity: int = Field(gt=0)
+    reason: str = "Building transfer"
+
+
+class InventoryTransactionOut(BaseModel):
+    id: int
+    item_id: int
+    item_code: str
+    item_name: str
+    inventory_location: str = "0"
+    delta: int
+    reason: str
+    source: str
+    user: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+
+class InventoryTransactionUpdate(BaseModel):
+    delta: int
+    reason: str = Field(min_length=1, max_length=255)
+    allow_negative: bool = False
+
+
+class NavAdjustmentOut(BaseModel):
+    id: int
+    order_id: int
+    project: str
+    item_id: int
+    item_code: str
+    item_name: str
+    nav_item_number: str
+    quantity_shipped: int
+    fulfilled_at: datetime
+    status: str
+    notes: str = ""
+    posted_at: Optional[datetime] = None
+    posted_by: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class NavAdjustmentUpdate(BaseModel):
+    status: str = Field(pattern="^(pending|posted)$")
+    notes: str = Field(default="", max_length=500)
+
+
+# ---- Projects ----------------------------------------------------------------
+class ProjectOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    description: str
+    owner: str
+    event_date: str
+    delivery_date: str
+    ship_by_date: str = ""
+    location: str
+    shipping_address1: str = ""
+    shipping_address2: str = ""
+    shipping_city: str = ""
+    shipping_state: str = ""
+    shipping_postal_code: str = ""
+    shipping_service: str = "UPS Ground"
+    ups_ground_days: Optional[int] = None
+    attendees: Optional[int]
+    budget: Optional[float]
+    status: str
+    active: bool = True
+    address_mode: str = "variable"
+    access_restricted: bool = False
+    deleted: bool = False
+
+
+class ProjectCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    description: str = ""
+    purpose: str = ""
+    owner: str = ""
+    customer: str = ""
+    event_date: str = ""
+    delivery_date: str = ""
+    ship_by_date: str = ""
+    location: str = ""
+    shipping_address1: str = ""
+    shipping_address2: str = ""
+    shipping_city: str = ""
+    shipping_state: str = ""
+    shipping_postal_code: str = ""
+    shipping_service: str = "UPS Ground"
+    # accepted for old clients but ignored; transit is map-driven by state
+    ups_ground_days: Optional[int] = None
+    attendees: Optional[int] = None
+    budget: Optional[float] = None
+    status: str = "planning"
+    notes: str = ""
+    active: bool = True
+    address_mode: str = Field(default="variable", pattern="^(fixed|variable)$")
+    access_restricted: bool = True
+
+
+class ProjectMemberOut(BaseModel):
+    user_id: int
+    username: str
+    full_name: str
+    access_level: str
+
+
+class ProjectMembersUpdate(BaseModel):
+    members: List[dict] = Field(default_factory=list)
+
+
+class AdminProjectOut(ProjectOut):
+    members: List[ProjectMemberOut] = Field(default_factory=list)
+
+
+class ProjectEdit(BaseModel):
+    name: Optional[str] = Field(default=None, max_length=200)
+    description: Optional[str] = None
+    owner: Optional[str] = None
+    event_date: Optional[str] = None
+    location: Optional[str] = None
+    shipping_address1: Optional[str] = None
+    shipping_address2: Optional[str] = None
+    shipping_city: Optional[str] = None
+    shipping_state: Optional[str] = None
+    shipping_postal_code: Optional[str] = None
+    attendees: Optional[int] = None
+    active: Optional[bool] = None
+    address_mode: Optional[str] = Field(default=None, pattern="^(fixed|variable)$")
+    access_restricted: Optional[bool] = None
+
+
+# ---- Orders -------------------------------------------------------------------
+class OrderLineIn(BaseModel):
+    item_id: int
+    qty: int = Field(gt=0)
+    estimated: bool = False
+    variant_id: Optional[int] = None
+
+
+class OrderEditLine(BaseModel):
+    item_id: int
+    qty: int = Field(gt=0)
+    estimated: bool = False
+    variant_id: Optional[int] = None
+
+
+class OrderCreate(BaseModel):
+    project_id: Optional[int] = None
+    collaborator_user_ids: List[int] = []
+    new_project: Optional[ProjectCreate] = None
+    save_project: bool = False
+    notes: str = ""
+    lines: List[OrderLineIn] = Field(min_length=1)
+
+
+class PendingOrderUpdate(BaseModel):
+    notes: Optional[str] = None
+    collaborator_user_ids: Optional[List[int]] = None
+    project: Optional[ProjectEdit] = None
+    lines: Optional[List[OrderEditLine]] = Field(default=None, min_length=1)
+
+
+class AdminOrderUpdate(PendingOrderUpdate):
+    reconcile_fulfilled: bool = False
+
+
+class OrderLineOut(BaseModel):
+    id: int
+    item_id: int
+    item_code: str
+    item_name: str
+    qty_requested: int
+    qty_estimated: bool = False
+    qty_approved: Optional[int]
+    item_location: str = ""
+    item_image_id: Optional[int] = None
+    variant_id: Optional[int] = None
+    variant_name: str = ""
+    variant_color: str = ""
+
+
+class OrderOut(BaseModel):
+    id: int
+    order_number: str = ""
+    status: str
+    requester: str
+    project: Optional[str]
+    project_id: Optional[int]
+    project_details: Optional[ProjectOut] = None
+    notes: str
+    created_at: datetime
+    updated_at: datetime
+    picking_started_at: Optional[datetime] = None
+    fulfilled_at: Optional[datetime] = None
+    incomplete: bool = False
+    incomplete_reasons: List[str] = []
+    can_self_edit: bool = False
+    tracking_numbers: List[str] = []
+    proof_photo_ids: List[int] = []
+    deleted: bool = False
+    collaborators: List[dict] = []
+    can_cancel: bool = False
+    lines: List[OrderLineOut]
+
+
+class ApproveRequest(BaseModel):
+    reason: str = ""
+    line_overrides: Optional[Dict[int, int]] = None
+    allow_negative: bool = False
+
+
+class RejectRequest(BaseModel):
+    reason: str = Field(min_length=1)
+
+
+class OrdersUpdateResponse(BaseModel):
+    server_time: datetime
+    orders: List[OrderOut]
+
+
+# ---- Count requests ----------------------------------------------------------
+class CountRequestCreate(BaseModel):
+    note: str = Field(default="", max_length=255)
+
+
+class CountRequestResolve(BaseModel):
+    physical_quantity: int = Field(ge=0)
+    inventory_location: str = Field(default="0", pattern="^(0|2501)$")
+    resolution_note: str = Field(default="", max_length=255)
+
+
+class CountRequestOut(BaseModel):
+    id: int
+    item_id: int
+    item_code: str
+    item_name: str
+    requester: str
+    note: str
+    status: str
+    resolution_note: str
+    created_at: datetime
+    resolved_at: Optional[datetime]
+    system_qty_before: Optional[int] = None
+    physical_qty: Optional[int] = None
+    adjustment_delta: Optional[int] = None
+
+
+# ---- Audit --------------------------------------------------------------------
+class AuditLogOut(BaseModel):
+    id: int
+    user: Optional[str]
+    action: str
+    object_type: str
+    object_id: str
+    old_value: str
+    new_value: str
+    source: str
+    created_at: datetime
+
+
+
+class PortalRequestCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    details: str = Field(default="", max_length=2000)
+
+class PortalRequestOut(BaseModel):
+    id: int
+    request_type: str
+    requester: str
+    title: str
+    details: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+class AnnouncementOut(BaseModel):
+    message: str = ""
+    active: bool = False
+
+class AnnouncementUpdate(BaseModel):
+    message: str = Field(default="", max_length=500)
+    active: Optional[bool] = None
+
+class NotificationOut(BaseModel):
+    id: int
+    kind: str
+    title: str
+    message: str = ""
+    object_type: str = ""
+    object_id: Optional[int] = None
+    read: bool = False
+    created_at: datetime
+
+class KitComponentIn(BaseModel):
+    item_id: int
+    quantity: int = Field(gt=0)
+    position: int = 0
+
+class KitCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    code: str = Field(min_length=1, max_length=60)
+    brand: str = Field(default="", max_length=80)
+    description: str = ""
+    active: bool = True
+    custom: bool = False
+    saved_for_reuse: bool = True
+    components: List[KitComponentIn] = Field(min_length=1)
+
+class KitOut(BaseModel):
+    id: int
+    name: str
+    code: str
+    brand: str = ""
+    description: str = ""
+    active: bool
+    custom: bool
+    saved_for_reuse: bool
+    buildable_quantity: int = 0
+    image_available: bool = False
+    components: List[dict] = Field(default_factory=list)
