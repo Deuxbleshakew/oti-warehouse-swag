@@ -10,7 +10,7 @@ from sqlalchemy import func
 
 from backend.models.models import (
     Order, OrderLine, Item, ItemVariant, Approval, InventoryTransaction, User, Project, Notification,
-    OrderTracking, OrderProofPhoto, ProjectMember, NavAdjustmentTask,
+    OrderTracking, OrderProofPhoto, ProjectMember, NavAdjustmentTask, OrderCollaborator, ItemLocationBalance,
 )
 from backend.schemas.schemas import OrderOut, OrderLineOut, ProjectOut
 from backend.services.audit_service import log_action
@@ -172,6 +172,7 @@ def _load_order(db: Session, order_id: int, *, include_deleted: bool = False) ->
         joinedload(Order.lines).joinedload(OrderLine.item),
         joinedload(Order.project), joinedload(Order.requester),
         joinedload(Order.tracking_numbers), joinedload(Order.proof_photos),
+        joinedload(Order.collaborators).joinedload(OrderCollaborator.user),
     ).filter(Order.id == order_id)
     if not include_deleted:
         query = query.filter(Order.deleted_at.is_(None))
@@ -183,7 +184,8 @@ def _load_order(db: Session, order_id: int, *, include_deleted: bool = False) ->
 
 def create_order(db: Session, *, requester: User, project_id: Optional[int],
                  notes: str, lines: list, project_data: Optional[dict] = None,
-                 save_project: bool = False, source: str = "api") -> Order:
+                 save_project: bool = False, collaborator_user_ids: Optional[list[int]] = None,
+                 source: str = "api") -> Order:
     if not lines:
         raise OrderError("An order needs at least one item.")
     linked_project = None
@@ -237,6 +239,8 @@ def create_order(db: Session, *, requester: User, project_id: Optional[int],
     db.flush()
     order.order_number = f"ORD-{order.id:06d}"
     db.flush()
+
+    _set_order_collaborators(db, order, requester, collaborator_user_ids or [])
 
     seen = set()
     for ln in lines:
@@ -313,44 +317,122 @@ def _apply_project_edit(db: Session, order: Order, project_data: Optional[dict])
                old_value=old, new_value=_project_dict(project), source="api")
 
 
-def _validate_edit_lines(db: Session, lines: list) -> list[tuple[Item, int, bool]]:
+def _validate_edit_lines(db: Session, lines: list):
     result = []
     seen = set()
     for entry in lines:
-        if entry.item_id in seen:
-            raise OrderError("Each item can appear only once in an order.")
-        seen.add(entry.item_id)
+        variant_id = getattr(entry, "variant_id", None)
+        key = (entry.item_id, variant_id)
+        if key in seen:
+            raise OrderError("Each item / variant can appear only once in an order.")
+        seen.add(key)
         item = db.query(Item).filter_by(id=entry.item_id).first()
         if not item:
             raise OrderError(f"Item {entry.item_id} no longer exists.")
         if entry.qty <= 0:
             raise OrderError("Every order quantity must be greater than zero.")
-        result.append((item, int(entry.qty), bool(entry.estimated)))
+        variant = None
+        if variant_id is not None:
+            variant = db.query(ItemVariant).filter_by(id=variant_id, item_id=item.id).first()
+            if not variant:
+                raise OrderError(f"The selected variant for {item.code} no longer exists.")
+        result.append((item, int(entry.qty), bool(entry.estimated), variant))
     if not result:
         raise OrderError("An order needs at least one item.")
     return result
 
 
+def _sync_variant_parent(item: Item) -> None:
+    if not getattr(item, "variants", None):
+        return
+    active = [v for v in item.variants if v.active]
+    item.qty_on_hand = sum(int(v.qty_location_0 or 0) + int(v.qty_location_2501 or 0) for v in active)
+    balances = {b.location_name: b for b in item.location_balances}
+    for loc in ("0", "2501"):
+        if loc not in balances:
+            bal = ItemLocationBalance(item_id=item.id, location_name=loc, quantity=0, bin_location=item.location or "")
+            item.location_balances.append(bal)
+            balances[loc] = bal
+        balances[loc].quantity = sum(int(v.qty_location_0 if loc == "0" else v.qty_location_2501 or 0) for v in active)
+
+
+def _edit_stock_delta(db: Session, *, item: Item, variant: ItemVariant | None,
+                      delta_needed: int, actor: User, order: Order, source: str) -> None:
+    """Apply an approved/picking/fulfilled edit delta. Positive consumes stock; negative restores."""
+    if delta_needed == 0:
+        return
+    name = item.name + (f" / {variant.name}" if variant else "")
+    if variant:
+        if delta_needed > 0:
+            available = int(variant.qty_location_0 or 0) + int(variant.qty_location_2501 or 0)
+            if delta_needed > available:
+                raise OrderError(f"Not enough stock for {item.code} / {variant.name}: needs {delta_needed} more, has {available}.")
+            take0 = min(int(variant.qty_location_0 or 0), delta_needed)
+            take2501 = delta_needed - take0
+            variant.qty_location_0 -= take0
+            variant.qty_location_2501 -= take2501
+            for loc, amount in (("0", take0), ("2501", take2501)):
+                if amount:
+                    db.add(InventoryTransaction(item_id=item.id, delta=-amount,
+                        reason=f"{order_label(order)} admin edit [{variant.name}]", source=source,
+                        user_id=actor.id, item_code_snapshot=item.code,
+                        item_name_snapshot=name, inventory_location=loc))
+        else:
+            restore = -delta_needed
+            variant.qty_location_0 += restore
+            db.add(InventoryTransaction(item_id=item.id, delta=restore,
+                reason=f"{order_label(order)} admin edit stock returned [{variant.name}]", source=source,
+                user_id=actor.id, item_code_snapshot=item.code,
+                item_name_snapshot=name, inventory_location="0"))
+        _sync_variant_parent(item)
+        return
+
+    balances = {b.location_name: b for b in item.location_balances}
+    for loc in ("0", "2501"):
+        if loc not in balances:
+            bal = ItemLocationBalance(item_id=item.id, location_name=loc, quantity=0, bin_location=item.location or "")
+            db.add(bal); db.flush(); balances[loc] = bal
+    if delta_needed > 0:
+        available = int(balances["0"].quantity or 0) + int(balances["2501"].quantity or 0)
+        if delta_needed > available:
+            raise OrderError(f"Not enough stock for {item.code}: needs {delta_needed} more, has {available}.")
+        take0 = min(int(balances["0"].quantity or 0), delta_needed)
+        take2501 = delta_needed - take0
+        balances["0"].quantity -= take0; balances["2501"].quantity -= take2501
+        for loc, amount in (("0", take0), ("2501", take2501)):
+            if amount:
+                db.add(InventoryTransaction(item_id=item.id, delta=-amount,
+                    reason=f"{order_label(order)} admin edit", source=source, user_id=actor.id,
+                    item_code_snapshot=item.code, item_name_snapshot=name, inventory_location=loc))
+    else:
+        restore = -delta_needed
+        balances["0"].quantity += restore
+        db.add(InventoryTransaction(item_id=item.id, delta=restore,
+            reason=f"{order_label(order)} admin edit stock returned", source=source, user_id=actor.id,
+            item_code_snapshot=item.code, item_name_snapshot=name, inventory_location="0"))
+    item.qty_on_hand = sum(int(b.quantity or 0) for b in item.location_balances)
+
+
 def edit_order(db: Session, *, order_id: int, actor: User,
                notes: Optional[str], project_data: Optional[dict],
-               lines: Optional[list], owner_only_pending: bool,
+               lines: Optional[list], collaborator_user_ids: Optional[list[int]] = None,
+               owner_only_pending: bool = False, reconcile_fulfilled: bool = False,
                source: str = "api") -> Order:
     order = _load_order(db, order_id)
     if owner_only_pending:
-        may_edit = (order.requester_user_id == actor.id or
-                    access_service.can_edit_project_order(db, actor, order.project))
+        may_edit = (order.requester_user_id == actor.id)
         if not may_edit:
             raise OrderError("You do not have edit access to this order.", status.HTTP_403_FORBIDDEN)
         if order.status != "pending":
             raise OrderError("This order can no longer be edited because it has already been reviewed.")
 
     old_snapshot = {
-        "notes": order.notes,
-        "status": order.status,
-        "lines": [{"item_id": l.item_id, "qty": l.qty_requested,
-                   "approved": l.qty_approved, "estimated": l.qty_estimated}
-                  for l in order.lines],
+        "notes": order.notes, "status": order.status,
+        "lines": [{"item_id": l.item_id, "variant_id": getattr(l, "variant_id", None),
+                   "qty": l.qty_requested, "approved": l.qty_approved,
+                   "estimated": l.qty_estimated} for l in order.lines],
         "project": _project_dict(order.project) if order.project else None,
+        "collaborators": [c.user_id for c in getattr(order, "collaborators", [])],
     }
     if notes is not None:
         order.notes = notes.strip()
@@ -358,90 +440,121 @@ def edit_order(db: Session, *, order_id: int, actor: User,
         _apply_project_edit(db, order, project_data)
 
     if lines is not None:
+        if order.status == "fulfilled" and not reconcile_fulfilled:
+            raise OrderError("Fulfilled orders require explicit inventory reconciliation. Confirm the fulfilled-order correction before saving line changes.")
         planned = _validate_edit_lines(db, lines)
         if owner_only_pending:
-            existing_qty = {line.item_id: int(line.qty_requested)
-                            for line in order.lines}
-            hidden_changes = [item.code for item, qty, _estimated in planned
+            existing_qty = {(line.item_id, getattr(line, "variant_id", None)): int(line.qty_requested) for line in order.lines}
+            hidden_changes = [item.code for item, qty, _estimated, variant in planned
                               if (not access_service.can_view_item(actor, item)
-                                  and (item.id not in existing_qty
-                                       or qty > existing_qty[item.id]))]
+                                  and ((item.id, variant.id if variant else None) not in existing_qty
+                                       or qty > existing_qty[(item.id, variant.id if variant else None)]))]
             if hidden_changes:
-                raise OrderError(
-                    "You cannot add or increase item(s) that are no longer in your catalog: "
-                    + ", ".join(hidden_changes), status.HTTP_403_FORBIDDEN)
+                raise OrderError("You cannot add or increase item(s) that are no longer in your catalog: " + ", ".join(hidden_changes), status.HTTP_403_FORBIDDEN)
+
         stock_affecting = order.status in {"approved", "picking", "fulfilled"}
-        existing = {line.item_id: line for line in order.lines}
-        desired_ids = {item.id for item, _, _ in planned}
+        existing = {(line.item_id, getattr(line, "variant_id", None)): line for line in order.lines}
+        desired_keys = {(item.id, variant.id if variant else None) for item, _, _, variant in planned}
 
-        # Validate stock changes before mutating anything.
-        if stock_affecting:
-            for item, qty, _estimated in planned:
-                old_approved = (existing[item.id].qty_approved or 0) if item.id in existing else 0
-                extra_needed = qty - old_approved
-                if extra_needed > item.qty_on_hand:
-                    raise OrderError(
-                        f"Not enough stock for {item.code}: editing needs {extra_needed} more, "
-                        f"but only {item.qty_on_hand} is available.")
-
-        for item_id, line in list(existing.items()):
-            if item_id not in desired_ids:
+        for key, line in list(existing.items()):
+            if key not in desired_keys:
                 if stock_affecting and (line.qty_approved or 0):
-                    returned = line.qty_approved or 0
-                    line.item.qty_on_hand += returned
-                    db.add(InventoryTransaction(
-                        item_id=item_id, delta=returned,
-                        reason=f"{order_label(order)} edit returned removed line",
-                        source=source, user_id=actor.id,
-                        item_code_snapshot=line.item_code_snapshot or line.item.code,
-                        item_name_snapshot=line.item_name_snapshot or line.item.name))
+                    _edit_stock_delta(db, item=line.item, variant=line.variant,
+                                      delta_needed=-(line.qty_approved or 0), actor=actor,
+                                      order=order, source=source)
                 db.delete(line)
 
-        for item, qty, estimated in planned:
-            line = existing.get(item.id)
+        for item, qty, estimated, variant in planned:
+            key = (item.id, variant.id if variant else None)
+            line = existing.get(key)
             if line is None:
                 line = OrderLine(order_id=order.id, item_id=item.id,
+                                 variant_id=variant.id if variant else None,
                                  item_code_snapshot=item.code,
                                  item_name_snapshot=item.name,
-                                 item_location_snapshot=item.location)
+                                 item_location_snapshot=item.location,
+                                 variant_name_snapshot=variant.name if variant else "",
+                                 variant_color_snapshot=((variant.color_name or variant.color) if variant else ""))
                 db.add(line)
             if stock_affecting:
-                old_approved = line.qty_approved or 0
-                delta_from_stock = qty - old_approved
-                if delta_from_stock:
-                    item.qty_on_hand -= delta_from_stock
-                    db.add(InventoryTransaction(
-                        item_id=item.id, delta=-delta_from_stock,
-                        reason=f"{order_label(order)} quantity edited",
-                        source=source, user_id=actor.id,
-                        item_code_snapshot=item.code,
-                        item_name_snapshot=item.name))
+                old_approved = int(line.qty_approved or 0)
+                delta_needed = qty - old_approved
+                _edit_stock_delta(db, item=item, variant=variant, delta_needed=delta_needed,
+                                  actor=actor, order=order, source=source)
                 line.qty_approved = qty
                 line.qty_estimated = False
             else:
                 line.qty_estimated = estimated
-                if order.status == "rejected":
+                if order.status in {"rejected", "cancelled"}:
                     line.qty_approved = None
             line.qty_requested = qty
+            line.variant_id = variant.id if variant else None
             line.item_code_snapshot = line.item_code_snapshot or item.code
             line.item_name_snapshot = line.item_name_snapshot or item.name
             line.item_location_snapshot = line.item_location_snapshot or item.location
+            line.variant_name_snapshot = variant.name if variant else ""
+            line.variant_color_snapshot = ((variant.color_name or variant.color) if variant else "")
+
+    if collaborator_user_ids is not None:
+        if actor.id != order.requester_user_id and not access_service.is_privileged(actor):
+            raise OrderError("Only the original requester can change order collaborators.", status.HTTP_403_FORBIDDEN)
+        _set_order_collaborators(db, order, order.requester, collaborator_user_ids)
 
     order.updated_at = datetime.now(timezone.utc)
     db.flush()
     new_snapshot = {
-        "notes": order.notes,
-        "status": order.status,
-        "lines": [{"item_id": l.item_id, "qty": l.qty_requested,
-                   "approved": l.qty_approved, "estimated": l.qty_estimated}
-                  for l in order.lines],
+        "notes": order.notes, "status": order.status,
+        "lines": [{"item_id": l.item_id, "variant_id": getattr(l, "variant_id", None),
+                   "qty": l.qty_requested, "approved": l.qty_approved,
+                   "estimated": l.qty_estimated} for l in order.lines],
         "project": _project_dict(order.project) if order.project else None,
+        "collaborators": [c.user_id for c in getattr(order, "collaborators", [])],
+        "fulfilled_reconciled": bool(order.status == "fulfilled" and reconcile_fulfilled),
     }
     log_action(db, user_id=actor.id, action="order.edit",
                object_type="order", object_id=order.id,
                old_value=old_snapshot, new_value=new_snapshot, source=source)
     db.commit()
     return _load_order(db, order.id)
+
+def _set_order_collaborators(db: Session, order: Order, requester: User, user_ids: list[int]):
+    unique = []
+    seen = set()
+    for raw in user_ids or []:
+        try:
+            uid = int(raw)
+        except (TypeError, ValueError):
+            raise OrderError("Every collaborator must be a valid user.")
+        if uid == requester.id or uid in seen:
+            continue
+        seen.add(uid)
+        unique.append(uid)
+    valid = ({u.id: u for u in db.query(User).filter(User.id.in_(unique),
+              User.active.is_(True), User.deleted_at.is_(None)).all()} if unique else {})
+    if len(valid) != len(unique):
+        raise OrderError("One or more selected collaborators are no longer active.")
+    existing = {row.user_id: row for row in list(order.collaborators)}
+    for uid, row in existing.items():
+        if uid not in valid:
+            db.delete(row)
+    for uid in unique:
+        if uid not in existing:
+            db.add(OrderCollaborator(order_id=order.id, user_id=uid))
+            _notify(db, uid, "order_shared", f"{order_label(order)} shared with you",
+                    f"{requester.full_name or requester.username} added you as an order collaborator.",
+                    "order", order.id)
+    db.flush()
+
+
+def _order_recipient_ids(order: Order) -> set[int]:
+    ids = {order.requester_user_id}
+    ids.update(row.user_id for row in (getattr(order, "collaborators", []) or []))
+    return ids
+
+
+def _notify_order_people(db: Session, order: Order, kind: str, title: str, message: str):
+    for uid in _order_recipient_ids(order):
+        _notify(db, uid, kind, title, message, "order", order.id)
 
 
 def _notify(db, user_id:int, kind:str, title:str, message:str, object_type="order", object_id=None):
@@ -486,27 +599,39 @@ def approve_order(db: Session, *, order_id: int, approver: User,
     for line, item, approved_qty, variant in planned:
         line.qty_approved = approved_qty
         if approved_qty:
-            inventory_location = "0"
+            reason = f"{order_label(order)} approved" + (f" [{variant.name}]" if variant else "")
+            snapshot_name = item.name + (f" / {variant.name}" if variant else "")
             if variant:
-                take0=min(variant.qty_location_0, approved_qty); remainder=approved_qty-take0
+                take0 = min(int(variant.qty_location_0 or 0), approved_qty)
+                take2501 = approved_qty - take0
                 variant.qty_location_0 -= take0
-                variant.qty_location_2501 -= remainder
-                inventory_location = "0" if remainder == 0 else ("2501" if take0 == 0 else "0+2501")
-                # mirror parent totals
-                item.qty_on_hand=sum(v.qty_location_0+v.qty_location_2501 for v in item.variants if v.active)
+                variant.qty_location_2501 -= take2501
+                allocations = [("0", take0), ("2501", take2501)]
+                item.qty_on_hand = sum(v.qty_location_0 + v.qty_location_2501 for v in item.variants if v.active)
                 for bal in item.location_balances:
-                    if bal.location_name=="0": bal.quantity=sum(v.qty_location_0 for v in item.variants if v.active)
-                    elif bal.location_name=="2501": bal.quantity=sum(v.qty_location_2501 for v in item.variants if v.active)
+                    if bal.location_name == "0": bal.quantity = sum(v.qty_location_0 for v in item.variants if v.active)
+                    elif bal.location_name == "2501": bal.quantity = sum(v.qty_location_2501 for v in item.variants if v.active)
             else:
-                item.qty_on_hand -= approved_qty
-            db.add(InventoryTransaction(
-                item_id=item.id, delta=-approved_qty,
-                reason=f"{order_label(order)} approved" + (f" [{variant.name}]" if variant else ""), source=source,
-                user_id=approver.id, item_code_snapshot=item.code,
-                item_name_snapshot=item.name + (f" / {variant.name}" if variant else ""),
-                inventory_location=inventory_location))
+                balances = {b.location_name: b for b in item.location_balances}
+                for loc in ("0", "2501"):
+                    if loc not in balances:
+                        bal = ItemLocationBalance(item_id=item.id, location_name=loc, quantity=0, bin_location=item.location or "")
+                        db.add(bal); db.flush(); balances[loc] = bal
+                take0 = min(int(balances["0"].quantity or 0), approved_qty)
+                take2501 = approved_qty - take0
+                balances["0"].quantity -= take0
+                balances["2501"].quantity -= take2501
+                allocations = [("0", take0), ("2501", take2501)]
+                item.qty_on_hand = sum(int(b.quantity or 0) for b in item.location_balances)
+            for inventory_location, taken in allocations:
+                if not taken:
+                    continue
+                db.add(InventoryTransaction(
+                    item_id=item.id, delta=-taken, reason=reason, source=source,
+                    user_id=approver.id, item_code_snapshot=item.code,
+                    item_name_snapshot=snapshot_name, inventory_location=inventory_location))
     order.status = "approved"
-    _notify(db,order.requester_user_id,"approved",f"{order_label(order)} approved","Your order was approved and is waiting to be picked.",object_id=order.id)
+    _notify_order_people(db,order,"approved",f"{order_label(order)} approved","The order was approved and is waiting to be picked.")
     db.add(Approval(order_id=order.id, approver_user_id=approver.id,
                     decision="approved", reason=reason))
     log_action(db, user_id=approver.id, action="order.approve",
@@ -519,13 +644,87 @@ def approve_order(db: Session, *, order_id: int, approver: User,
     return _load_order(db, order.id)
 
 
+def cancel_order(db: Session, *, order_id: int, actor: User, source: str = "browser") -> Order:
+    order = _load_order(db, order_id)
+    if actor.id != order.requester_user_id and not access_service.is_privileged(actor):
+        raise OrderError("Only the original requester can cancel this order.", status.HTTP_403_FORBIDDEN)
+    if order.status not in {"pending", "approved"}:
+        raise OrderError("This order can no longer be cancelled because picking has already started or it is closed.")
+    old_status = order.status
+    if old_status == "approved":
+        # Approval reserves/deducts stock. Reverse the location-specific approval
+        # transactions so 0/2501 balances return to exactly where they came from.
+        for line in order.lines:
+            qty = int(line.qty_approved or 0)
+            if qty <= 0:
+                continue
+            item = line.item
+            variant = line.variant if getattr(line, "variant_id", None) else None
+            reason = f"{order_label(order)} approved" + (f" [{variant.name}]" if variant else "")
+            txs = (db.query(InventoryTransaction)
+                   .filter(InventoryTransaction.item_id == item.id,
+                           InventoryTransaction.reason == reason,
+                           InventoryTransaction.delta < 0)
+                   .order_by(InventoryTransaction.id.desc()).all())
+            remaining = qty
+            restored = []
+            for tx in txs:
+                if remaining <= 0:
+                    break
+                amount = min(remaining, abs(int(tx.delta or 0)))
+                loc = tx.inventory_location if tx.inventory_location in {"0", "2501"} else "0"
+                if variant:
+                    if loc == "2501": variant.qty_location_2501 += amount
+                    else: variant.qty_location_0 += amount
+                else:
+                    bal = next((b for b in item.location_balances if b.location_name == loc), None)
+                    if bal is None:
+                        bal = ItemLocationBalance(item_id=item.id, location_name=loc, quantity=0, bin_location=item.location or "")
+                        db.add(bal); db.flush()
+                    bal.quantity += amount
+                restored.append((loc, amount)); remaining -= amount
+            if remaining > 0:
+                # Legacy approvals did not always record a location split. Return
+                # any unmatched reservation to the primary building and audit it.
+                if variant: variant.qty_location_0 += remaining
+                else:
+                    bal = next((b for b in item.location_balances if b.location_name == "0"), None)
+                    if bal is None:
+                        bal = ItemLocationBalance(item_id=item.id, location_name="0", quantity=0, bin_location=item.location or "")
+                        db.add(bal); db.flush()
+                    bal.quantity += remaining
+                restored.append(("0", remaining)); remaining = 0
+            if variant:
+                item.qty_on_hand = sum(v.qty_location_0 + v.qty_location_2501 for v in item.variants if v.active)
+                for bal in item.location_balances:
+                    if bal.location_name == "0": bal.quantity = sum(v.qty_location_0 for v in item.variants if v.active)
+                    elif bal.location_name == "2501": bal.quantity = sum(v.qty_location_2501 for v in item.variants if v.active)
+            else:
+                item.qty_on_hand = sum(int(b.quantity or 0) for b in item.location_balances)
+            for loc, amount in restored:
+                db.add(InventoryTransaction(item_id=item.id, delta=amount,
+                    reason=f"{order_label(order)} cancelled - approved stock returned", source=source,
+                    user_id=actor.id, item_code_snapshot=line.item_code_snapshot or item.code,
+                    item_name_snapshot=line.item_name_snapshot or item.name, inventory_location=loc))
+    order.status = "cancelled"
+    order.updated_at = datetime.now(timezone.utc)
+    _notify_admins(db, "order_cancelled", f"{order_label(order)} cancelled",
+                   f"{actor.full_name or actor.username} cancelled the order.", order.id)
+    _notify_order_people(db, order, "cancelled", f"{order_label(order)} cancelled",
+                         f"{actor.full_name or actor.username} cancelled this order.")
+    log_action(db, user_id=actor.id, action="order.cancel", object_type="order", object_id=order.id,
+               old_value={"status": old_status}, new_value={"status": "cancelled"}, source=source)
+    db.commit()
+    return _load_order(db, order.id)
+
+
 def reject_order(db: Session, *, order_id: int, approver: User, reason: str,
                  source: str = "api") -> Order:
     order = _load_order(db, order_id)
     if order.status != "pending":
         raise OrderError(f"Order is already {order.status}, not pending.")
     order.status = "rejected"
-    _notify(db,order.requester_user_id,"rejected",f"{order_label(order)} rejected",reason,object_id=order.id)
+    _notify_order_people(db,order,"rejected",f"{order_label(order)} rejected",reason)
     db.add(Approval(order_id=order.id, approver_user_id=approver.id,
                     decision="rejected", reason=reason))
     log_action(db, user_id=approver.id, action="order.reject",
@@ -543,7 +742,7 @@ def start_picking(db: Session, *, order_id: int, actor: User,
     if order.status != "approved":
         raise OrderError("Only an approved order can be marked as being picked.")
     order.status = "picking"
-    _notify(db,order.requester_user_id,"picking",f"{order_label(order)} is being picked","The warehouse started gathering your items.",object_id=order.id)
+    _notify_order_people(db,order,"picking",f"{order_label(order)} is being picked","The warehouse started gathering the items.")
     order.picking_started_at = datetime.now(timezone.utc)
     log_action(db, user_id=actor.id, action="order.pick_start",
                object_type="order", object_id=order.id,
@@ -646,7 +845,7 @@ def fulfill_order(db: Session, *, order_id: int, actor: User,
                                filename=(filename or "proof.jpg")[:255],
                                content_type=content_type, content=content))
     order.status = "fulfilled"
-    _notify(db,order.requester_user_id,"fulfilled",f"{order_label(order)} completed","Tracking and shipment proof are now available.",object_id=order.id)
+    _notify_order_people(db,order,"fulfilled",f"{order_label(order)} completed","Tracking and shipment proof are now available.")
     order.fulfilled_at = datetime.now(timezone.utc)
     nav_task_count = _create_nav_adjustment_tasks(db, order)
     log_action(db, user_id=actor.id, action="order.fulfill",
@@ -682,6 +881,8 @@ def to_order_out(order: Order, viewer: User | None = None, db: Session | None = 
         tracking_numbers=[row.tracking_number for row in order.tracking_numbers],
         proof_photo_ids=[row.id for row in order.proof_photos],
         deleted=order.deleted_at is not None,
+        collaborators=[{"id": row.user_id, "name": row.user.full_name or row.user.username, "username": row.user.username} for row in getattr(order, "collaborators", [])],
+        can_cancel=(viewer is not None and viewer.id == order.requester_user_id and order.status in {"pending", "approved"}),
         lines=[OrderLineOut(
             id=line.id, item_id=line.item_id,
             item_code=(line.item_code_snapshot or

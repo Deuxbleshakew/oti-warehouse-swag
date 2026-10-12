@@ -180,7 +180,9 @@ def edit_order(order_id: int, body: AdminOrderUpdate,
         db, order_id=order_id, actor=user, notes=body.notes,
         project_data=(body.project.model_dump(exclude_none=True)
                       if body.project else None),
-        lines=body.lines, owner_only_pending=False, source="admin_app")
+        lines=body.lines, collaborator_user_ids=body.collaborator_user_ids,
+        owner_only_pending=False, reconcile_fulfilled=body.reconcile_fulfilled,
+        source="admin_app")
     return order_service.to_order_out(order, viewer=user, db=db)
 
 

@@ -897,6 +897,14 @@
   .announcement{background:var(--safety);color:#161616;font-weight:800;text-align:center;padding:8px 14px;border-bottom:1px solid #0004}
   .location-badges{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.loc-badge{display:inline-flex;gap:7px;align-items:center;border:1px solid var(--line);background:var(--surface);padding:5px 8px;border-radius:7px;font:700 11px/1.1 monospace}.loc-badge.primary{border-color:var(--safety)}.loc-badge.zero{opacity:.45}.other-location-note{margin-top:7px;padding:7px 9px;border:1px solid var(--safety);background:color-mix(in srgb,var(--safety) 12%,transparent);font-size:11px;font-weight:750}
   .variant-picker{margin:9px 0 4px}.variant-picker label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:4px}.variant-picker select{width:100%;padding:8px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:7px}.admin-quick{display:flex;gap:6px}.admin-quick button{font-size:11px;padding:7px 9px}.request-history{max-height:220px;overflow:auto;margin-top:12px}.request-history-row{padding:8px;border-bottom:1px solid var(--line)}
+
+  .collab-box{border:1px solid var(--line);background:var(--surface2);padding:12px;border-radius:8px;margin-top:10px}
+  .collab-box h3{margin:0 0 4px;font-size:13px}.collab-help{font-size:11px;color:var(--muted);margin-bottom:8px}
+  .collab-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:6px;max-height:150px;overflow:auto}
+  .collab-option{display:flex;align-items:center;gap:7px;padding:7px 8px;border:1px solid var(--line);background:var(--paper);font-size:11px}
+  .collab-list{font-size:11px;color:var(--muted);margin-top:7px}.nav-count-info{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:12px 0}
+  .nav-count-stat{border:1px solid var(--line);background:var(--surface2);padding:9px}.nav-count-stat span{display:block;font-size:9px;text-transform:uppercase;color:var(--muted)}.nav-count-stat strong{font-size:13px}
+  .kit-parts{display:flex!important;flex-direction:column!important;flex-wrap:nowrap!important;gap:5px!important}.kit-part{display:flex!important;width:100%;box-sizing:border-box}
 </style>
 </head>
 <body>
@@ -1039,6 +1047,7 @@ const state = {
   tab: "catalog",
   catalog: [],
   projects: [],
+  userDirectory: [],
   cart: {},           // committed item_id -> qty
   kits: [], kitCart: {}, kitDraftQty: {}, notifications: [], folderComponents: [], announcement: {message:"",active:false}, selectedVariants: {}, cartVariants: {},
   estimated: {},      // committed item_id -> quantity is still an estimate
@@ -1058,6 +1067,7 @@ const state = {
     attendees: "",
     projectDescription: "",
     saveProject: false,
+    collaboratorUserIds: [],
     notes: "",
   },
   myOrders: [],
@@ -1067,6 +1077,7 @@ const state = {
   brand: "",
   sort: "name",
   quickFilter: "all",
+  catalogType: "all",
   filterDrawerOpen: false,
   filterCollapsed: localStorage.getItem("oti_filter_collapsed") === "1",
   recentlyViewed: JSON.parse(localStorage.getItem("oti_recent_items") || "[]"),
@@ -1145,6 +1156,7 @@ function blankOrderForm() {
     attendees: "",
     projectDescription: "",
     saveProject: false,
+    collaboratorUserIds: [],
     notes: "",
   };
 }
@@ -1189,6 +1201,7 @@ function showNotifications(){const existing=document.getElementById("notificatio
 function kitImage(id){return id?`${state.apiBase}/item-images/${id}?access_token=${encodeURIComponent(state.token||"")}&v=${id}`:"";}
 function kitImageUrl(k){return k&&k.image_available?`${state.apiBase}/kit-images/${k.id}?access_token=${encodeURIComponent(state.token||"")}&v=${k.id}`:"";}
 function visibleKits(){
+  if(state.catalogType==="items") return [];
   return (state.kits||[]).filter(k=>!state.brand || (k.brand||"Unbranded")===state.brand);
 }
 function catalogBrands(){
@@ -1271,10 +1284,10 @@ async function loadProtectedProofImages() {
 async function loadCatalog() {
   state.loadingCatalog = true; render();
   try {
-    const [items, projects, kits, notifications, announcement] = await Promise.all([
-      api("/catalog"), api("/projects"), api("/catalog-kits").catch(()=>[]), api("/notifications").catch(()=>[]), api("/announcement").catch(()=>({message:"",active:false})),
+    const [items, projects, kits, notifications, announcement, users] = await Promise.all([
+      api("/catalog"), api("/projects"), api("/catalog-kits").catch(()=>[]), api("/notifications").catch(()=>[]), api("/announcement").catch(()=>({message:"",active:false})), api("/directory/users").catch(()=>[]),
     ]);
-    state.catalog = items; state.projects = projects; state.kits = kits; state.notifications = notifications; state.announcement=announcement||{message:"",active:false};
+    state.catalog = items; state.projects = projects; state.kits = kits; state.notifications = notifications; state.announcement=announcement||{message:"",active:false}; state.userDirectory=users||[];
   } catch (e) {
     toast(e.message, true);
   } finally {
@@ -1361,6 +1374,22 @@ function markRecentlyViewed(itemId) {
   state.recentlyViewed = [Number(itemId), ...state.recentlyViewed.filter(id => Number(id) !== Number(itemId))].slice(0, 20);
   localStorage.setItem("oti_recent_items", JSON.stringify(state.recentlyViewed));
 }
+function selectedNavInfo(item){
+  const v=selectedVariant(item);
+  if(v&&v.nav_tracked) return {tracked:true,number:v.nav_item_number||"",label:v.color_name||v.name||"Variant"};
+  return {tracked:Boolean(item.nav_tracked),number:item.nav_item_number||"",label:""};
+}
+function formatCountDate(value){if(!value)return "No count recorded";try{return new Date(value).toLocaleString();}catch(_){return String(value);}}
+function reviewNavCountBeforeCart(itemId){
+  const item=state.catalog.find(i=>i.id===Number(itemId)); if(!item)return; const nav=selectedNavInfo(item);
+  if(!nav.tracked){commitItemToCart(itemId);return;}
+  const last=item.last_count_at; const qty=item.last_count_quantity; const loc=item.last_count_location||"—"; const hasOpen=Number(item.open_count_requests||0)>0;
+  openModal(`<div class="modal-head"><h2>NAV Item · Verify Count</h2><button class="modal-x" id="modal-x">×</button></div><div class="modal-sub">${esc(item.name)}${nav.label?` · ${esc(nav.label)}`:""}${nav.number?` · NAV ${esc(nav.number)}`:""}</div><p>Before requesting this NAV-tracked item, review the last physical count and decide whether it is recent enough.</p><div class="nav-count-info"><div class="nav-count-stat"><span>Last count</span><strong>${esc(formatCountDate(last))}</strong></div><div class="nav-count-stat"><span>Counted qty</span><strong>${qty==null?"—":esc(qty)}</strong></div><div class="nav-count-stat"><span>Location</span><strong>${esc(loc)}</strong></div></div>${hasOpen?`<div class="count-flag">A count request is already open for this item.</div>`:""}<div id="nav-count-error" class="err-line"></div><div class="modal-actions"><button class="btn-secondary" id="nav-count-cancel">Cancel</button><button class="btn-secondary" id="nav-count-continue">Continue without recount</button>${hasOpen?"":`<button class="btn-primary" id="nav-count-request">Request Count & Add</button>`}</div>`);
+  document.getElementById("modal-x").onclick=closeModal; document.getElementById("nav-count-cancel").onclick=closeModal;
+  document.getElementById("nav-count-continue").onclick=()=>{closeModal();commitItemToCart(itemId);};
+  const request=document.getElementById("nav-count-request"); if(request) request.onclick=async()=>{request.disabled=true;request.textContent="Requesting…";try{await api(`/catalog/${itemId}/count-requests`,{method:"POST",body:JSON.stringify({note:"NAV item pre-order count requested"})});item.open_count_requests=Number(item.open_count_requests||0)+1;closeModal();commitItemToCart(itemId);toast("Count requested and item added to cart.");}catch(e){document.getElementById("nav-count-error").textContent=e.message;request.disabled=false;request.textContent="Request Count & Add";}};
+}
+
 function commitItemToCart(itemId) {
   const item = state.catalog.find(i => i.id === Number(itemId));
   if (!item) return;
@@ -1504,6 +1533,7 @@ async function submitOrder() {
       method: "POST",
       body: JSON.stringify(Object.assign({
         notes: (state.orderForm.notes.trim() + (kitSummary.length ? `\nKIT / SWAG SETS: ${kitSummary.join(" | ")}` : "")).trim(),
+        collaborator_user_ids: (state.orderForm.collaboratorUserIds||[]).map(Number),
         lines,
       }, projectPayload)),
     });
@@ -1564,10 +1594,14 @@ function esc(s) {
 
 function itemImageUrls(item){return (item.image_ids||[]).map(id=>`${state.apiBase}/item-images/${id}?access_token=${encodeURIComponent(state.token||"")}&v=${id}`);}
 function imgUrl(item) {
-  if (!item.images || !item.images.length) return null;
-  // The item endpoint skips stale legacy records and serves the first photo
-  // whose bytes still exist, including DB-backed uploads.
-  return state.apiBase + "/catalog/" + encodeURIComponent(item.id) + "/image?access_token=" + encodeURIComponent(state.token || "");
+  const ids = item.image_ids || [];
+  if (!ids.length) return null;
+  // Use the primary image record directly. Replacing/uploading a photo creates
+  // a new primary image id, so the browser receives a new URL instead of a
+  // cached response from /catalog/{item_id}/image. The extra nonce also keeps
+  // proxies from retaining an older copy of the same image record.
+  const id = ids[0];
+  return `${state.apiBase}/item-images/${id}?access_token=${encodeURIComponent(state.token||"")}&v=${id}-${Date.now()}`;
 }
 
 function handleImageError(img) {
@@ -1642,7 +1676,7 @@ function renderTagCard(item) {
     </div>
     <div class="perf"></div><div class="body">
       <div class="code mono">${esc(item.code)}</div><div class="name">${esc(item.name)}</div>
-      <div class="meta">${[item.category, item.location ? "Bin " + item.location : "", item.measures].filter(Boolean).map(esc).join(" · ")}</div>
+      <div class="meta">${[item.category, item.location ? "Loc. " + item.location : "", item.measures].filter(Boolean).map(esc).join(" · ")}</div>
       ${activeVariants(item).length?`<div class="variant-picker"><label>Color</label><select data-variant-select="${item.id}">${activeVariants(item).map(v=>`<option value="${v.id}" ${variant&&v.id===variant.id?"selected":""}>${esc(v.color_name||v.name)} · ${v.qty_on_hand} available</option>`).join("")}</select>${variant?.details?`<div class="meta">${esc(variant.details)}</div>`:""}</div>`:""}
       <div class="location-badges"><span class="loc-badge primary ${loc["0"]===0?"zero":""}"><b>0</b><span>${loc["0"]}</span></span><span class="loc-badge ${loc["2501"]===0?"zero":""}"><b>2501</b><span>${loc["2501"]}</span></span></div>
       ${otherLoc?`<div class="other-location-note">🔔 Available at location 2501. Warehouse transfer/off-site pick required.</div>`:""}
@@ -1758,13 +1792,13 @@ function renderCatalogTab() {
   let body;
   if (state.loadingCatalog) {
     body = loadingMarkup("Loading catalog…");
-  } else if (!items.length) {
-    body = `<div class="empty-state">No items match these filters. Clear a filter or try another search.</div>`;
   } else {
     // Categories now live in the left rail, so one continuous responsive grid
     // can actually use the available desktop width instead of leaving a blank
     // column whenever a category only contains one item.
-    body = `<div class="grid">${items.map(renderTagCard).join("")}</div>${renderKits()}`;
+    const itemBlock = state.catalogType === "kits" ? "" : (items.length ? `<div class="grid">${items.map(renderTagCard).join("")}</div>` : "");
+    const kitBlock = state.catalogType === "items" ? "" : renderKits();
+    body = itemBlock + kitBlock || `<div class="empty-state">No products match these filters. Clear a filter or try another search.</div>`;
   }
   const activeDescription = state.brand || state.category || (state.quickFilter !== "all" ? state.quickFilter.replace(/\b\w/g, c => c.toUpperCase()) : "");
   return `
@@ -1782,6 +1816,7 @@ function renderCatalogTab() {
         <option value="">All Brands</option>
         ${catalogBrands().map(brand=>`<option value="${esc(brand)}" ${state.brand===brand?"selected":""}>${esc(brand)} (${catalogBrandCount(brand)})</option>`).join("")}
       </select>
+      <select id="catalog-type" aria-label="Filter by product type"><option value="all" ${state.catalogType==="all"?"selected":""}>All products</option><option value="items" ${state.catalogType==="items"?"selected":""}>Regular items</option><option value="kits" ${state.catalogType==="kits"?"selected":""}>Kits only</option></select>
       <select id="sort-by">
         <option value="name" ${state.sort === "name" ? "selected" : ""}>Sort: Name</option>
         <option value="code" ${state.sort === "code" ? "selected" : ""}>Sort: Part #</option>
@@ -1836,9 +1871,9 @@ function renderOrdersTab() {
       <div class="lines-mini">
         ${o.lines.map(l => `<div><span>${esc(l.item_name)}${l.variant_name ? ` · ${esc(l.variant_name)}` : ""} ${l.qty_estimated ? `<span class="estimate-pill">ESTIMATED</span>` : ""}</span><span class="mono line-code">${esc(l.item_code)}</span><span class="mono line-qty">${l.qty_approved != null ? l.qty_approved + " / " : ""}${l.qty_requested}</span></div>`).join("")}
       </div>
-      ${o.notes ? `<div class="notes">“${esc(o.notes)}”</div>` : ""}
+      ${(o.collaborators||[]).length?`<div class="collab-list"><b>Shared with:</b> ${(o.collaborators||[]).map(c=>esc(c.name)).join(" · ")}</div>`:""}${o.notes ? `<div class="notes">“${esc(o.notes)}”</div>` : ""}
       ${(o.tracking_numbers || []).length ? `<div class="tracking-box"><strong>TRACKING</strong><div style="margin-top:4px" class="mono">${o.tracking_numbers.map(esc).join(" · ")}</div>${proof ? `<div class="proof-strip">${proof}</div>` : ""}</div>` : ""}
-      ${o.can_self_edit ? `<div class="order-actions"><button class="btn-secondary edit-order" data-order-id="${o.id}">Edit Pending Order</button></div>` : ""}
+      ${o.can_self_edit||o.can_cancel?`<div class="order-actions">${o.can_self_edit?`<button class="btn-secondary edit-order" data-order-id="${o.id}">Edit Pending Order</button>`:""}${o.can_cancel?`<button class="btn-secondary cancel-order" data-order-id="${o.id}">Cancel Order</button>`:""}</div>`:""}
     </div>`;
   }).join("")}</div>`;
 }
@@ -1903,6 +1938,7 @@ function openOrderEditor(orderId) {
       <div><label>Estimated attendees</label><input id="edit-attendees" type="number" min="0" step="1" value="${p.attendees == null ? "" : p.attendees}"></div>
     </div>
     <div style="margin-top:12px;"><label>Notes</label><textarea id="edit-notes">${esc(order.notes || "")}</textarea></div>
+    <div class="collab-box"><h3>Order collaborators</h3><div class="collab-grid">${state.userDirectory.map(u=>`<label class="collab-option"><input type="checkbox" class="edit-collaborator" value="${u.id}" ${(order.collaborators||[]).some(c=>Number(c.id)===Number(u.id))?"checked":""}><span>${esc(u.name)}</span></label>`).join("")}</div></div>
     <div style="margin-top:14px;"><label>Line quantities</label>${lineHtml}</div>
     <div id="edit-error" class="err-line" style="margin:8px 0 0;"></div>
     <div class="modal-actions">
@@ -1937,6 +1973,7 @@ function openOrderEditor(orderId) {
         method: "PUT",
         body: JSON.stringify({
           notes: document.getElementById("edit-notes").value.trim(),
+          collaborator_user_ids: [...document.querySelectorAll(".edit-collaborator:checked")].map(x=>Number(x.value)),
           project: {
             name: projectName,
             owner: document.getElementById("edit-owner").value.trim(),
@@ -2222,6 +2259,7 @@ function renderSlip() {
           </div>
         </div>` : ""}
         ` : `<div class="project-help">This order will be added to the selected saved project.</div>`}
+      <div class="collab-box"><h3>Order collaborators</h3><div class="collab-help">Add people who are involved with this specific order. They will see it in My Orders and receive its updates.</div><div class="collab-grid">${state.userDirectory.length?state.userDirectory.map(u=>`<label class="collab-option"><input type="checkbox" data-collaborator-id="${u.id}" ${(state.orderForm.collaboratorUserIds||[]).map(Number).includes(Number(u.id))?"checked":""}><span>${esc(u.name)} <small class="mono">${esc(u.username||"")}</small></span></label>`).join(""):`<span class="muted">No other active users available.</span>`}</div></div>
       ${renderOrderReadinessBox()}
       <textarea id="slip-notes" placeholder="Notes for the approver (optional)">${esc(f.notes)}</textarea>
       <button class="btn-primary" id="submit-order" ${!lines.length ? "disabled" : ""}>Submit Order</button>
@@ -2455,7 +2493,7 @@ function wireApp(searchHadFocus, searchCursorPos) {
   });
 
   document.querySelectorAll("[data-add-cart]").forEach(btn => {
-    btn.addEventListener("click", () => commitItemToCart(Number(btn.dataset.addCart)));
+    btn.addEventListener("click", () => reviewNavCountBeforeCart(Number(btn.dataset.addCart)));
   });
 
   document.querySelectorAll("[data-favorite-id]").forEach(btn => {
@@ -2484,6 +2522,10 @@ function wireApp(searchHadFocus, searchCursorPos) {
 
 
   document.getElementById("notification-bell")?.addEventListener("click",showNotifications);
+  document.querySelectorAll("[data-collaborator-id]").forEach(cb=>cb.addEventListener("change",()=>{state.orderForm.collaboratorUserIds=[...document.querySelectorAll("[data-collaborator-id]:checked")].map(x=>Number(x.dataset.collaboratorId));saveCartDraft();}));
+  document.getElementById("catalog-type")?.addEventListener("change",e=>{state.catalogType=e.target.value;render();});
+  document.querySelectorAll(".cancel-order").forEach(btn=>btn.addEventListener("click",()=>{const id=Number(btn.dataset.orderId),o=state.myOrders.find(x=>x.id===id);openModal(`<div class="modal-head"><h2>Cancel ${esc(o?.order_number||"order")}</h2><button class="modal-x" id="modal-x">×</button></div><p>This keeps the order in history with a Cancelled status. If it was already approved, reserved inventory will be returned.</p><div id="cancel-order-error" class="err-line"></div><div class="modal-actions"><button class="btn-secondary" id="cancel-order-no">Keep Order</button><button class="btn-primary" id="cancel-order-yes">Cancel Order</button></div>`);document.getElementById("modal-x").onclick=closeModal;document.getElementById("cancel-order-no").onclick=closeModal;document.getElementById("cancel-order-yes").onclick=async()=>{const b=document.getElementById("cancel-order-yes");b.disabled=true;b.textContent="Cancelling…";try{await api(`/orders/${id}/cancel`,{method:"POST"});closeModal();toast("Order cancelled.");await loadMyOrders();}catch(e){document.getElementById("cancel-order-error").textContent=e.message;b.disabled=false;b.textContent="Cancel Order";}};}));
+
   document.querySelectorAll("[data-variant-select]").forEach(sel=>sel.addEventListener("change",()=>{const id=Number(sel.dataset.variantSelect);state.selectedVariants[id]=Number(sel.value);state.draftQty[id]=0;state.draftEstimated[id]=false;saveCartDraft();render();}));
   const requestDialog=(type)=>{const isUser=type==="new_user",label=isUser?"Request New User":"Request New Item",titleLabel=isUser?"User name / request title":"Item name / request title";openModal(`<div class="modal-head"><h2>${label}</h2><button class="modal-x" id="modal-x">×</button></div><div class="field"><label>${titleLabel} *</label><input id="portal-request-title" maxlength="200" autofocus></div><div class="field"><label>Details / notes</label><textarea id="portal-request-details" rows="5" maxlength="2000"></textarea></div><div class="err-line" id="portal-request-error"></div><button class="btn-primary" id="portal-request-send">Submit Request</button>`);document.getElementById("modal-x").onclick=closeModal;document.getElementById("portal-request-send").onclick=async()=>{const title=document.getElementById("portal-request-title").value.trim(),details=document.getElementById("portal-request-details").value.trim(),err=document.getElementById("portal-request-error");if(!title){err.textContent="Enter a name or short title for this request.";return;}err.textContent="";try{await api(`/admin-requests/${type}`,{method:"POST",body:JSON.stringify({title,details})});closeModal();toast(label+" sent.");}catch(e){err.textContent=e.message;}}};
   document.getElementById("request-new-user")?.addEventListener("click",()=>requestDialog("new_user"));

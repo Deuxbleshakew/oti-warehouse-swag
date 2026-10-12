@@ -13,7 +13,7 @@ from backend.schemas.schemas import (
     CountRequestCreate, CountRequestOut,
 )
 from backend.models.models import (
-    Order, OrderLine, User, OrderProofPhoto, CountRequest, ProjectMember,
+    Order, OrderLine, User, OrderProofPhoto, CountRequest, ProjectMember, OrderCollaborator,
 )
 from backend.auth.dependencies import get_current_user
 from backend.services import order_service, item_service, access_service
@@ -24,13 +24,16 @@ POLL_MAX_WAIT_SECONDS = 25.0
 
 
 def _my_orders_query(db: Session, user_id: int):
-    member_projects = db.query(ProjectMember.project_id).filter(
-        ProjectMember.user_id == user_id)
+    collaborator_orders = db.query(OrderCollaborator.order_id).filter(
+        OrderCollaborator.user_id == user_id)
+    member_projects = db.query(ProjectMember.project_id).filter(ProjectMember.user_id == user_id)
     return (db.query(Order).options(
         joinedload(Order.lines).joinedload(OrderLine.item),
         joinedload(Order.project), joinedload(Order.requester),
         joinedload(Order.tracking_numbers), joinedload(Order.proof_photos),
+        joinedload(Order.collaborators).joinedload(OrderCollaborator.user),
     ).filter(or_(Order.requester_user_id == user_id,
+                 Order.id.in_(collaborator_orders),
                  Order.project_id.in_(member_projects))))
 
 
@@ -54,7 +57,7 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db),
         db, requester=user, project_id=body.project_id,
         project_data=(body.new_project.model_dump() if body.new_project else None),
         save_project=body.save_project, notes=body.notes, lines=body.lines,
-        source="browser")
+        collaborator_user_ids=body.collaborator_user_ids, source="browser")
     return order_service.to_order_out(order, viewer=user, db=db)
 
 
@@ -75,7 +78,15 @@ def edit_my_pending_order(order_id: int, body: PendingOrderUpdate,
         db, order_id=order_id, actor=user, notes=body.notes,
         project_data=(body.project.model_dump(exclude_none=True)
                       if body.project else None),
-        lines=body.lines, owner_only_pending=True, source="browser")
+        lines=body.lines, collaborator_user_ids=body.collaborator_user_ids,
+        owner_only_pending=True, source="browser")
+    return order_service.to_order_out(order, viewer=user, db=db)
+
+
+@router.post("/orders/{order_id}/cancel", response_model=OrderOut)
+def cancel_my_order(order_id: int, db: Session = Depends(get_db),
+                    user: User = Depends(get_current_user)):
+    order = order_service.cancel_order(db, order_id=order_id, actor=user, source="browser")
     return order_service.to_order_out(order, viewer=user, db=db)
 
 
@@ -98,9 +109,9 @@ def order_proof_photo(photo_id: int, db: Session = Depends(get_db),
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Proof photo not found.")
     is_owner = photo.order.requester_user_id == user.id
     is_reviewer = user.has_role("admin") or user.has_role("approver")
-    is_member = bool(photo.order.project_id and
-                     access_service.project_membership(db, photo.order.project_id, user.id))
-    if not (is_owner or is_reviewer or is_member):
+    is_collaborator = db.query(OrderCollaborator).filter_by(order_id=photo.order.id, user_id=user.id).first() is not None
+    is_member = bool(photo.order.project_id and access_service.project_membership(db, photo.order.project_id, user.id))
+    if not (is_owner or is_reviewer or is_collaborator or is_member):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not your order proof.")
     return Response(content=photo.content, media_type=photo.content_type,
                     headers={"Cache-Control": "private, max-age=3600"})

@@ -48,6 +48,8 @@ class User(Base):
                                        cascade="all, delete-orphan")
     project_memberships = relationship("ProjectMember", back_populates="user",
                                        cascade="all, delete-orphan")
+    order_collaborations = relationship("OrderCollaborator", back_populates="user",
+                                        cascade="all, delete-orphan")
 
     def has_role(self, role_name: str) -> bool:
         return any(r.name == role_name for r in self.roles)
@@ -376,11 +378,28 @@ class Order(Base):
     proof_photos = relationship("OrderProofPhoto", back_populates="order",
                                 cascade="all, delete-orphan",
                                 order_by="OrderProofPhoto.id")
+    collaborators = relationship("OrderCollaborator", back_populates="order",
+                                 cascade="all, delete-orphan",
+                                 order_by="OrderCollaborator.created_at")
 
     __table_args__ = (
         Index("ix_orders_status", "status"),
         Index("ix_orders_requester", "requester_user_id"),
     )
+
+
+class OrderCollaborator(Base):
+    """Order-specific sharing without granting access to an entire project."""
+    __tablename__ = "order_collaborators"
+
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+
+    order = relationship("Order", back_populates="collaborators")
+    user = relationship("User", back_populates="order_collaborations")
+
+    __table_args__ = (Index("ix_order_collaborators_user", "user_id"),)
 
 
 class OrderLine(Base):
@@ -476,6 +495,7 @@ class CountRequest(Base):
     system_qty_before = Column(Integer, nullable=True)
     physical_qty = Column(Integer, nullable=True)
     adjustment_delta = Column(Integer, nullable=True)
+    inventory_location = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=utcnow, nullable=False)
     resolved_at = Column(DateTime, nullable=True)
 

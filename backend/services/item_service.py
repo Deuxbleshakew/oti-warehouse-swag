@@ -209,8 +209,12 @@ def add_item_image(db: Session, *, item_id: int, filename: str,
     with open(os.path.join(ASSETS_DIR, stored_name), "wb") as f:
         f.write(content)
 
-    position = (db.query(ItemImage).filter_by(item_id=item.id).count())
-    img = ItemImage(item_id=item.id, filename=stored_name, position=position)
+    # A newly uploaded photo becomes the primary catalog image immediately.
+    # Shift the existing gallery positions rather than leaving the new image
+    # at the end where the website would continue showing the old primary.
+    for existing in db.query(ItemImage).filter_by(item_id=item.id).all():
+        existing.position = int(existing.position or 0) + 1
+    img = ItemImage(item_id=item.id, filename=stored_name, position=0)
     db.add(img)
     db.flush()  # image ID is the one-to-one key for the persistent blob
     content_type = image_content_type(stored_name)
@@ -423,6 +427,7 @@ def resolve_count_request(db: Session, *, request_id: int, actor: User,
     row.system_qty_before = before_location
     row.physical_qty = physical_quantity
     row.adjustment_delta = delta
+    row.inventory_location = location_name
     row.resolved_at = datetime.now(timezone.utc)
     log_action(db, user_id=actor.id, action="count_request.resolve",
                object_type="count_request", object_id=row.id,

@@ -137,12 +137,16 @@ class ItemOut(BaseModel):
     open_count_requests: int = 0
     favorite: bool = False
     stock_status: str = "in_stock"
+    last_count_at: Optional[datetime] = None
+    last_count_quantity: Optional[int] = None
+    last_count_location: str = ""
     location_balances: List[ItemLocationOut] = []
     variants: List[ItemVariantOut] = []
 
     @classmethod
     def from_orm_item(cls, item, include_sensitive=True,
-                      open_count_requests: int = 0, favorite: bool = False):
+                      open_count_requests: int = 0, favorite: bool = False,
+                      last_count_at=None, last_count_quantity=None, last_count_location=""):
         return cls(
             id=item.id, code=item.code, name=item.name,
             description=item.description, category=item.category,
@@ -158,6 +162,8 @@ class ItemOut(BaseModel):
             images=[img.filename for img in item.images],
             image_ids=[img.id for img in item.images],
             open_count_requests=open_count_requests, favorite=favorite,
+            last_count_at=last_count_at, last_count_quantity=last_count_quantity,
+            last_count_location=last_count_location or "",
             location_balances=[ItemLocationOut(id=b.id, location_name=b.location_name, quantity=b.quantity, bin_location=b.bin_location or "") for b in getattr(item, "location_balances", [])],
             variants=[ItemVariantOut(id=v.id,item_id=v.item_id,name=v.name,color=v.color or "",color_name=v.color_name or "",details=v.details or "",image_id=v.image_id,qty_location_0=v.qty_location_0,qty_location_2501=v.qty_location_2501,qty_on_hand=v.qty_location_0+v.qty_location_2501,reorder_threshold=v.reorder_threshold,nav_tracked=v.nav_tracked,nav_item_number=v.nav_item_number or "",active=v.active,position=v.position) for v in getattr(item,"variants",[])],
             stock_status=("not_counted" if not bool(getattr(item, "inventory_counted", True)) else
@@ -363,6 +369,7 @@ class OrderEditLine(BaseModel):
 
 class OrderCreate(BaseModel):
     project_id: Optional[int] = None
+    collaborator_user_ids: List[int] = []
     new_project: Optional[ProjectCreate] = None
     save_project: bool = False
     notes: str = ""
@@ -371,12 +378,13 @@ class OrderCreate(BaseModel):
 
 class PendingOrderUpdate(BaseModel):
     notes: Optional[str] = None
+    collaborator_user_ids: Optional[List[int]] = None
     project: Optional[ProjectEdit] = None
     lines: Optional[List[OrderEditLine]] = Field(default=None, min_length=1)
 
 
 class AdminOrderUpdate(PendingOrderUpdate):
-    pass
+    reconcile_fulfilled: bool = False
 
 
 class OrderLineOut(BaseModel):
@@ -413,6 +421,8 @@ class OrderOut(BaseModel):
     tracking_numbers: List[str] = []
     proof_photo_ids: List[int] = []
     deleted: bool = False
+    collaborators: List[dict] = []
+    can_cancel: bool = False
     lines: List[OrderLineOut]
 
 

@@ -23,7 +23,7 @@ def _serve_image_record(image: ItemImage, db: Session):
     if image.blob is not None:
         return Response(content=image.blob.content,
                         media_type=image.blob.content_type,
-                        headers={"Cache-Control": "private, max-age=86400"})
+                        headers={"Cache-Control": "private, no-store, max-age=0", "Pragma": "no-cache"})
     path = resolve_stored_image_path(image.filename)
     if path:
         with open(path, "rb") as fh:
@@ -36,7 +36,7 @@ def _serve_image_record(image: ItemImage, db: Session):
         except Exception:
             db.rollback()
         return Response(content=content, media_type=content_type,
-                        headers={"Cache-Control": "private, max-age=86400"})
+                        headers={"Cache-Control": "private, no-store, max-age=0", "Pragma": "no-cache"})
     parsed = urlparse((image.filename or "").strip())
     if parsed.scheme in ("http", "https"):
         return RedirectResponse(image.filename)
@@ -53,6 +53,27 @@ def get_item_image(image_id: int, db: Session = Depends(get_db),
     return _serve_image_record(image, db)
 
 
+def _latest_count_map(db: Session, item_ids: list[int]):
+    result = {}
+    if not item_ids:
+        return result
+    rows = (db.query(CountRequest)
+            .filter(CountRequest.item_id.in_(item_ids), CountRequest.status == "resolved")
+            .order_by(CountRequest.item_id, CountRequest.resolved_at.desc()).all())
+    for row in rows:
+        if row.item_id not in result:
+            result[row.item_id] = row
+    return result
+
+
+@router.get("/directory/users")
+def user_directory(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    rows = (db.query(User).filter(User.active.is_(True), User.deleted_at.is_(None))
+            .order_by(User.full_name, User.username).all())
+    return [{"id": row.id, "name": row.full_name or row.username, "username": row.username}
+            for row in rows if row.id != user.id]
+
+
 @router.get("/catalog", response_model=list[ItemOut])
 def list_catalog(db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)):
@@ -62,8 +83,13 @@ def list_catalog(db: Session = Depends(get_db),
     favorite_ids = {row.item_id for row in db.query(UserFavorite).filter_by(
         user_id=user.id).all()}
     items = access_service.visible_items_query(db, user).order_by(Item.name).all()
-    return [ItemOut.from_orm_item(i, open_count_requests=counts.get(i.id, 0),
-                                  favorite=i.id in favorite_ids)
+    latest = _latest_count_map(db, [i.id for i in items])
+    return [ItemOut.from_orm_item(
+                i, open_count_requests=counts.get(i.id, 0),
+                favorite=i.id in favorite_ids,
+                last_count_at=(latest[i.id].resolved_at if i.id in latest else None),
+                last_count_quantity=(latest[i.id].physical_qty if i.id in latest else None),
+                last_count_location=((latest[i.id].inventory_location or "") if i.id in latest else ""))
             for i in items]
 
 
@@ -93,7 +119,11 @@ def get_catalog_item(item_id: int, db: Session = Depends(get_db),
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Item not found.")
     favorite = db.query(UserFavorite).filter_by(user_id=user.id,
                                                 item_id=item.id).first() is not None
-    return ItemOut.from_orm_item(item, favorite=favorite)
+    latest = _latest_count_map(db, [item.id]).get(item.id)
+    return ItemOut.from_orm_item(item, favorite=favorite,
+                                 last_count_at=(latest.resolved_at if latest else None),
+                                 last_count_quantity=(latest.physical_qty if latest else None),
+                                 last_count_location=((latest.inventory_location or "") if latest else ""))
 
 
 @router.post("/catalog/{item_id}/favorite", status_code=204)

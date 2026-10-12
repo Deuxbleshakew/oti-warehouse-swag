@@ -67,6 +67,7 @@ def _table_columns_for_dialect(dialect_name: str) -> dict[str, dict[str, str]]:
             "system_qty_before": "INTEGER",
             "physical_qty": "INTEGER",
             "adjustment_delta": "INTEGER",
+            "inventory_location": "VARCHAR(100)",
         },
         "kits": {
             "brand": "VARCHAR(80) DEFAULT ''",
