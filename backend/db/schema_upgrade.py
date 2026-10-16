@@ -17,6 +17,7 @@ def _table_columns_for_dialect(dialect_name: str) -> dict[str, dict[str, str]]:
         "projects": {
             "shipping_address1": "VARCHAR(255) DEFAULT ''",
             "shipping_address2": "VARCHAR(255) DEFAULT ''",
+            "shipping_attention": "VARCHAR(160) DEFAULT ''",
             "shipping_city": "VARCHAR(120) DEFAULT ''",
             "shipping_state": "VARCHAR(2) DEFAULT ''",
             "shipping_postal_code": "VARCHAR(20) DEFAULT ''",
@@ -71,6 +72,8 @@ def _table_columns_for_dialect(dialect_name: str) -> dict[str, dict[str, str]]:
         },
         "kits": {
             "brand": "VARCHAR(80) DEFAULT ''",
+            "kit_type": "VARCHAR(30) NOT NULL DEFAULT 'standard'",
+            "design_json": "TEXT DEFAULT ''",
         },
     }
 

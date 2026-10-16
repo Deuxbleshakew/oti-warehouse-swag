@@ -769,7 +769,7 @@ def _kit_out(k: Kit):
         possible=available//max(1,c.quantity)
         buildable=possible if buildable is None else min(buildable,possible)
         comps.append({"id":c.id,"item_id":c.item_id,"item_code":c.item.code if c.item else "Deleted", "item_name":c.item.name if c.item else "Deleted item", "quantity":c.quantity,"position":c.position,"available":available,"image_id":(c.item.images[0].id if c.item and c.item.images else None)})
-    return KitOut(id=k.id,name=k.name,code=k.code,brand=k.brand or "",description=k.description or "",active=k.active,custom=k.custom,saved_for_reuse=k.saved_for_reuse,buildable_quantity=buildable or 0,image_available=bool(k.image),components=comps)
+    return KitOut(id=k.id,name=k.name,code=k.code,brand=k.brand or "",description=k.description or "",active=k.active,custom=k.custom,saved_for_reuse=k.saved_for_reuse,kit_type=getattr(k,"kit_type","standard") or "standard",design_json=getattr(k,"design_json","") or "",buildable_quantity=buildable or 0,image_available=bool(k.image),components=comps)
 
 @router.get("/kits", response_model=list[KitOut])
 def list_kits(db: Session=Depends(get_db), user: User=Depends(require_role("admin"))):
@@ -778,7 +778,7 @@ def list_kits(db: Session=Depends(get_db), user: User=Depends(require_role("admi
 @router.post("/kits", response_model=KitOut, status_code=201)
 def create_kit(body: KitCreate, db: Session=Depends(get_db), user: User=Depends(require_role("admin"))):
     if db.query(Kit).filter(Kit.code==body.code.strip()).first(): raise HTTPException(409,"Kit code already exists.")
-    k=Kit(name=body.name.strip(),code=body.code.strip(),brand=body.brand.strip(),description=body.description,active=body.active,custom=body.custom,saved_for_reuse=body.saved_for_reuse,created_by_user_id=user.id)
+    k=Kit(name=body.name.strip(),code=body.code.strip(),brand=body.brand.strip(),description=body.description,active=body.active,custom=body.custom,saved_for_reuse=body.saved_for_reuse,kit_type=body.kit_type,design_json=body.design_json,created_by_user_id=user.id)
     db.add(k); db.flush()
     for i,c in enumerate(body.components):
         if not db.query(Item).filter_by(id=c.item_id).first(): raise HTTPException(400,f"Item {c.item_id} not found")
@@ -790,7 +790,7 @@ def create_kit(body: KitCreate, db: Session=Depends(get_db), user: User=Depends(
 def update_kit(kit_id:int, body:KitCreate, db:Session=Depends(get_db), user:User=Depends(require_role("admin"))):
     k=db.query(Kit).filter_by(id=kit_id).first()
     if not k: raise HTTPException(404,"Kit not found")
-    k.name=body.name.strip();k.code=body.code.strip();k.brand=body.brand.strip();k.description=body.description;k.active=body.active;k.saved_for_reuse=body.saved_for_reuse
+    k.name=body.name.strip();k.code=body.code.strip();k.brand=body.brand.strip();k.description=body.description;k.active=body.active;k.saved_for_reuse=body.saved_for_reuse;k.kit_type=body.kit_type;k.design_json=body.design_json
     k.components.clear();db.flush()
     for i,c in enumerate(body.components): db.add(KitComponent(kit_id=k.id,item_id=c.item_id,quantity=c.quantity,position=c.position if c.position is not None else i))
     db.commit();db.refresh(k);return _kit_out(k)

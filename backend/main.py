@@ -24,6 +24,7 @@ from backend.models.models import Item
 _FRONTEND_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
 _ORDER_HTML_PATH = os.path.join(_FRONTEND_DIR, "order.html")
+_FOLDER_BUILDER_PATH = os.path.join(_FRONTEND_DIR, "folder-builder.html")
 
 # Safe migration-lite step: create_all never deletes or rewrites existing
 # tables, but it does add newly introduced tables such as item_image_blobs.
@@ -38,7 +39,7 @@ try:
 finally:
     _legacy_db.close()
 
-APP_BUILD = "1.6"
+APP_BUILD = "1.10"
 
 app = FastAPI(
     title="Oti-Warehouse Swag API",
@@ -72,7 +73,7 @@ async def prevent_stale_frontend_cache(request, call_next):
     disable browser/proxy caching for the HTML so a redeploy cannot keep
     showing an older interface under the same URL."""
     response = await call_next(request)
-    if request.url.path in {"/", "/order.html"}:
+    if request.url.path in {"/", "/order.html", "/folder-builder.html"}:
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
@@ -109,4 +110,10 @@ def serve_order_page():
     always reflects whatever's currently deployed — this file is tiny,
     so that cost is negligible."""
     with open(_ORDER_HTML_PATH, encoding="utf-8") as f:
+        return f.read()
+
+
+@app.get("/folder-builder.html", response_class=HTMLResponse, include_in_schema=False)
+def serve_folder_builder():
+    with open(_FOLDER_BUILDER_PATH, encoding="utf-8") as f:
         return f.read()

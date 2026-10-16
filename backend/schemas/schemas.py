@@ -279,6 +279,7 @@ class ProjectOut(BaseModel):
     location: str
     shipping_address1: str = ""
     shipping_address2: str = ""
+    shipping_attention: str = ""
     shipping_city: str = ""
     shipping_state: str = ""
     shipping_postal_code: str = ""
@@ -305,6 +306,7 @@ class ProjectCreate(BaseModel):
     location: str = ""
     shipping_address1: str = ""
     shipping_address2: str = ""
+    shipping_attention: str = ""
     shipping_city: str = ""
     shipping_state: str = ""
     shipping_postal_code: str = ""
@@ -343,6 +345,7 @@ class ProjectEdit(BaseModel):
     location: Optional[str] = None
     shipping_address1: Optional[str] = None
     shipping_address2: Optional[str] = None
+    shipping_attention: Optional[str] = None
     shipping_city: Optional[str] = None
     shipping_state: Optional[str] = None
     shipping_postal_code: Optional[str] = None
@@ -367,13 +370,34 @@ class OrderEditLine(BaseModel):
     variant_id: Optional[int] = None
 
 
+class OrderKitIn(BaseModel):
+    kit_id: int
+    qty: int = Field(gt=0)
+
+class OrderKitOut(BaseModel):
+    id: int
+    kit_id: Optional[int] = None
+    kit_code: str = ""
+    kit_name: str = ""
+    kit_type: str = "standard"
+    quantity: int = 1
+    design_json: str = ""
+
+class OrderAttendeeListOut(BaseModel):
+    id: int
+    filename: str
+    row_count: int = 0
+    columns: List[str] = Field(default_factory=list)
+    created_at: datetime
+
 class OrderCreate(BaseModel):
     project_id: Optional[int] = None
     collaborator_user_ids: List[int] = []
     new_project: Optional[ProjectCreate] = None
     save_project: bool = False
     notes: str = ""
-    lines: List[OrderLineIn] = Field(min_length=1)
+    lines: List[OrderLineIn] = Field(default_factory=list)
+    kits: List[OrderKitIn] = Field(default_factory=list)
 
 
 class PendingOrderUpdate(BaseModel):
@@ -424,6 +448,8 @@ class OrderOut(BaseModel):
     collaborators: List[dict] = []
     can_cancel: bool = False
     lines: List[OrderLineOut]
+    kits: List[OrderKitOut] = Field(default_factory=list)
+    attendee_lists: List[OrderAttendeeListOut] = Field(default_factory=list)
 
 
 class ApproveRequest(BaseModel):
@@ -527,6 +553,8 @@ class KitCreate(BaseModel):
     active: bool = True
     custom: bool = False
     saved_for_reuse: bool = True
+    kit_type: str = Field(default="standard", pattern="^(standard|folder|banner)$")
+    design_json: str = ""
     components: List[KitComponentIn] = Field(min_length=1)
 
 class KitOut(BaseModel):
@@ -538,6 +566,8 @@ class KitOut(BaseModel):
     active: bool
     custom: bool
     saved_for_reuse: bool
+    kit_type: str = "standard"
+    design_json: str = ""
     buildable_quantity: int = 0
     image_available: bool = False
     components: List[dict] = Field(default_factory=list)

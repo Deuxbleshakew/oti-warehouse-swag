@@ -147,6 +147,7 @@ class Project(Base):
     location = Column(String(255), default="")        # event venue / internal location
     shipping_address1 = Column(String(255), default="")
     shipping_address2 = Column(String(255), default="")
+    shipping_attention = Column(String(160), default="")
     shipping_city = Column(String(120), default="")
     shipping_state = Column(String(2), default="")
     shipping_postal_code = Column(String(20), default="")
@@ -381,11 +382,45 @@ class Order(Base):
     collaborators = relationship("OrderCollaborator", back_populates="order",
                                  cascade="all, delete-orphan",
                                  order_by="OrderCollaborator.created_at")
+    kit_selections = relationship("OrderKitSelection", back_populates="order", cascade="all, delete-orphan", order_by="OrderKitSelection.id")
+    attendee_lists = relationship("OrderAttendeeList", back_populates="order", cascade="all, delete-orphan", order_by="OrderAttendeeList.id")
 
     __table_args__ = (
         Index("ix_orders_status", "status"),
         Index("ix_orders_requester", "requester_user_id"),
     )
+
+
+class OrderKitSelection(Base):
+    __tablename__ = "order_kit_selections"
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
+    kit_id = Column(Integer, ForeignKey("kits.id", ondelete="SET NULL"), nullable=True, index=True)
+    quantity = Column(Integer, nullable=False, default=1)
+    kit_code_snapshot = Column(String(60), default="")
+    kit_name_snapshot = Column(String(200), default="")
+    kit_type_snapshot = Column(String(30), default="standard")
+    design_json_snapshot = Column(Text, default="")
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+
+    order = relationship("Order", back_populates="kit_selections")
+    kit = relationship("Kit")
+
+
+class OrderAttendeeList(Base):
+    __tablename__ = "order_attendee_lists"
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
+    filename = Column(String(255), nullable=False)
+    content_type = Column(String(120), default="application/octet-stream")
+    content = Column(LargeBinary, nullable=False)
+    row_count = Column(Integer, nullable=False, default=0)
+    columns_json = Column(Text, default="[]")
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+
+    order = relationship("Order", back_populates="attendee_lists")
 
 
 class OrderCollaborator(Base):
@@ -599,6 +634,8 @@ class Kit(Base):
     active = Column(Boolean, nullable=False, default=True)
     custom = Column(Boolean, nullable=False, default=False)
     saved_for_reuse = Column(Boolean, nullable=False, default=True)
+    kit_type = Column(String(30), nullable=False, default="standard")
+    design_json = Column(Text, default="")
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=utcnow, nullable=False)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)

@@ -1,16 +1,16 @@
 """Authenticated catalog, favorites, reusable projects, and item photos."""
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from backend.db.session import get_db
-from backend.schemas.schemas import ItemOut, ProjectOut, PortalRequestCreate
+from backend.schemas.schemas import ItemOut, ProjectOut, PortalRequestCreate, KitCreate
 from backend.models.models import (
     Item, ItemImage, ItemImageBlob, Project, User, CountRequest, UserFavorite,
-    Kit, KitImage, Notification, AppSetting, PortalRequest,
+    Kit, KitImage, KitComponent, Notification, AppSetting, PortalRequest, Item,
 )
 from backend.auth.dependencies import get_current_user, get_current_user_flexible
 from backend.services.item_service import resolve_stored_image_path, image_content_type
@@ -169,15 +169,53 @@ def get_kit_image(kit_id:int, db:Session=Depends(get_db), user:User=Depends(get_
 def catalog_kits(db: Session=Depends(get_db), user: User=Depends(get_current_user)):
     result=[]
     for k in db.query(Kit).filter_by(active=True).order_by(Kit.name):
-        comps=[]; buildable=None
+        comps=[]; buildable=None; required_by_item={}
+        invalid=False
         for c in sorted(k.components,key=lambda x:x.position):
-            if not access_service.can_view_item(user,c.item): break
-            possible=max(0,c.item.qty_on_hand)//max(1,c.quantity)
-            buildable=possible if buildable is None else min(buildable,possible)
+            if not access_service.can_view_item(user,c.item): invalid=True; break
+            required_by_item[c.item_id]=required_by_item.get(c.item_id,0)+max(1,c.quantity)
             comps.append({"item_id":c.item_id,"item_code":c.item.code,"item_name":c.item.name,"quantity":c.quantity,"position":c.position,"image_id":c.item.images[0].id if c.item.images else None})
-        else:
-            result.append({"id":k.id,"name":k.name,"code":k.code,"brand":k.brand or "","description":k.description or "","custom":k.custom,"buildable_quantity":buildable or 0,"image_available":bool(k.image),"components":comps})
+        if invalid: continue
+        for item_id,required in required_by_item.items():
+            item=next(c.item for c in k.components if c.item_id==item_id)
+            possible=max(0,item.qty_on_hand)//max(1,required)
+            buildable=possible if buildable is None else min(buildable,possible)
+        result.append({"id":k.id,"name":k.name,"code":k.code,"brand":k.brand or "","description":k.description or "","custom":k.custom,"kit_type":getattr(k,"kit_type","standard") or "standard","design_json":getattr(k,"design_json","") or "","buildable_quantity":buildable or 0,"image_available":bool(k.image),"components":comps})
     return result
+
+@router.post("/folder-kits", status_code=201)
+def create_folder_kit(body: KitCreate, db: Session=Depends(get_db), user: User=Depends(get_current_user)):
+    code=body.code.strip()
+    if db.query(Kit).filter(func.lower(Kit.code)==code.lower()).first():
+        raise HTTPException(status.HTTP_409_CONFLICT,"That kit/item code already exists.")
+    if (body.kit_type or "folder") != "folder":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,"This endpoint creates Folder Kits only.")
+    kit=Kit(name=body.name.strip(),code=code,brand=body.brand.strip(),description=body.description or "",active=True,custom=True,saved_for_reuse=True,kit_type="folder",design_json=body.design_json or "",created_by_user_id=user.id)
+    db.add(kit); db.flush()
+    if not body.components:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,"Add at least one catalog item to the folder.")
+    for i,c in enumerate(body.components):
+        item=db.query(Item).filter_by(id=c.item_id,active=True).first()
+        if not item or not access_service.can_view_item(user,item):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST,f"Item {c.item_id} is not available.")
+        db.add(KitComponent(kit_id=kit.id,item_id=item.id,quantity=c.quantity,position=c.position if c.position is not None else i))
+    db.commit(); db.refresh(kit)
+    return {"id":kit.id,"name":kit.name,"code":kit.code,"kit_type":"folder"}
+
+@router.post("/folder-kits/{kit_id}/image", status_code=204)
+async def upload_folder_kit_image(kit_id:int,file:UploadFile=File(...),db:Session=Depends(get_db),user:User=Depends(get_current_user)):
+    kit=db.query(Kit).filter_by(id=kit_id,kit_type="folder").first()
+    if not kit or (kit.created_by_user_id!=user.id and not user.has_role("admin")):
+        raise HTTPException(status.HTTP_404_NOT_FOUND,"Folder Kit not found.")
+    content=await file.read()
+    if not content or len(content)>10*1024*1024: raise HTTPException(status.HTTP_400_BAD_REQUEST,"Image must be between 1 byte and 10 MB.")
+    ctype=(file.content_type or "image/png").lower()
+    if ctype not in {"image/jpeg","image/png","image/webp","image/gif"}: raise HTTPException(status.HTTP_400_BAD_REQUEST,"Use JPG, PNG, GIF, or WebP.")
+    if kit.image:
+        kit.image.filename=(file.filename or "folder-kit.png")[:255];kit.image.content_type=ctype;kit.image.content=content
+    else:
+        db.add(KitImage(kit_id=kit.id,filename=(file.filename or "folder-kit.png")[:255],content_type=ctype,content=content))
+    db.commit(); return None
 
 @router.get("/notifications")
 def my_notifications(db:Session=Depends(get_db), user:User=Depends(get_current_user)):

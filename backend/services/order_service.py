@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone, date
 from typing import Optional, Dict
+from types import SimpleNamespace
+import json
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
@@ -11,8 +13,9 @@ from sqlalchemy import func
 from backend.models.models import (
     Order, OrderLine, Item, ItemVariant, Approval, InventoryTransaction, User, Project, Notification,
     OrderTracking, OrderProofPhoto, ProjectMember, NavAdjustmentTask, OrderCollaborator, ItemLocationBalance,
+    Kit, OrderKitSelection, OrderAttendeeList,
 )
-from backend.schemas.schemas import OrderOut, OrderLineOut, ProjectOut
+from backend.schemas.schemas import OrderOut, OrderLineOut, ProjectOut, OrderKitOut, OrderAttendeeListOut
 from backend.services.audit_service import log_action
 from backend.services.notification_service import notify_new_order_async
 from backend.services import access_service
@@ -48,7 +51,7 @@ def _clean_project_fields(data: dict) -> dict:
     clean = dict(data)
     text_fields = (
         "name", "description", "purpose", "owner", "customer", "event_date",
-        "location", "shipping_address1", "shipping_address2", "shipping_city",
+        "location", "shipping_address1", "shipping_address2", "shipping_attention", "shipping_city",
         "shipping_state", "shipping_postal_code", "notes", "address_mode",
     )
     for field in text_fields:
@@ -94,7 +97,7 @@ def _project_dict(project: Project) -> dict:
     return {key: getattr(project, key) for key in (
         "name", "description", "purpose", "owner", "customer", "event_date",
         "delivery_date", "ship_by_date", "location", "shipping_address1",
-        "shipping_address2", "shipping_city", "shipping_state",
+        "shipping_address2", "shipping_attention", "shipping_city", "shipping_state",
         "shipping_postal_code", "shipping_service", "ups_ground_days",
         "attendees", "budget", "status", "notes", "active", "address_mode",
         "access_restricted",
@@ -173,6 +176,7 @@ def _load_order(db: Session, order_id: int, *, include_deleted: bool = False) ->
         joinedload(Order.project), joinedload(Order.requester),
         joinedload(Order.tracking_numbers), joinedload(Order.proof_photos),
         joinedload(Order.collaborators).joinedload(OrderCollaborator.user),
+        joinedload(Order.kit_selections).joinedload(OrderKitSelection.kit), joinedload(Order.attendee_lists),
     ).filter(Order.id == order_id)
     if not include_deleted:
         query = query.filter(Order.deleted_at.is_(None))
@@ -185,9 +189,10 @@ def _load_order(db: Session, order_id: int, *, include_deleted: bool = False) ->
 def create_order(db: Session, *, requester: User, project_id: Optional[int],
                  notes: str, lines: list, project_data: Optional[dict] = None,
                  save_project: bool = False, collaborator_user_ids: Optional[list[int]] = None,
-                 source: str = "api") -> Order:
-    if not lines:
-        raise OrderError("An order needs at least one item.")
+                 kits: Optional[list] = None, source: str = "api") -> Order:
+    kits = kits or []
+    if not lines and not kits:
+        raise OrderError("An order needs at least one item or kit.")
     linked_project = None
     if project_id is not None:
         template = db.query(Project).filter_by(id=project_id, active=True).first()
@@ -241,6 +246,34 @@ def create_order(db: Session, *, requester: User, project_id: Optional[int],
     db.flush()
 
     _set_order_collaborators(db, order, requester, collaborator_user_ids or [])
+
+    # Preserve kit identity on the order while expanding components into stock lines.
+    expanded = {}
+    for ln in lines:
+        key=(ln.item_id, getattr(ln, "variant_id", None))
+        expanded[key] = SimpleNamespace(item_id=ln.item_id, qty=int(ln.qty), estimated=bool(getattr(ln,"estimated",False)), variant_id=getattr(ln,"variant_id",None))
+    for ks in kits:
+        kit = db.query(Kit).filter_by(id=ks.kit_id, active=True).first()
+        if not kit:
+            raise OrderError(f"Kit {ks.kit_id} is not available.")
+        if any(not access_service.can_view_item(requester, c.item) for c in kit.components):
+            raise OrderError(f"Kit {kit.code} contains an item you cannot order.")
+        qty=int(ks.qty)
+        if qty <= 0:
+            raise OrderError(f"Quantity for kit {kit.code} must be positive.")
+        db.add(OrderKitSelection(order_id=order.id, kit_id=kit.id, quantity=qty,
+            kit_code_snapshot=kit.code, kit_name_snapshot=kit.name, kit_type_snapshot=getattr(kit,"kit_type","standard") or "standard",
+            design_json_snapshot=getattr(kit,"design_json","") or ""))
+        for comp in kit.components:
+            key=(comp.item_id, None)
+            add=int(comp.quantity)*qty
+            if key in expanded:
+                if expanded[key].variant_id is not None:
+                    raise OrderError(f"Kit {kit.name} contains an item also selected as a color variant.")
+                expanded[key].qty += add
+            else:
+                expanded[key] = SimpleNamespace(item_id=comp.item_id, qty=add, estimated=False, variant_id=None)
+    lines=list(expanded.values())
 
     seen = set()
     for ln in lines:
@@ -883,6 +916,12 @@ def to_order_out(order: Order, viewer: User | None = None, db: Session | None = 
         deleted=order.deleted_at is not None,
         collaborators=[{"id": row.user_id, "name": row.user.full_name or row.user.username, "username": row.user.username} for row in getattr(order, "collaborators", [])],
         can_cancel=(viewer is not None and viewer.id == order.requester_user_id and order.status in {"pending", "approved"}),
+        kits=[OrderKitOut(id=row.id, kit_id=row.kit_id, kit_code=row.kit_code_snapshot or (row.kit.code if row.kit else ""),
+                          kit_name=row.kit_name_snapshot or (row.kit.name if row.kit else "Kit"), kit_type=row.kit_type_snapshot or "standard",
+                          quantity=row.quantity, design_json=row.design_json_snapshot or "") for row in getattr(order, "kit_selections", [])],
+        attendee_lists=[OrderAttendeeListOut(id=row.id, filename=row.filename, row_count=row.row_count or 0,
+                          columns=(json.loads(row.columns_json or "[]") if row.columns_json else []), created_at=row.created_at)
+                        for row in getattr(order, "attendee_lists", [])],
         lines=[OrderLineOut(
             id=line.id, item_id=line.item_id,
             item_code=(line.item_code_snapshot or

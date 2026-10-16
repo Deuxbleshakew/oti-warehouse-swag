@@ -8,3 +8,4 @@ python-multipart
 httpx
 pillow
 psycopg2-binary
+openpyxl

@@ -905,6 +905,22 @@
   .collab-list{font-size:11px;color:var(--muted);margin-top:7px}.nav-count-info{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:12px 0}
   .nav-count-stat{border:1px solid var(--line);background:var(--surface2);padding:9px}.nav-count-stat span{display:block;font-size:9px;text-transform:uppercase;color:var(--muted)}.nav-count-stat strong{font-size:13px}
   .kit-parts{display:flex!important;flex-direction:column!important;flex-wrap:nowrap!important;gap:5px!important}.kit-part{display:flex!important;width:100%;box-sizing:border-box}
+
+  /* 1.10 visual polish */
+  header.bar{position:sticky;top:0;z-index:30;box-shadow:0 8px 28px rgba(0,0,0,.18)}
+  nav.tabs{position:sticky;top:58px;z-index:29;overflow-x:auto;scrollbar-width:none}
+  nav.tabs::-webkit-scrollbar{display:none}
+  .view-panel,.slip,.filter-rail,.cart-rail{box-shadow:0 12px 35px rgba(0,0,0,.10)}
+  .tag{border-radius:8px}.tag .photo{background:linear-gradient(180deg,var(--surface2),var(--surface))}
+  input,select,textarea{min-height:40px}.btn-primary,.btn-secondary,.add-cart{border-radius:6px!important}
+  .project-builder,.collab-box,.attendee-upload-card{border:1px solid var(--line);background:var(--surface);padding:16px;border-radius:8px;margin-top:14px}
+  .attendee-upload-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;border-left:4px solid var(--safety)}
+  .attendee-upload-card h3{margin:0 0 4px;font:600 15px 'Oswald',sans-serif;text-transform:uppercase}.attendee-upload-card p{margin:0}
+  .upload-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:190px;padding:14px;border:1px dashed var(--safety);background:rgba(242,183,5,.06);cursor:pointer;border-radius:7px}.upload-drop span{font-weight:700}.upload-drop small{color:var(--muted);margin-top:4px}
+  .attendee-preview{grid-column:1/-1;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px;background:var(--surface2);border-radius:6px}.attendee-preview span{color:var(--muted);font-size:12px}.warn-text{color:var(--rust)!important}
+  .folder-native{padding:0!important;overflow:hidden}.folder-native .section-title-row{padding:20px 22px 12px}.folder-native h1{margin:3px 0 4px;font:700 28px 'Oswald',sans-serif;text-transform:uppercase}.folder-builder-frame{display:block;width:100%;height:calc(100vh - 190px);min-height:720px;border:0;background:var(--paper)}
+  @media(max-width:700px){header.bar{position:static}nav.tabs{top:0}.attendee-upload-card{grid-template-columns:1fr}.upload-drop{width:100%}.folder-builder-frame{height:900px;min-height:900px}}
+.order-kit-summary{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}.kit-summary-chip{padding:6px 8px;background:var(--surface2);border:1px solid var(--line);border-radius:999px;font-size:11px}.kit-summary-chip.folder{border-color:var(--safety);color:var(--safety)}.attendee-order-files{margin-top:10px;padding:9px 10px;border:1px solid var(--line);background:var(--surface2);font-size:11px}.attendee-order-files a{color:var(--safety);text-decoration:none}.attendee-order-files a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -1034,9 +1050,10 @@ function stateOptions(selected) {
 }
 function formattedAddress(project) {
   if (!project) return "";
+  const attn = project.shipping_attention ? `ATTN: ${project.shipping_attention}` : "";
   const street = [project.shipping_address1, project.shipping_address2].filter(Boolean).join(", ");
   const cityLine = [project.shipping_city, project.shipping_state, project.shipping_postal_code].filter(Boolean).join(" ");
-  return [street, cityLine].filter(Boolean).join(" · ");
+  return [attn, street, cityLine].filter(Boolean).join(" · ");
 }
 
 const state = {
@@ -1061,6 +1078,7 @@ const state = {
     projectLocation: "",
     shippingAddress1: "",
     shippingAddress2: "",
+    shippingAttention: "",
     shippingCity: "",
     shippingState: "",
     shippingPostalCode: "",
@@ -1070,6 +1088,8 @@ const state = {
     collaboratorUserIds: [],
     notes: "",
   },
+  attendeeFile: null,
+  attendeePreview: null,
   myOrders: [],
   proofUrls: {},       // proof photo id -> authenticated object URL
   search: "",
@@ -1109,7 +1129,7 @@ if (window.matchMedia) window.matchMedia("(prefers-color-scheme: light)").addEve
 // ---- fetch helper --------------------------------------------------------
 async function api(path, opts = {}) {
   const headers = Object.assign({}, opts.headers || {});
-  if (opts.body) headers["Content-Type"] = "application/json";
+  if (opts.body && !(opts.body instanceof FormData)) headers["Content-Type"] = "application/json";
   if (state.token) headers["Authorization"] = "Bearer " + state.token;
 
   let res;
@@ -1150,6 +1170,7 @@ function blankOrderForm() {
     projectLocation: "",
     shippingAddress1: "",
     shippingAddress2: "",
+    shippingAttention: "",
     shippingCity: "",
     shippingState: "",
     shippingPostalCode: "",
@@ -1422,6 +1443,7 @@ function normalizedAddress(source) {
   return {
     shipping_address1: read("shippingAddress1", "shipping_address1"),
     shipping_address2: read("shippingAddress2", "shipping_address2"),
+    shipping_attention: read("shippingAttention", "shipping_attention"),
     shipping_city: read("shippingCity", "shipping_city"),
     shipping_state: read("shippingState", "shipping_state").toUpperCase(),
     shipping_postal_code: read("shippingPostalCode", "shipping_postal_code"),
@@ -1436,7 +1458,7 @@ function syncOrderFormFromDom() {
     "project-name":"projectName", "project-owner":"projectOwner",
     "project-event-date":"eventDate", "project-location":"projectLocation",
     "shipping-address1":"shippingAddress1", "shipping-address2":"shippingAddress2",
-    "shipping-city":"shippingCity", "shipping-state":"shippingState",
+    "shipping-attention":"shippingAttention", "shipping-city":"shippingCity", "shipping-state":"shippingState",
     "shipping-postal-code":"shippingPostalCode", "project-attendees":"attendees",
     "project-description":"projectDescription", "slip-notes":"notes",
   };
@@ -1498,6 +1520,7 @@ function buildProjectPayload() {
       location: f.projectLocation.trim(),
       shipping_address1: address.shipping_address1,
       shipping_address2: address.shipping_address2,
+      shipping_attention: address.shipping_attention,
       shipping_city: address.shipping_city,
       shipping_state: address.shipping_state,
       shipping_postal_code: address.shipping_postal_code,
@@ -1511,49 +1534,23 @@ function buildProjectPayload() {
 
 async function submitOrder() {
   syncOrderFormFromDom();
-  const merged = new Map();
-  Object.entries(state.cart).forEach(([item_id, qty]) => { const id=Number(item_id); merged.set(id,{item_id:id,qty:Number(qty),estimated:Boolean(state.estimated[item_id]),variant_id:state.cartVariants[item_id]?Number(state.cartVariants[item_id]):null}); });
-  const kitSummary=[];
-  for (const [kit_id, kitQty] of Object.entries(state.kitCart||{})) {
-    const k=state.kits.find(x=>Number(x.id)===Number(kit_id)); if(!k) continue; const q=Number(kitQty||0); if(q<=0) continue;
-    kitSummary.push(`${k.code} ${k.name} ×${q}`);
-    for (const c of k.components) { const id=Number(c.item_id), add=Number(c.quantity)*q, prev=merged.get(id); if(prev){ if(prev.variant_id){ toast(`Kit ${k.name} contains an item also selected as a color variant. Remove the separate variant line first.`,true); return; } prev.qty+=add; } else merged.set(id,{item_id:id,qty:add,estimated:false,variant_id:null}); }
-  }
-  const lines=[...merged.values()];
-  if (!lines.length) return;
+  const lines = Object.entries(state.cart).map(([item_id, qty]) => ({item_id:Number(item_id),qty:Number(qty),estimated:Boolean(state.estimated[item_id]),variant_id:state.cartVariants[item_id]?Number(state.cartVariants[item_id]):null}));
+  const kits = Object.entries(state.kitCart||{}).map(([kit_id,qty])=>({kit_id:Number(kit_id),qty:Number(qty)})).filter(x=>x.qty>0);
+  if (!lines.length && !kits.length) return;
   let projectPayload;
+  try { projectPayload = buildProjectPayload(); } catch (e) { toast(e.message, true); return; }
   try {
-    projectPayload = buildProjectPayload();
-  } catch (e) {
-    toast(e.message, true);
-    return;
-  }
-  try {
-    const order = await api("/orders", {
-      method: "POST",
-      body: JSON.stringify(Object.assign({
-        notes: (state.orderForm.notes.trim() + (kitSummary.length ? `\nKIT / SWAG SETS: ${kitSummary.join(" | ")}` : "")).trim(),
-        collaborator_user_ids: (state.orderForm.collaboratorUserIds||[]).map(Number),
-        lines,
-      }, projectPayload)),
-    });
-    const savedForReuse = Boolean(projectPayload.save_project);
-    state.cart = {}; state.kitCart = {}; state.kitDraftQty = {};
-    state.estimated = {};
-    state.draftQty = {};
-    state.draftEstimated = {};
-    state.orderForm = blankOrderForm();
-    localStorage.removeItem(cartStorageKey());
-    if (savedForReuse) {
-      try { state.projects = await api("/projects"); } catch (_) {}
+    const order = await api("/orders", {method:"POST", body:JSON.stringify(Object.assign({notes:state.orderForm.notes.trim(), collaborator_user_ids:(state.orderForm.collaboratorUserIds||[]).map(Number), lines, kits}, projectPayload))});
+    if (state.attendeeFile) {
+      try { const fd=new FormData(); fd.append("file",state.attendeeFile); await api(`/orders/${order.id}/attendee-list`,{method:"POST",body:fd}); }
+      catch(err){ toast("Order submitted, but attendee list upload failed: "+err.message,true); }
     }
-    toast((order.order_number || ("ORD-" + String(order.id).padStart(6,"0"))) + " submitted — pending approval.");
-    state.tab = "orders";
-    await loadMyOrders();
-  } catch (e) {
-    toast(e.message, true);
-    render();
-  }
+    const savedForReuse = Boolean(projectPayload.save_project);
+    state.cart={}; state.kitCart={}; state.kitDraftQty={}; state.estimated={}; state.draftQty={}; state.draftEstimated={}; state.attendeeFile=null; state.attendeePreview=null; state.orderForm=blankOrderForm();
+    localStorage.removeItem(cartStorageKey());
+    if(savedForReuse){try{state.projects=await api("/projects");}catch(_){}}
+    toast((order.order_number || ("ORD-"+String(order.id).padStart(6,"0")))+" submitted — pending approval."); state.tab="orders"; await loadMyOrders();
+  } catch(e){ toast(e.message,true); render(); }
 }
 
 // ---- auth -------------------------------------------------------------------
@@ -1868,9 +1865,11 @@ function renderOrdersTab() {
       <div class="order-meta-grid">${meta.map(([label,value])=>`<div class="meta-cell"><span class="meta-label">${esc(label)}</span><span class="meta-value">${esc(value)}</span></div>`).join("")}</div>
       ${o.incomplete ? `<div class="incomplete-note">INCOMPLETE · ${o.incomplete_reasons.map(esc).join(" · ")}</div>` : ""}
       <div class="items-head"><span>Item</span><span>Part #</span><span style="text-align:right">Qty</span></div>
+      ${(o.kits||[]).length?`<div class="order-kit-summary">${(o.kits||[]).map(k=>`<span class="kit-summary-chip ${k.kit_type==='folder'?'folder':''}">${k.kit_type==='folder'?'📁':'🎁'} ${esc(k.kit_name)} ×${k.quantity}</span>`).join("")}</div>`:""}
       <div class="lines-mini">
         ${o.lines.map(l => `<div><span>${esc(l.item_name)}${l.variant_name ? ` · ${esc(l.variant_name)}` : ""} ${l.qty_estimated ? `<span class="estimate-pill">ESTIMATED</span>` : ""}</span><span class="mono line-code">${esc(l.item_code)}</span><span class="mono line-qty">${l.qty_approved != null ? l.qty_approved + " / " : ""}${l.qty_requested}</span></div>`).join("")}
       </div>
+      ${(o.attendee_lists||[]).length?`<div class="attendee-order-files"><strong>Name tag list:</strong> ${(o.attendee_lists||[]).map(a=>`<a href="${state.apiBase}/orders/${o.id}/attendee-list/${a.id}?access_token=${encodeURIComponent(state.token||'')}" target="_blank" rel="noopener">${esc(a.filename)} · ${a.row_count} people</a>`).join(" · ")}</div>`:""}
       ${(o.collaborators||[]).length?`<div class="collab-list"><b>Shared with:</b> ${(o.collaborators||[]).map(c=>esc(c.name)).join(" · ")}</div>`:""}${o.notes ? `<div class="notes">“${esc(o.notes)}”</div>` : ""}
       ${(o.tracking_numbers || []).length ? `<div class="tracking-box"><strong>TRACKING</strong><div style="margin-top:4px" class="mono">${o.tracking_numbers.map(esc).join(" · ")}</div>${proof ? `<div class="proof-strip">${proof}</div>` : ""}</div>` : ""}
       ${o.can_self_edit||o.can_cancel?`<div class="order-actions">${o.can_self_edit?`<button class="btn-secondary edit-order" data-order-id="${o.id}">Edit Pending Order</button>`:""}${o.can_cancel?`<button class="btn-secondary cancel-order" data-order-id="${o.id}">Cancel Order</button>`:""}</div>`:""}
@@ -1930,7 +1929,8 @@ function openOrderEditor(orderId) {
       <div><label>Event date</label><input id="edit-event" type="date" value="${esc(p.event_date || "")}"></div>
       <div><label>Venue / location</label><input id="edit-location" value="${esc(p.location || "")}"></div>
       <div><label>Street address</label><input id="edit-address1" value="${esc(p.shipping_address1 || "")}"></div>
-      <div><label>Suite / floor / attention</label><input id="edit-address2" value="${esc(p.shipping_address2 || "")}"></div>
+      <div><label>Suite / floor</label><input id="edit-address2" value="${esc(p.shipping_address2 || "")}"></div>
+      <div><label>ATTN / Attention</label><input id="edit-attention" value="${esc(p.shipping_attention || "")}"></div>
       <div><label>City</label><input id="edit-city" value="${esc(p.shipping_city || "")}"></div>
       <div><label>State</label><select id="edit-state">${stateOptions(p.shipping_state || "")}</select></div>
       <div><label>ZIP code</label><input id="edit-zip" value="${esc(p.shipping_postal_code || "")}"></div>
@@ -1981,6 +1981,7 @@ function openOrderEditor(orderId) {
             location: document.getElementById("edit-location").value.trim(),
             shipping_address1: document.getElementById("edit-address1").value.trim(),
             shipping_address2: document.getElementById("edit-address2").value.trim(),
+            shipping_attention: document.getElementById("edit-attention")?.value.trim() || "",
             shipping_city: document.getElementById("edit-city").value.trim(),
             shipping_state: document.getElementById("edit-state").value,
             shipping_postal_code: document.getElementById("edit-zip").value.trim(),
@@ -2151,7 +2152,7 @@ function renderSlip() {
       <div class="label">${state.tab === "setup" ? "Step 2 of 2" : "Order Slip"}</div>
       <h2>${state.tab === "setup" ? "Project, Delivery & Cart" : "Your Cart"}</h2>
     </div>
-    ${state.tab === "setup" && !lines.length ? `<div class="setup-empty-warning">No items have been added yet. You can complete the event details now, then return to the Catalog to enter quantities.</div>` : ""}
+    ${state.tab === "setup" && !count ? `<div class="setup-empty-warning">No items have been added yet. You can complete the event details now, then return to the Catalog to enter quantities.</div>` : ""}
     <div class="lines">${cartLinesHtml(lines)}</div>
     <div class="foot">
       <div class="total-count">${count} item${count === 1 ? "" : "s"} in this order</div>
@@ -2191,8 +2192,12 @@ function renderSlip() {
               <input id="shipping-address1" type="text" autocomplete="shipping address-line1" value="${esc(f.shippingAddress1)}" placeholder="Street and number">
             </div>
             <div style="margin-top:8px;">
-              <label class="mini-label" for="shipping-address2">Suite / floor / attention</label>
+              <label class="mini-label" for="shipping-address2">Suite / floor</label>
               <input id="shipping-address2" type="text" autocomplete="shipping address-line2" value="${esc(f.shippingAddress2)}" placeholder="Optional">
+            </div>
+            <div>
+              <label class="mini-label" for="shipping-attention">ATTN / Attention</label>
+              <input id="shipping-attention" type="text" value="${esc(f.shippingAttention||"")}" placeholder="Person or department">
             </div>
             <div class="two-col" style="margin-top:8px;">
               <div>
@@ -2253,16 +2258,18 @@ function renderSlip() {
           <div class="two-col"><div><label class="mini-label" for="project-event-date">Event date</label><input id="project-event-date" type="date" value="${esc(f.eventDate || selectedSaved.event_date || "")}"></div><div><label class="mini-label" for="project-location">Event venue / location</label><input id="project-location" type="text" value="${esc(f.projectLocation || selectedSaved.location || "")}"></div></div>
           <div class="address-box"><h3>Delivery address for this order</h3>
             <div><label class="mini-label" for="shipping-address1">Street address</label><input id="shipping-address1" value="${esc(f.shippingAddress1)}"></div>
-            <div style="margin-top:8px"><label class="mini-label" for="shipping-address2">Suite / floor / attention</label><input id="shipping-address2" value="${esc(f.shippingAddress2)}"></div>
+            <div style="margin-top:8px"><label class="mini-label" for="shipping-address2">Suite / floor</label><input id="shipping-address2" value="${esc(f.shippingAddress2)}"></div>
+            <div style="margin-top:8px"><label class="mini-label" for="shipping-attention">ATTN / Attention</label><input id="shipping-attention" value="${esc(f.shippingAttention||"")}" placeholder="Person or department"></div>
             <div class="two-col" style="margin-top:8px"><div><label class="mini-label" for="shipping-city">City</label><input id="shipping-city" value="${esc(f.shippingCity)}"></div><div><label class="mini-label" for="shipping-state">State</label><select id="shipping-state">${stateOptions(f.shippingState)}</select></div></div>
             <div class="two-col" style="margin-top:8px"><div><label class="mini-label" for="shipping-postal-code">ZIP code</label><input id="shipping-postal-code" value="${esc(f.shippingPostalCode)}"></div><div><label class="mini-label">UPS Ground transit</label><div class="computed-field">${f.shippingState ? `${GROUND_DAYS_BY_STATE[f.shippingState]} business day${GROUND_DAYS_BY_STATE[f.shippingState] === 1 ? "" : "s"} · automatic` : "Select a state to calculate"}</div></div></div>
           </div>
         </div>` : ""}
         ` : `<div class="project-help">This order will be added to the selected saved project.</div>`}
+      <div class="attendee-upload-card"><div><h3>Name tags / attendee list</h3><p class="muted">Optional. Upload CSV or Excel so the warehouse can create name tags from the same order.</p></div><label class="upload-drop"><input id="attendee-file" type="file" accept=".csv,.xlsx" hidden><span>${state.attendeeFile?"Replace list":"Upload attendee list"}</span><small>CSV or XLSX</small></label>${state.attendeePreview?`<div class="attendee-preview"><strong>${state.attendeePreview.row_count} people</strong><span>${esc((state.attendeePreview.recognized_fields||[]).join(" · ")||"Columns detected")}</span>${(state.attendeePreview.missing_recommended||[]).length?`<span class="warn-text">Check: ${esc(state.attendeePreview.missing_recommended.join(", "))}</span>`:""}<button type="button" class="btn-secondary" id="remove-attendee-list">Remove</button></div>`:""}</div>
       <div class="collab-box"><h3>Order collaborators</h3><div class="collab-help">Add people who are involved with this specific order. They will see it in My Orders and receive its updates.</div><div class="collab-grid">${state.userDirectory.length?state.userDirectory.map(u=>`<label class="collab-option"><input type="checkbox" data-collaborator-id="${u.id}" ${(state.orderForm.collaboratorUserIds||[]).map(Number).includes(Number(u.id))?"checked":""}><span>${esc(u.name)} <small class="mono">${esc(u.username||"")}</small></span></label>`).join(""):`<span class="muted">No other active users available.</span>`}</div></div>
       ${renderOrderReadinessBox()}
       <textarea id="slip-notes" placeholder="Notes for the approver (optional)">${esc(f.notes)}</textarea>
-      <button class="btn-primary" id="submit-order" ${!lines.length ? "disabled" : ""}>Submit Order</button>
+      <button class="btn-primary" id="submit-order" ${!count ? "disabled" : ""}>Submit Order</button>
     </div>
   </div>`;
 }
@@ -2298,6 +2305,7 @@ function render() {
     <nav class="tabs">
       <button data-tab="catalog" class="${state.tab === "catalog" ? "active" : ""}">1. Catalog</button>
       <button data-tab="setup" class="${state.tab === "setup" ? "active" : ""}">2. Project & Delivery (${cartCount()})</button>
+      <button data-tab="folder" class="${state.tab === "folder" ? "active" : ""}">Folder Builder</button>
       <button data-tab="orders" class="${state.tab === "orders" ? "active" : ""}">My Orders</button>
     </nav>
   </div>`;
@@ -2311,6 +2319,8 @@ function render() {
         <aside class="cart-rail">${renderCompactCart()}</aside>
       </main>
       <button class="mobile-cart-bar" id="mobile-cart-open" type="button"><span>Review Order</span><span class="cart-total">${cartCount()} units</span></button>`;
+  } else if (state.tab === "folder") {
+    app.innerHTML = `${top}<main class="single-shell"><section class="view-panel folder-native"><div class="section-title-row"><div><div class="label">Build & Save</div><h1>Folder Builder</h1><p class="muted">Design the exact folder layout, stack order and placement. Save it as a reusable catalog item.</p></div></div><iframe id="folder-builder-frame" class="folder-builder-frame" src="/folder-builder.html" title="Folder Builder"></iframe></section></main>`;
   } else {
     app.innerHTML = `${top}<main class="single-shell ${state.tab === "setup" ? "setup-mode" : ""}"><section class="view-panel">${state.tab === "setup" ? renderSlip() : renderOrdersTab()}</section></main>`;
   }
@@ -2349,6 +2359,9 @@ function wireApp(searchHadFocus, searchCursorPos) {
     try { await api("/me/preferences", {method:"PUT", body:JSON.stringify({theme:state.theme})}); }
     catch (err) { applyTheme(previous); toast(err.message, true); }
   });
+
+  const folderFrame=document.getElementById("folder-builder-frame");
+  if(folderFrame) folderFrame.addEventListener("load",()=>folderFrame.contentWindow?.postMessage({type:"oti-folder-init",catalog:state.catalog,token:state.token,apiBase:state.apiBase},location.origin));
 
   document.querySelectorAll("nav.tabs button").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -2568,6 +2581,7 @@ function wireApp(searchHadFocus, searchCursorPos) {
         state.orderForm.projectLocation = saved.location || "";
         state.orderForm.shippingAddress1 = "";
         state.orderForm.shippingAddress2 = "";
+        state.orderForm.shippingAttention = "";
         state.orderForm.shippingCity = "";
         state.orderForm.shippingState = "";
         state.orderForm.shippingPostalCode = "";
@@ -2582,6 +2596,7 @@ function wireApp(searchHadFocus, searchCursorPos) {
   bindFormValue("project-location", "projectLocation");
   bindFormValue("shipping-address1", "shippingAddress1");
   bindFormValue("shipping-address2", "shippingAddress2");
+  bindFormValue("shipping-attention", "shippingAttention");
   bindFormValue("shipping-city", "shippingCity");
   bindFormValue("shipping-postal-code", "shippingPostalCode");
   const shippingState = document.getElementById("shipping-state");
@@ -2592,9 +2607,16 @@ function wireApp(searchHadFocus, searchCursorPos) {
   const saveProject = document.getElementById("save-project");
   if (saveProject) saveProject.addEventListener("change", (e) => { state.orderForm.saveProject = e.target.checked; });
 
+
+  const attendeeInput=document.getElementById("attendee-file");
+  if(attendeeInput) attendeeInput.addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file)return;try{const fd=new FormData();fd.append("file",file);state.attendeePreview=await api("/attendee-lists/preview",{method:"POST",body:fd});state.attendeeFile=file;render();}catch(err){toast(err.message,true);}});
+  document.getElementById("remove-attendee-list")?.addEventListener("click",()=>{state.attendeeFile=null;state.attendeePreview=null;render();});
+
   const submitBtn = document.getElementById("submit-order");
   if (submitBtn) submitBtn.addEventListener("click", submitOrder);
 }
+
+window.addEventListener("message",async e=>{if(!e.data||e.data.type!=="oti-save-folder-kit")return;try{const payload=e.data.payload||{};const saved=await api("/folder-kits",{method:"POST",body:JSON.stringify(payload)});if(payload.preview_data_url){const res=await fetch(payload.preview_data_url);const blob=await res.blob();const fd=new FormData();fd.append("file",blob,"folder-kit.png");await api(`/folder-kits/${saved.id}/image`,{method:"POST",body:fd});}toast(`${saved.name} saved to the catalog.`);await loadCatalog();state.tab="catalog";render();}catch(err){toast(err.message,true);}});
 
 // ---- boot -------------------------------------------------------------------
 (async function boot() {
