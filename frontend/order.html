@@ -506,7 +506,7 @@
 // typing a URL into a settings field is annoying. Opening the file
 // directly (file://) has no real origin to detect, so that case keeps
 // the old localhost default for local testing.
-const APP_VERSION = "1.11";
+const APP_VERSION = "1.11.1";
 const DEFAULT_API_BASE =
   (location.protocol === "file:" || !location.origin || location.origin === "null")
     ? "http://localhost:8000"
@@ -798,7 +798,7 @@ function renderKits(){
   if(!kits.length)return "";
   return `<section class="kit-section"><div class="cat-head"><span>Kits & folder kits</span><span class="n">${kits.length}</span></div><div class="grid">${kits.map(k=>{
     const draft=Number(state.kitDraftQty[k.id] ?? state.kitCart[k.id] ?? 0), inCart=Number(state.kitCart[k.id]||0), max=Number(k.buildable_quantity||0), photo=kitImageUrl(k), same=inCart>0&&draft===inCart;
-    return `<article class="tag kit-product-card"><div class="photo">${inCart?`<span class="in-cart-flag">In order · ${inCart}</span>`:""}${photo?`<img src="${esc(photo)}" alt="${esc(k.name)}" loading="lazy" data-lightbox-src="${esc(photo)}" onerror="handleImageError(this)">`:`<span class="photo-fallback">🎁</span>`}</div><div class="body"><div><div class="code">${esc(k.code)}</div><div class="name">${esc(k.name)}</div><div class="meta">${k.kit_type==="folder"?"Folder kit":"Kit"}${k.description?` · ${esc(k.description)}`:""}</div></div><div class="kit-parts">${k.components.map(c=>`<span class="kit-part">${c.image_id?`<img src="${kitImage(c.image_id)}" alt="">`:""}${c.quantity}× ${esc(c.item_name||c.item_code)}</span>`).join("")}</div><div class="stock-line">${max<1?`<span class="pill bad">Can't build right now</span>`:`<span class="pill ok">${max} can be built</span>`}</div><div class="buy-row"><div class="stepper"><button data-kit-act="dec" data-kit-id="${k.id}" ${draft<=0?"disabled":""}>−</button><input class="qty kit-qty-input" type="number" min="0" max="${max}" value="${draft||""}" placeholder="0" data-kit-qty="${k.id}" ${max<1?"disabled":""}><button data-kit-act="inc" data-kit-id="${k.id}" ${draft>=max?"disabled":""}>+</button></div><button class="add-cart ${same?"in-cart":""}" data-add-kit="${k.id}" ${max<1||draft<1?"disabled":""}>${inCart?(same?"In order":"Update order"):"Add to order"}</button></div></div></article>`;
+    return `<article class="tag kit-product-card"><div class="photo">${inCart?`<span class="in-cart-flag">In order · ${inCart}</span>`:""}${photo?`<img src="${esc(photo)}" alt="${esc(k.name)}" loading="lazy" data-lightbox-src="${esc(photo)}" onerror="handleImageError(this)">`:`<span class="photo-fallback">🎁</span>`}</div><div class="body"><div><div class="code">${esc(k.code)}</div><div class="name">${esc(k.name)}</div><div class="meta">${k.kit_type==="folder"?"Folder kit":"Kit"}${k.description?` · ${esc(k.description)}`:""}</div></div><div class="kit-parts">${k.components.map(c=>`<span class="kit-part">${c.image_id?`<img src="${kitImage(c.image_id)}" alt="" loading="lazy">`:""}${c.quantity}× ${esc(c.item_name||c.item_code)}</span>`).join("")}</div><div class="stock-line">${max<1?`<span class="pill bad">Can't build right now</span>`:`<span class="pill ok">${max} can be built</span>`}</div><div class="buy-row"><div class="stepper"><button data-kit-act="dec" data-kit-id="${k.id}" ${draft<=0?"disabled":""}>−</button><input class="qty kit-qty-input" type="number" min="0" max="${max}" value="${draft||""}" placeholder="0" data-kit-qty="${k.id}" ${max<1?"disabled":""}><button data-kit-act="inc" data-kit-id="${k.id}" ${draft>=max?"disabled":""}>+</button></div><button class="add-cart ${same?"in-cart":""}" data-add-kit="${k.id}" ${max<1||draft<1?"disabled":""}>${inCart?(same?"In order":"Update order"):"Add to order"}</button></div></div></article>`;
   }).join("")}</div></section>`;
 }
 
@@ -1157,11 +1157,10 @@ function imgUrl(item) {
   const ids = item.image_ids || [];
   if (!ids.length) return null;
   // Use the primary image record directly. Replacing/uploading a photo creates
-  // a new primary image id, so the browser receives a new URL instead of a
-  // cached response from /catalog/{item_id}/image. The extra nonce also keeps
-  // proxies from retaining an older copy of the same image record.
+  // a new primary image id, so the browser receives a new URL. The same URL
+  // is used everywhere so the browser downloads each photo only once.
   const id = ids[0];
-  return `${state.apiBase}/item-images/${id}?access_token=${encodeURIComponent(state.token||"")}&v=${id}-${Date.now()}`;
+  return `${state.apiBase}/item-images/${id}?access_token=${encodeURIComponent(state.token||"")}&v=${id}`;
 }
 
 function handleImageError(img) {

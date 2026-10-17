@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from sqlalchemy import (Column, Integer, String, Float, Boolean, Text,
                          ForeignKey, DateTime, UniqueConstraint, Index,
                          LargeBinary)
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, deferred
 
 from backend.db.session import Base
 
@@ -320,7 +320,7 @@ class ItemImageBlob(Base):
 
     image_id = Column(Integer, ForeignKey("item_images.id", ondelete="CASCADE"),
                       primary_key=True)
-    content = Column(LargeBinary, nullable=False)
+    content = deferred(Column(LargeBinary, nullable=False))  # load only when used
     content_type = Column(String(80), nullable=False,
                           default="application/octet-stream")
     created_at = Column(DateTime, default=utcnow, nullable=False)
@@ -423,7 +423,7 @@ class OrderAttendeeList(Base):
     order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
     filename = Column(String(255), nullable=False)
     content_type = Column(String(120), default="application/octet-stream")
-    content = Column(LargeBinary, nullable=False)
+    content = deferred(Column(LargeBinary, nullable=False))  # load only when used
     row_count = Column(Integer, nullable=False, default=0)
     columns_json = Column(Text, default="[]")
     created_at = Column(DateTime, default=utcnow, nullable=False)
@@ -439,7 +439,7 @@ class OrderPrintFile(Base):
     order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
     filename = Column(String(255), nullable=False)
     content_type = Column(String(120), default="application/octet-stream")
-    content = Column(LargeBinary, nullable=False)
+    content = deferred(Column(LargeBinary, nullable=False))  # load only when used
     size_bytes = Column(Integer, nullable=False, default=0)
     copies = Column(Integer, nullable=False, default=1)
     sides = Column(String(10), nullable=False, default="single")      # single|double
@@ -509,7 +509,7 @@ class OrderProofPhoto(Base):
                       nullable=False, index=True)
     filename = Column(String(255), nullable=False, default="proof.jpg")
     content_type = Column(String(80), nullable=False, default="image/jpeg")
-    content = Column(LargeBinary, nullable=False)
+    content = deferred(Column(LargeBinary, nullable=False))  # load only when used
     created_at = Column(DateTime, default=utcnow, nullable=False)
 
     order = relationship("Order", back_populates="proof_photos")
@@ -680,7 +680,7 @@ class KitImage(Base):
     kit_id = Column(Integer, ForeignKey("kits.id", ondelete="CASCADE"), primary_key=True)
     filename = Column(String(255), nullable=False, default="kit.png")
     content_type = Column(String(80), nullable=False, default="image/png")
-    content = Column(LargeBinary, nullable=False)
+    content = deferred(Column(LargeBinary, nullable=False))  # load only when used
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
     kit = relationship("Kit", back_populates="image")
 

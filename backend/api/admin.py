@@ -807,6 +807,8 @@ async def upload_kit_image(kit_id:int, file:UploadFile=File(...), db:Session=Dep
     if not content or len(content)>10*1024*1024: raise HTTPException(400,"Kit image must be between 1 byte and 10 MB.")
     ctype=(file.content_type or "application/octet-stream").lower()
     if ctype not in {"image/jpeg","image/png","image/webp","image/gif"}: raise HTTPException(400,"Kit image must be JPG, PNG, GIF, or WebP.")
+    from backend.services import image_tools
+    content,ctype=image_tools.shrink(content,ctype)
     if k.image:
         k.image.filename=(file.filename or "kit.png")[:255]; k.image.content_type=ctype; k.image.content=content
     else:

@@ -11,6 +11,10 @@ other devices to reach it; for local-only testing, drop that flag.
 """
 import os
 
+# Must run before any worker threads exist (see image_tools.limit_malloc_arenas).
+from backend.services.image_tools import limit_malloc_arenas
+limit_malloc_arenas()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -39,7 +43,7 @@ try:
 finally:
     _legacy_db.close()
 
-APP_BUILD = "1.11"
+APP_BUILD = "1.11.1"
 
 app = FastAPI(
     title="Otiwarehouse API",

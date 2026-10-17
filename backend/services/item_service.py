@@ -191,8 +191,11 @@ def backfill_legacy_image_blobs(db: Session) -> int:
             continue
         if not content or len(content) > MAX_IMAGE_BYTES:
             continue
-        db.add(ItemImageBlob(image_id=image.id, content=content,
-                             content_type=image_content_type(path)))
+        from backend.services import image_tools
+        content, ctype = image_tools.shrink(content, image_content_type(path))
+        db.add(ItemImageBlob(image_id=image.id, content=content, content_type=ctype))
+        db.commit()   # one at a time keeps memory flat
+        db.expire_all()
         added += 1
     if added:
         db.commit()
@@ -214,6 +217,9 @@ def add_item_image(db: Session, *, item_id: int, filename: str,
     if not content:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Empty file.")
 
+    from backend.services import image_tools
+    content, small_type = image_tools.shrink(content, image_content_type(filename or ""))
+    ext = image_tools.ext_for(small_type, ext)
     safe_code = re.sub(r"[^A-Za-z0-9_-]", "_", item.code)
     stored_name = f"{safe_code}_{secrets.token_hex(4)}{ext}"
     os.makedirs(ASSETS_DIR, exist_ok=True)

@@ -1,6 +1,21 @@
 OTIWAREHOUSE 1.11 — WHAT CHANGED
 =================================
 
+1.11.1 — MEMORY CRASH FIX ("Ran out of memory (used over 512MB)")
+- Photos are shrunk to max 1600 px when uploaded. Existing full-size photos
+  are shrunk once, the first time each one is viewed, and saved back
+  (typically 3-8 MB -> 100-400 KB). No manual step needed.
+- At most 4 photos are read/sent at the same time; the rest wait their turn.
+- Browsers now keep item photos instead of re-downloading every one on every
+  page load (each photo has its own ID, a re-upload gets a new ID, so there's
+  no risk of seeing an old photo). Same link used everywhere, so no duplicates.
+- Large file columns (photos, printouts, proof photos) only load when needed;
+  the kit list no longer pulls every kit photo into memory.
+- Memory allocator capped to 2 arenas so freed memory goes back to the OS.
+- Test: 40 photos requested at once — old build peaked at 513 MB (crash),
+  1.11.1 peaked at ~300 MB on the first pass (while shrinking) and ~140 MB after.
+- The first catalog load after deploying is slower while old photos shrink.
+
 DEPLOYING
 - Replace the files Render deploys from (backend/, frontend/, scripts/,
   render.yaml, requirements.txt) with this folder's contents, then deploy.

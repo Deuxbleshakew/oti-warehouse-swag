@@ -14,30 +14,45 @@ from backend.models.models import (
 )
 from backend.auth.dependencies import get_current_user, get_current_user_flexible
 from backend.services.item_service import resolve_stored_image_path, image_content_type
-from backend.services import access_service
+from backend.services import access_service, image_tools
 from backend.services.v111_service import item_out_kwargs, refresh_kit_review, notify_admins
 
 router = APIRouter(tags=["catalog"])
 
 
 def _serve_image_record(image: ItemImage, db: Session):
-    if image.blob is not None:
-        return Response(content=image.blob.content,
-                        media_type=image.blob.content_type,
-                        headers={"Cache-Control": "private, no-store, max-age=0", "Pragma": "no-cache"})
-    path = resolve_stored_image_path(image.filename)
-    if path:
-        with open(path, "rb") as fh:
-            content = fh.read()
-        content_type = image_content_type(path)
-        try:
-            db.add(ItemImageBlob(image_id=image.id, content=content,
-                                 content_type=content_type))
-            db.commit()
-        except Exception:
-            db.rollback()
-        return Response(content=content, media_type=content_type,
-                        headers={"Cache-Control": "private, no-store, max-age=0", "Pragma": "no-cache"})
+    """Send one item photo. Image IDs never change content (a new upload makes
+    a new ID), so browsers may keep them. Old full-size photos are shrunk once
+    and saved back the first time they are requested."""
+    with image_tools.IMAGE_SLOTS:
+        blob = image.blob
+        if blob is not None:
+            content, ctype = blob.content, blob.content_type
+            if image_tools.needs_shrink(content):
+                small, small_type = image_tools.shrink(content, ctype)
+                if len(small) < len(content):
+                    try:
+                        blob.content, blob.content_type = small, small_type
+                        db.commit()
+                    except Exception:
+                        db.rollback()
+                    content, ctype = small, small_type
+            db.expire(blob)   # drop the bytes from the session right away
+            return Response(content=content, media_type=ctype, headers=image_tools.CACHE_FOREVER)
+        path = resolve_stored_image_path(image.filename)
+        if path:
+            with open(path, "rb") as fh:
+                content = fh.read()
+            content_type = image_content_type(path)
+            content, content_type = image_tools.shrink(content, content_type)
+            try:
+                db.add(ItemImageBlob(image_id=image.id, content=content,
+                                     content_type=content_type))
+                db.commit()
+            except Exception:
+                db.rollback()
+            return Response(content=content, media_type=content_type,
+                            headers=image_tools.CACHE_FOREVER)
     parsed = urlparse((image.filename or "").strip())
     if parsed.scheme in ("http", "https"):
         return RedirectResponse(image.filename)
@@ -168,7 +183,19 @@ def get_kit_image(kit_id:int, db:Session=Depends(get_db), user:User=Depends(get_
     # A kit is visible only when every component is visible to this user.
     if any(not access_service.can_view_item(user,c.item) for c in k.components):
         raise HTTPException(status.HTTP_404_NOT_FOUND,"Kit image not found.")
-    return Response(content=k.image.content,media_type=k.image.content_type,headers={"Cache-Control":"private, max-age=3600"})
+    with image_tools.IMAGE_SLOTS:
+        img=k.image; content,ctype=img.content,img.content_type
+        if image_tools.needs_shrink(content):
+            small,small_type=image_tools.shrink(content,ctype)
+            if len(small)<len(content):
+                try:
+                    img.content,img.content_type=small,small_type; db.commit()
+                except Exception:
+                    db.rollback()
+                content,ctype=small,small_type
+        db.expire(img)
+        # Kit photos are replaced in place (same URL), so only cache briefly.
+        return Response(content=content,media_type=ctype,headers=image_tools.CACHE_SHORT)
 
 @router.get("/catalog-kits")
 def catalog_kits(db: Session=Depends(get_db), user: User=Depends(get_current_user)):
@@ -232,6 +259,7 @@ async def upload_folder_kit_image(kit_id:int,file:UploadFile=File(...),db:Sessio
     if not content or len(content)>10*1024*1024: raise HTTPException(status.HTTP_400_BAD_REQUEST,"Image must be between 1 byte and 10 MB.")
     ctype=(file.content_type or "image/png").lower()
     if ctype not in {"image/jpeg","image/png","image/webp","image/gif"}: raise HTTPException(status.HTTP_400_BAD_REQUEST,"Use JPG, PNG, GIF, or WebP.")
+    content,ctype=image_tools.shrink(content,ctype)
     if kit.image:
         kit.image.filename=(file.filename or "folder-kit.png")[:255];kit.image.content_type=ctype;kit.image.content=content
     else:
