@@ -251,7 +251,10 @@ def list_all_items(db: Session = Depends(get_db),
                   .filter(CountRequest.status == "open")
                   .group_by(CountRequest.item_id).all())
     rows = db.query(Item).filter(Item.deleted_at.is_(None)).order_by(Item.name).all()
-    return [ItemOut.from_orm_item(i, open_count_requests=counts.get(i.id, 0))
+    from backend.services.v111_service import item_out_kwargs
+    pending, subs = item_out_kwargs(db, rows)
+    return [ItemOut.from_orm_item(i, open_count_requests=counts.get(i.id, 0),
+                                  pending_qty=pending.get(i.id, 0), substitute=subs.get(i.id))
             for i in rows]
 
 
@@ -618,7 +621,7 @@ def update_catalog_permissions(user_id: int, body: CatalogPermissionsUpdate,
 BRAND_ALIASES = {
     "OT": "Oticon",
     "GS": "Government Services",
-    "BDG": "Bernafon",
+    "BDG": "Business Development",
     "PHI": "Philips",
     "PEDS": "Pediatrics",
 }
@@ -769,7 +772,7 @@ def _kit_out(k: Kit):
         possible=available//max(1,c.quantity)
         buildable=possible if buildable is None else min(buildable,possible)
         comps.append({"id":c.id,"item_id":c.item_id,"item_code":c.item.code if c.item else "Deleted", "item_name":c.item.name if c.item else "Deleted item", "quantity":c.quantity,"position":c.position,"available":available,"image_id":(c.item.images[0].id if c.item and c.item.images else None)})
-    return KitOut(id=k.id,name=k.name,code=k.code,brand=k.brand or "",description=k.description or "",active=k.active,custom=k.custom,saved_for_reuse=k.saved_for_reuse,kit_type=getattr(k,"kit_type","standard") or "standard",design_json=getattr(k,"design_json","") or "",buildable_quantity=buildable or 0,image_available=bool(k.image),components=comps)
+    return KitOut(id=k.id,name=k.name,code=k.code,brand=k.brand or "",description=k.description or "",active=k.active,custom=k.custom,saved_for_reuse=k.saved_for_reuse,kit_type=getattr(k,"kit_type","standard") or "standard",design_json=getattr(k,"design_json","") or "",buildable_quantity=buildable or 0,image_available=bool(k.image),review_status=(getattr(k,"review_status","live") or "live"),components=comps)
 
 @router.get("/kits", response_model=list[KitOut])
 def list_kits(db: Session=Depends(get_db), user: User=Depends(require_role("admin"))):

@@ -15,6 +15,7 @@ from backend.models.models import (
 from backend.auth.dependencies import get_current_user, get_current_user_flexible
 from backend.services.item_service import resolve_stored_image_path, image_content_type
 from backend.services import access_service
+from backend.services.v111_service import item_out_kwargs, refresh_kit_review, notify_admins
 
 router = APIRouter(tags=["catalog"])
 
@@ -84,9 +85,11 @@ def list_catalog(db: Session = Depends(get_db),
         user_id=user.id).all()}
     items = access_service.visible_items_query(db, user).order_by(Item.name).all()
     latest = _latest_count_map(db, [i.id for i in items])
+    pending, subs = item_out_kwargs(db, items)
     return [ItemOut.from_orm_item(
                 i, open_count_requests=counts.get(i.id, 0),
                 favorite=i.id in favorite_ids,
+                pending_qty=pending.get(i.id, 0), substitute=subs.get(i.id),
                 last_count_at=(latest[i.id].resolved_at if i.id in latest else None),
                 last_count_quantity=(latest[i.id].physical_qty if i.id in latest else None),
                 last_count_location=((latest[i.id].inventory_location or "") if i.id in latest else ""))
@@ -120,7 +123,9 @@ def get_catalog_item(item_id: int, db: Session = Depends(get_db),
     favorite = db.query(UserFavorite).filter_by(user_id=user.id,
                                                 item_id=item.id).first() is not None
     latest = _latest_count_map(db, [item.id]).get(item.id)
+    pending, subs = item_out_kwargs(db, [item])
     return ItemOut.from_orm_item(item, favorite=favorite,
+                                 pending_qty=pending.get(item.id, 0), substitute=subs.get(item.id),
                                  last_count_at=(latest.resolved_at if latest else None),
                                  last_count_quantity=(latest.physical_qty if latest else None),
                                  last_count_location=((latest.inventory_location or "") if latest else ""))
@@ -169,6 +174,8 @@ def get_kit_image(kit_id:int, db:Session=Depends(get_db), user:User=Depends(get_
 def catalog_kits(db: Session=Depends(get_db), user: User=Depends(get_current_user)):
     result=[]
     for k in db.query(Kit).filter_by(active=True).order_by(Kit.name):
+        if (getattr(k, "review_status", "live") or "live") != "live":
+            continue
         comps=[]; buildable=None; required_by_item={}
         invalid=False
         for c in sorted(k.components,key=lambda x:x.position):
@@ -180,7 +187,7 @@ def catalog_kits(db: Session=Depends(get_db), user: User=Depends(get_current_use
             item=next(c.item for c in k.components if c.item_id==item_id)
             possible=max(0,item.qty_on_hand)//max(1,required)
             buildable=possible if buildable is None else min(buildable,possible)
-        result.append({"id":k.id,"name":k.name,"code":k.code,"brand":k.brand or "","description":k.description or "","custom":k.custom,"kit_type":getattr(k,"kit_type","standard") or "standard","design_json":getattr(k,"design_json","") or "","buildable_quantity":buildable or 0,"image_available":bool(k.image),"components":comps})
+        result.append({"id":k.id,"name":k.name,"code":k.code,"brand":k.brand or "","description":k.description or "","custom":k.custom,"kit_type":getattr(k,"kit_type","standard") or "standard","design_json":getattr(k,"design_json","") or "","buildable_quantity":buildable or 0,"image_available":bool(k.image),"created_by_user_id":k.created_by_user_id,"components":comps})
     return result
 
 @router.post("/folder-kits", status_code=201)
@@ -196,11 +203,25 @@ def create_folder_kit(body: KitCreate, db: Session=Depends(get_db), user: User=D
         raise HTTPException(status.HTTP_400_BAD_REQUEST,"Add at least one catalog item to the folder.")
     for i,c in enumerate(body.components):
         item=db.query(Item).filter_by(id=c.item_id,active=True).first()
-        if not item or not access_service.can_view_item(user,item):
+        if not item or not can_use_in_folder(user,item):
             raise HTTPException(status.HTTP_400_BAD_REQUEST,f"Item {c.item_id} is not available.")
         db.add(KitComponent(kit_id=kit.id,item_id=item.id,quantity=c.quantity,position=c.position if c.position is not None else i))
+    db.flush(); db.refresh(kit)
+    state=refresh_kit_review(db,kit)
+    if state!="live":
+        notify_admins(db,"kit_pending",f"Folder kit {kit.code} waiting on item review",
+                      f"{user.full_name or user.username} saved a folder kit that uses items still pending review.","kit",kit.id)
     db.commit(); db.refresh(kit)
-    return {"id":kit.id,"name":kit.name,"code":kit.code,"kit_type":"folder"}
+    return {"id":kit.id,"name":kit.name,"code":kit.code,"kit_type":"folder","review_status":kit.review_status}
+
+
+def can_use_in_folder(user: User, item: Item) -> bool:
+    """Live items the user can see, plus pending items the user submitted."""
+    if access_service.can_view_item(user, item):
+        return True
+    pending = (getattr(item, "review_status", "live") or "live") == "pending_review"
+    return bool(pending and item.deleted_at is None and
+                (item.created_by_user_id == user.id or user.has_role("admin")))
 
 @router.post("/folder-kits/{kit_id}/image", status_code=204)
 async def upload_folder_kit_image(kit_id:int,file:UploadFile=File(...),db:Session=Depends(get_db),user:User=Depends(get_current_user)):

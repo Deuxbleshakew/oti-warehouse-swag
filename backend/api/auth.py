@@ -46,6 +46,7 @@ def preferences(db: Session = Depends(get_db),
     favorite_ids = [row.item_id for row in db.query(UserFavorite).filter_by(
         user_id=user.id).all()]
     return UserPreferencesOut(theme=user.theme or "warehouse-dark",
+                              accent_color=getattr(user, "accent_color", "") or "",
                               favorite_item_ids=favorite_ids)
 
 
@@ -53,10 +54,13 @@ def preferences(db: Session = Depends(get_db),
 def update_preferences(body: UserPreferencesUpdate,
                        db: Session = Depends(get_db),
                        user: User = Depends(get_current_user)):
-    user.theme = body.theme
+    if body.theme is not None:
+        user.theme = body.theme
+    if body.accent_color is not None:
+        user.accent_color = body.accent_color.upper()
     db.commit()
     return UserPreferencesOut(
-        theme=user.theme,
+        theme=user.theme, accent_color=user.accent_color or "",
         favorite_item_ids=[row.item_id for row in db.query(UserFavorite).filter_by(
             user_id=user.id).all()],
     )

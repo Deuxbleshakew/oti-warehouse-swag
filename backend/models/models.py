@@ -38,6 +38,7 @@ class User(Base):
     deleted_at = Column(DateTime, nullable=True, index=True)
     theme = Column(String(30), nullable=False, default="warehouse-dark")
     catalog_access_mode = Column(String(20), nullable=False, default="all")
+    accent_color = Column(String(20), nullable=False, default="")
 
     roles = relationship("Role", secondary="user_roles", back_populates="users")
     sessions = relationship("Session", back_populates="user",
@@ -235,6 +236,12 @@ class Item(Base):
     deleted_at = Column(DateTime, nullable=True, index=True)
     deleted_code = Column(String(60), nullable=True)
     deleted_name = Column(String(200), nullable=True)
+    # v1.11: requester-submitted items stay hidden until an admin approves them.
+    review_status = Column(String(20), nullable=False, default="live")  # live|pending_review|rejected
+    review_note = Column(String(255), default="")
+    created_by_user_id = Column(Integer, nullable=True)
+    max_per_order = Column(Integer, nullable=True)        # None/0 = no limit
+    substitute_item_id = Column(Integer, nullable=True)   # suggested alternative
 
     images = relationship("ItemImage", back_populates="item",
                           cascade="all, delete-orphan",
@@ -384,6 +391,7 @@ class Order(Base):
                                  order_by="OrderCollaborator.created_at")
     kit_selections = relationship("OrderKitSelection", back_populates="order", cascade="all, delete-orphan", order_by="OrderKitSelection.id")
     attendee_lists = relationship("OrderAttendeeList", back_populates="order", cascade="all, delete-orphan", order_by="OrderAttendeeList.id")
+    print_files = relationship("OrderPrintFile", back_populates="order", cascade="all, delete-orphan", order_by="OrderPrintFile.id")
 
     __table_args__ = (
         Index("ix_orders_status", "status"),
@@ -421,6 +429,28 @@ class OrderAttendeeList(Base):
     created_at = Column(DateTime, default=utcnow, nullable=False)
 
     order = relationship("Order", back_populates="attendee_lists")
+
+
+class OrderPrintFile(Base):
+    """v1.11: PDF/Word files a requester wants printed as part of an order."""
+    __tablename__ = "order_print_files"
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
+    filename = Column(String(255), nullable=False)
+    content_type = Column(String(120), default="application/octet-stream")
+    content = Column(LargeBinary, nullable=False)
+    size_bytes = Column(Integer, nullable=False, default=0)
+    copies = Column(Integer, nullable=False, default=1)
+    sides = Column(String(10), nullable=False, default="single")      # single|double
+    color_mode = Column(String(10), nullable=False, default="color")  # color|bw
+    paper = Column(String(20), nullable=False, default="Letter")      # Letter|Legal|Tabloid
+    notes = Column(String(255), default="")
+    printed = Column(Boolean, nullable=False, default=False)
+    printed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+
+    order = relationship("Order", back_populates="print_files")
 
 
 class OrderCollaborator(Base):
@@ -636,6 +666,7 @@ class Kit(Base):
     saved_for_reuse = Column(Boolean, nullable=False, default=True)
     kit_type = Column(String(30), nullable=False, default="standard")
     design_json = Column(Text, default="")
+    review_status = Column(String(20), nullable=False, default="live")  # live|pending_review
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=utcnow, nullable=False)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
@@ -663,3 +694,18 @@ class KitComponent(Base):
     kit = relationship("Kit", back_populates="components")
     item = relationship("Item")
     __table_args__ = (UniqueConstraint("kit_id", "item_id", "position", name="uq_kit_component_position"),)
+
+
+class BadgeProject(Base):
+    """v1.11: one Badge Studio document per event (scope_key "project:<id>")
+    or a shared fallback (scope_key "shared"). The document is the Badge Studio
+    JSON as-is; revision guards against two windows overwriting each other."""
+    __tablename__ = "badge_projects"
+    id = Column(Integer, primary_key=True)
+    scope_key = Column(String(60), unique=True, nullable=False, index=True)
+    project_id = Column(Integer, nullable=True, index=True)
+    document_json = Column(Text, nullable=False, default="")
+    revision = Column(Integer, nullable=False, default=0)
+    updated_by_user_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)

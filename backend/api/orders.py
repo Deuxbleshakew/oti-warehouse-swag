@@ -34,6 +34,7 @@ def _my_orders_query(db: Session, user_id: int):
         joinedload(Order.tracking_numbers), joinedload(Order.proof_photos),
         joinedload(Order.collaborators).joinedload(OrderCollaborator.user),
         joinedload(Order.kit_selections), joinedload(Order.attendee_lists),
+        joinedload(Order.print_files),
     ).filter(or_(Order.requester_user_id == user_id,
                  Order.id.in_(collaborator_orders),
                  Order.project_id.in_(member_projects))))
@@ -220,7 +221,7 @@ def picking_sheet(order_id:int, db:Session=Depends(get_db), user:User=Depends(ge
             comp_rows.append(f'<tr><td>{i+1}</td><td>{html.escape(code)}</td><td>{html.escape(name)}</td><td>{qty}</td><td>{html.escape(str(placement))}</td><td>{html.escape(str(layer))}</td></tr>')
         sheets.append(f'<section class="page folder"><h1>Folder Kit Build Sheet</h1><h2>{html.escape(sel.kit_code_snapshot)} · {html.escape(sel.kit_name_snapshot)} × {sel.quantity}</h2><p>Build components in the sequence and placement shown below. Do not mix these part numbers into the main picking list.</p><table><thead><tr><th>Step</th><th>Part #</th><th>Item</th><th>Qty</th><th>Placement</th><th>Layer</th></tr></thead><tbody>{"".join(comp_rows)}</tbody></table></section>')
     page = '<!doctype html><html><head><meta charset="utf-8"><title>'+html.escape(order.order_number or str(order.id))+' Picking</title><style>@page{size:letter;margin:.45in}body{font-family:Arial;color:#111;margin:0}.page{page-break-after:always}.page:last-child{page-break-after:auto}h1{font-size:20px}h2{font-size:14px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{border:1px solid #777;padding:7px;text-align:left;font-size:11px}th{background:#eee}.meta{display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:11px}.folder{border-top:8px solid #f2b705;padding-top:10px}</style></head><body>'
-    page += f'<section class="page"><h1>Picking Slip · {html.escape(order.order_number or str(order.id))}</h1><div class="meta"><div><b>Project:</b> {html.escape(order.project.name if order.project else "")}</div><div><b>Requester:</b> {html.escape(order.requester.full_name or order.requester.username)}</div><div><b>ATTN:</b> {attn}</div><div><b>Folder sheets:</b> {len(folder_sections)}</div></div><table><thead><tr><th>Part #</th><th>Item</th><th>Qty</th><th>Loc.</th></tr></thead><tbody>{rows}</tbody></table></section>'
+    page += f'<section class="page"><h1>Picking Slip · {html.escape(order.order_number or str(order.id))}</h1><div class="meta"><div><b>Project:</b> {html.escape(order.project.name if order.project else "")}</div><div><b>Requester:</b> {html.escape(order.requester.full_name or order.requester.username)}</div><div><b>ATTN:</b> {attn}</div><div><b>Folder sheets:</b> {len(folder_sections)}</div><div><b>Printouts:</b> {len(order.print_files)} file(s){(" — " + ", ".join(html.escape(f"{p.filename} ×{p.copies} ({'2-sided' if p.sides=='double' else '1-sided'}, {'B&W' if p.color_mode=='bw' else 'color'}, {p.paper})" + (" ✓ printed" if p.printed else "")) for p in order.print_files)) if order.print_files else ""}</div></div><table><thead><tr><th>Part #</th><th>Item</th><th>Qty</th><th>Loc.</th></tr></thead><tbody>{rows}</tbody></table></section>'
     page += ''.join(sheets) + '</body></html>'
     return page
 

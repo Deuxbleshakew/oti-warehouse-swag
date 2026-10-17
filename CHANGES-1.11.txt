@@ -1,0 +1,51 @@
+OTIWAREHOUSE 1.11 — WHAT CHANGED
+=================================
+
+DEPLOYING
+- Replace the files Render deploys from (backend/, frontend/, scripts/,
+  render.yaml, requirements.txt) with this folder's contents, then deploy.
+- No manual database steps. On start-up the backend adds the new columns and
+  tables to the existing Postgres database. Nothing is deleted or rewritten.
+- New: frontend/brand/ (logo + icons) and frontend/badge-studio/ must be
+  deployed too.
+
+WEBSITE
+- New name and logo (Otiwarehouse), dark muted design, magenta accent.
+  Each user can pick their own accent color and theme from the profile menu
+  (top right). Their choice is saved to their account.
+- Header with tabs: Catalog · Delivery & review · Folder builder ·
+  Badge studio · My orders. The bag icon opens the current order from any page.
+- Catalog: filter chips with result count and "Clear all", a pull-up filter
+  sheet on phones, "Bulk add by part #" (paste part numbers + quantities),
+  stock shown as "free to order" (on hand minus quantities in pending orders),
+  "Max N per order" limits, and "Try instead" when an item is out of stock.
+- Delivery & review: saved addresses from past orders, a Printouts card
+  (PDF/Word uploads with copies, sides, color, paper, notes; opens on its own
+  for Business Development items), and a review screen before Submit.
+- My orders: Order again, Print confirmation, add/remove printouts while
+  pending.
+- Folder builder: editor layout; pick items from the catalog; "New item" adds
+  an item to the catalog as Pending review; tray badges (In catalog / Pending
+  review / Not in catalog); undo/redo (Ctrl+Z / Ctrl+Y); arrow keys nudge the
+  selected sheet (Shift = bigger steps); zoom; My kits (open, rename,
+  duplicate, retire); "Add this kit to my order".
+- Badge studio: the Badge Studio app inside the site. One badge project per
+  event, saved on the server (no longer only in one browser). Backups are
+  compatible with the portable version.
+
+BACKEND
+- Items: review_status (live / pending_review / rejected), max_per_order,
+  substitute_item_id, created_by_user_id. Pending and rejected items are
+  hidden from the catalog and can't be ordered.
+- Folder kits that use pending items are held until every item is approved.
+- Orders: printouts (order_print_files table) + the pick slip lists them.
+- Badge Studio documents (badge_projects table).
+- Reports: /admin/reports/timing, /admin/reports/demand (+ .xlsx export).
+- Fixed: the brand code BDG now maps to Business Development (was Bernafon).
+  Items already saved under Bernafon are NOT changed automatically. Use
+  Admin app > Item Review > "Move Bernafon items to Business Development…".
+
+NOTE ON STOCK HOLDS
+- Approving an order already takes the stock out (and cancelling returns it).
+  1.11 also counts pending orders, so the catalog only offers what's free.
+  Approval still checks real stock as before.

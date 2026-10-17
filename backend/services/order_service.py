@@ -15,7 +15,7 @@ from backend.models.models import (
     OrderTracking, OrderProofPhoto, ProjectMember, NavAdjustmentTask, OrderCollaborator, ItemLocationBalance,
     Kit, OrderKitSelection, OrderAttendeeList,
 )
-from backend.schemas.schemas import OrderOut, OrderLineOut, ProjectOut, OrderKitOut, OrderAttendeeListOut
+from backend.schemas.schemas import OrderOut, OrderLineOut, ProjectOut, OrderKitOut, OrderAttendeeListOut, OrderPrintFileOut
 from backend.services.audit_service import log_action
 from backend.services.notification_service import notify_new_order_async
 from backend.services import access_service
@@ -289,6 +289,9 @@ def create_order(db: Session, *, requester: User, project_id: Optional[int],
             raise OrderError(f"{item.code} has not been counted yet and cannot be ordered.")
         if ln.qty <= 0:
             raise OrderError(f"Quantity for item {ln.item_id} must be positive.")
+        limit = int(getattr(item, "max_per_order", None) or 0)
+        if limit and ln.qty > limit:
+            raise OrderError(f"{item.code} is limited to {limit} per order (requested {ln.qty}).")
         variant = None
         if variant_id is not None:
             variant = db.query(ItemVariant).filter_by(id=variant_id, item_id=item.id, active=True).first()
@@ -364,6 +367,9 @@ def _validate_edit_lines(db: Session, lines: list):
             raise OrderError(f"Item {entry.item_id} no longer exists.")
         if entry.qty <= 0:
             raise OrderError("Every order quantity must be greater than zero.")
+        limit = int(getattr(item, "max_per_order", None) or 0)
+        if limit and int(entry.qty) > limit:
+            raise OrderError(f"{item.code} is limited to {limit} per order (requested {entry.qty}).")
         variant = None
         if variant_id is not None:
             variant = db.query(ItemVariant).filter_by(id=variant_id, item_id=item.id).first()
@@ -922,6 +928,11 @@ def to_order_out(order: Order, viewer: User | None = None, db: Session | None = 
         attendee_lists=[OrderAttendeeListOut(id=row.id, filename=row.filename, row_count=row.row_count or 0,
                           columns=(json.loads(row.columns_json or "[]") if row.columns_json else []), created_at=row.created_at)
                         for row in getattr(order, "attendee_lists", [])],
+        print_files=[OrderPrintFileOut(id=row.id, filename=row.filename, size_bytes=row.size_bytes or 0,
+                          copies=row.copies or 1, sides=row.sides or "single", color_mode=row.color_mode or "color",
+                          paper=row.paper or "Letter", notes=row.notes or "", printed=bool(row.printed),
+                          printed_at=row.printed_at, created_at=row.created_at)
+                     for row in getattr(order, "print_files", [])],
         lines=[OrderLineOut(
             id=line.id, item_id=line.item_id,
             item_code=(line.item_code_snapshot or

@@ -24,6 +24,9 @@ def create_item(db: Session, *, data: dict, actor: User, source="api") -> Item:
     if not data.get("nav_tracked"):
         data["nav_item_number"] = ""
     counted = opening_qty is not None
+    for key in ("max_per_order", "substitute_item_id"):
+        if not data.get(key):
+            data[key] = None
     data["qty_on_hand"] = int(opening_qty or 0)
     data["inventory_counted"] = counted
     item = Item(**data)
@@ -56,9 +59,17 @@ def update_item(db: Session, *, item_id: int, data: dict, actor: User,
         data["nav_item_number"] = (data.get("nav_item_number") or "").strip()
     if data.get("nav_tracked") is False:
         data["nav_item_number"] = ""
+    if data.get("substitute_item_id") == item.id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "An item cannot be its own substitute.")
+    if data.get("substitute_item_id"):
+        if not db.query(Item).filter(Item.id == data["substitute_item_id"], Item.deleted_at.is_(None)).first():
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "The substitute item was not found.")
     old = {k: getattr(item, k) for k in data if hasattr(item, k)}
     for k, v in data.items():
         if v is not None:
+            # 0 means "clear" for the optional v1.11 integer fields.
+            if k in ("max_per_order", "substitute_item_id") and not v:
+                v = None
             setattr(item, k, v)
     log_action(db, user_id=actor.id, action="item.update", object_type="item",
               object_id=item.id, old_value=old, new_value=data, source=source)

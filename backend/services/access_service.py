@@ -31,7 +31,15 @@ def catalog_permission_sets(user: User) -> dict[str, set[str]]:
     return result
 
 
+def is_live(item: Item) -> bool:
+    """v1.11: items submitted from the Folder Builder stay hidden from the
+    catalog and from ordering until an admin approves them."""
+    return (getattr(item, "review_status", "live") or "live") == "live"
+
+
 def can_view_item(user: User, item: Item) -> bool:
+    if not is_live(item):
+        return False
     if is_privileged(user) or (user.catalog_access_mode or "all") == "all":
         return item.active and item.deleted_at is None
     rules = catalog_permission_sets(user)
@@ -43,7 +51,8 @@ def can_view_item(user: User, item: Item) -> bool:
 
 
 def visible_items_query(db: Session, user: User):
-    q = db.query(Item).filter(Item.active.is_(True), Item.deleted_at.is_(None))
+    q = db.query(Item).filter(Item.active.is_(True), Item.deleted_at.is_(None),
+                              or_(Item.review_status.is_(None), Item.review_status == "live"))
     if is_privileged(user) or (user.catalog_access_mode or "all") == "all":
         return q
     rows = db.query(CatalogPermission).filter_by(user_id=user.id).all()

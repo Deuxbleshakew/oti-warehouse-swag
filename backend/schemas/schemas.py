@@ -19,6 +19,7 @@ class UserOut(BaseModel):
     active: bool
     theme: str = "warehouse-dark"
     catalog_access_mode: str = "all"
+    accent_color: str = ""
     roles: List[str] = []
 
     @classmethod
@@ -26,6 +27,7 @@ class UserOut(BaseModel):
         return cls(id=user.id, username=user.username, full_name=user.full_name,
                    active=user.active, theme=user.theme or "warehouse-dark",
                    catalog_access_mode=user.catalog_access_mode or "all",
+                   accent_color=getattr(user, "accent_color", "") or "",
                    roles=[r.name for r in user.roles])
 
 
@@ -52,11 +54,14 @@ class UserUpdate(BaseModel):
 
 class UserPreferencesOut(BaseModel):
     theme: str = "warehouse-dark"
+    accent_color: str = ""
     favorite_item_ids: List[int] = []
 
 
 class UserPreferencesUpdate(BaseModel):
-    theme: str = Field(pattern="^(warehouse-dark|light|high-contrast|system)$")
+    theme: Optional[str] = Field(default=None, pattern="^(warehouse-dark|light|high-contrast|system)$")
+    # "" resets to the default accent; otherwise a #RRGGBB hex value.
+    accent_color: Optional[str] = Field(default=None, pattern="^(|#[0-9A-Fa-f]{6})$")
 
 
 class CatalogPermissionOut(BaseModel):
@@ -142,12 +147,33 @@ class ItemOut(BaseModel):
     last_count_location: str = ""
     location_balances: List[ItemLocationOut] = []
     variants: List[ItemVariantOut] = []
+    # v1.11
+    review_status: str = "live"
+    review_note: str = ""
+    created_by_user_id: Optional[int] = None
+    max_per_order: Optional[int] = None
+    substitute_item_id: Optional[int] = None
+    substitute_code: str = ""
+    substitute_name: str = ""
+    pending_qty: int = 0          # quantity requested in still-pending orders
+    available_qty: int = 0        # on hand minus pending requests (never below 0)
 
     @classmethod
     def from_orm_item(cls, item, include_sensitive=True,
                       open_count_requests: int = 0, favorite: bool = False,
-                      last_count_at=None, last_count_quantity=None, last_count_location=""):
+                      last_count_at=None, last_count_quantity=None, last_count_location="",
+                      pending_qty: int = 0, substitute=None):
+        on_hand = int(item.qty_on_hand or 0)
         return cls(
+            review_status=(getattr(item, "review_status", "live") or "live"),
+            review_note=(getattr(item, "review_note", "") or ""),
+            created_by_user_id=getattr(item, "created_by_user_id", None),
+            max_per_order=(getattr(item, "max_per_order", None) or None),
+            substitute_item_id=(substitute.id if substitute is not None else None),
+            substitute_code=(substitute.code if substitute is not None else ""),
+            substitute_name=(substitute.name if substitute is not None else ""),
+            pending_qty=int(pending_qty or 0),
+            available_qty=max(0, on_hand - int(pending_qty or 0)) if include_sensitive else -1,
             id=item.id, code=item.code, name=item.name,
             description=item.description, category=item.category,
             brand=item.brand, color=item.color, color_name=item.color_name,
@@ -189,6 +215,8 @@ class ItemCreate(BaseModel):
     reorder_threshold: int = 0
     cost: float = 0.0
     active: bool = True
+    max_per_order: Optional[int] = Field(default=None, ge=0)
+    substitute_item_id: Optional[int] = Field(default=None, ge=0)
 
 
 class ItemUpdate(BaseModel):
@@ -205,6 +233,31 @@ class ItemUpdate(BaseModel):
     reorder_threshold: Optional[int] = None
     cost: Optional[float] = None
     active: Optional[bool] = None
+    # 0 clears the limit / substitute
+    max_per_order: Optional[int] = Field(default=None, ge=0)
+    substitute_item_id: Optional[int] = Field(default=None, ge=0)
+
+
+class ItemSubmission(BaseModel):
+    """A requester-submitted catalog item (held for admin review)."""
+    name: str = Field(min_length=1, max_length=200)
+    code: str = Field(default="", max_length=60)
+    brand: str = Field(default="", max_length=40)
+    category: str = Field(default="", max_length=80)
+    measures: str = Field(default="", max_length=120)
+    description: str = Field(default="", max_length=2000)
+
+
+class ItemReviewDecision(BaseModel):
+    note: str = Field(default="", max_length=255)
+    # Optional: counted stock to record while approving (resolves the
+    # "Initial count required" request so the item can be ordered).
+    opening_qty: Optional[int] = Field(default=None, ge=0)
+
+
+class BrandFixRequest(BaseModel):
+    item_ids: List[int] = Field(min_length=1)
+    to_brand: str = Field(default="Business Development", min_length=1, max_length=40)
 
 
 class InventoryAdjustRequest(BaseModel):
@@ -383,6 +436,29 @@ class OrderKitOut(BaseModel):
     quantity: int = 1
     design_json: str = ""
 
+class OrderPrintFileOut(BaseModel):
+    id: int
+    filename: str
+    size_bytes: int = 0
+    copies: int = 1
+    sides: str = "single"
+    color_mode: str = "color"
+    paper: str = "Letter"
+    notes: str = ""
+    printed: bool = False
+    printed_at: Optional[datetime] = None
+    created_at: datetime
+
+
+class PrintFileUpdate(BaseModel):
+    printed: Optional[bool] = None
+    copies: Optional[int] = Field(default=None, ge=1, le=5000)
+    sides: Optional[str] = Field(default=None, pattern="^(single|double)$")
+    color_mode: Optional[str] = Field(default=None, pattern="^(color|bw)$")
+    paper: Optional[str] = Field(default=None, pattern="^(Letter|Legal|Tabloid)$")
+    notes: Optional[str] = Field(default=None, max_length=255)
+
+
 class OrderAttendeeListOut(BaseModel):
     id: int
     filename: str
@@ -450,6 +526,7 @@ class OrderOut(BaseModel):
     lines: List[OrderLineOut]
     kits: List[OrderKitOut] = Field(default_factory=list)
     attendee_lists: List[OrderAttendeeListOut] = Field(default_factory=list)
+    print_files: List[OrderPrintFileOut] = Field(default_factory=list)
 
 
 class ApproveRequest(BaseModel):
@@ -557,6 +634,15 @@ class KitCreate(BaseModel):
     design_json: str = ""
     components: List[KitComponentIn] = Field(min_length=1)
 
+class FolderKitUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    code: Optional[str] = Field(default=None, min_length=1, max_length=60)
+    description: Optional[str] = None
+    design_json: Optional[str] = None
+    components: Optional[List[KitComponentIn]] = None
+    active: Optional[bool] = None
+
+
 class KitOut(BaseModel):
     id: int
     name: str
@@ -570,4 +656,5 @@ class KitOut(BaseModel):
     design_json: str = ""
     buildable_quantity: int = 0
     image_available: bool = False
+    review_status: str = "live"
     components: List[dict] = Field(default_factory=list)

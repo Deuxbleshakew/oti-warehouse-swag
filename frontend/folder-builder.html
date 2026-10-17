@@ -3,192 +3,203 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pocket Folder Builder</title>
+<title>Folder builder · Otiwarehouse</title>
+<link rel="icon" type="image/png" href="/brand/logo-64.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --desk:#1E2124;
-  --kraft:#C89860;
-  --kraft-shade:#AD8049;
-  --kraft-line:#8B6234;
-  --kraft-light:#D9AE6F;
-  --paper:#F7F1DE;
-  --paper-shade:#EAE1C4;
-  --inside-base:#F7F1DE;
-  --inside-highlight:#FBF6E8;
-  --inside-shade:#E4D8B9;
-  --inside-line:#9B7950;
-  --pocket-base:#F1E4C2;
-  --pocket-highlight:#F8EED6;
-  --pocket-shade:#D9C79A;
-  --pocket-line:#927044;
-  --ink:#26241D;
-  --ink-soft:#5B5642;
-  --tab-left:#E06248;
-  --tab-right:#F2B705;
-  --radius:10px;
-  --shadow:0 18px 40px -20px rgba(0,0,0,.65);
+  --c-bg:#0E1013;--c-surface:#161A1F;--c-surface-2:#1D2228;--c-surface-3:#242A31;--c-line:#262C33;--c-line-2:#323A43;
+  --c-ink:#E3E6EA;--c-ink-2:#AEB4BD;--c-muted:#7D8590;--c-accent:#A3277A;--c-accent-ink:#fff;--c-accent-soft:rgba(163,39,122,.16);
+  --c-accent-line:rgba(163,39,122,.45);--c-accent-text:#E7A8D2;--c-ok:#5FB98A;--c-warn:#D9A54A;--c-bad:#E07A6E;
+  /* folder drawing palette (unchanged from the original builder) */
+  --kraft:#C89860;--kraft-shade:#AD8049;--kraft-line:#8B6234;--kraft-light:#D9AE6F;--paper:#F7F1DE;--paper-shade:#EAE1C4;
+  --inside-base:#F7F1DE;--inside-highlight:#FBF6E8;--inside-shade:#E4D8B9;--inside-line:#9B7950;
+  --pocket-base:#F1E4C2;--pocket-highlight:#F8EED6;--pocket-shade:#D9C79A;--pocket-line:#927044;
+  --ink:#26241D;--ink-soft:#5B5642;--tab-left:#E06248;--tab-right:var(--c-accent);--radius:10px;--shadow:0 18px 40px -20px rgba(0,0,0,.65);
 }
+html[data-theme="light"]{--c-bg:#F4F5F7;--c-surface:#fff;--c-surface-2:#F1F3F6;--c-surface-3:#E8EBEF;--c-line:#E3E6EA;--c-line-2:#D3D8DE;--c-ink:#14171C;--c-ink-2:#434A54;--c-muted:#6B7280}
 *{box-sizing:border-box}
-html,body{margin:0;padding:0}
-body{
-  min-height:100vh;
-  padding:32px 20px 60px;
-  color:var(--paper);
-  font-family:Inter,Arial,sans-serif;
-  background:
-    radial-gradient(circle at 18% 12%,rgba(255,255,255,.05),transparent 45%),
-    var(--desk);
+[hidden]{display:none!important}
+html,body{margin:0;padding:0;height:100%}
+body{background:var(--c-bg);color:var(--c-ink);font:14px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{opacity:.45;cursor:not-allowed}
+.mono{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;color:var(--c-muted)}
+.hint{color:var(--c-muted);font-size:12px;margin:6px 0 0}
+input,select,textarea{width:100%;background:var(--c-surface-2);border:1px solid var(--c-line-2);border-radius:8px;padding:8px 10px;min-height:36px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--c-accent-line);box-shadow:0 0 0 3px var(--c-accent-soft)}
+:focus-visible{outline:2px solid var(--c-accent);outline-offset:2px}
+textarea{min-height:64px;resize:vertical}
+input[type=checkbox]{width:auto;min-height:0;accent-color:var(--c-accent)}
+label{display:block;font-size:12px;font-weight:550;color:var(--c-ink-2)}
+label>input,label>select,label>textarea{margin-top:4px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 13px;border-radius:8px;border:1px solid var(--c-line-2);background:var(--c-surface-3);color:var(--c-ink);font-weight:600;font-size:13px;white-space:nowrap}
+.btn:not(:disabled):hover{background:var(--c-line-2)}
+.btn.primary,.btn.solid{background:var(--c-accent);border-color:var(--c-accent);color:var(--c-accent-ink)}
+.btn.primary:not(:disabled):hover{filter:brightness(1.1);background:var(--c-accent)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--c-ink-2)}
+.btn.ghost:hover{background:var(--c-surface-2)}
+.btn.sm{height:30px;padding:0 10px;font-size:12px}
+.btn.block{width:100%}
+.btn.danger{color:var(--c-bad)}
+.link{border:0;background:none;padding:0;color:var(--c-accent-text);font-weight:600;font-size:12px}
+.icon-btn{width:30px;height:30px;border-radius:8px;border:1px solid var(--c-line-2);background:var(--c-surface-3);color:var(--c-ink-2);font-size:16px;line-height:1}
+.st{display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:1px 8px;font-size:11px;font-weight:600;white-space:nowrap}
+.st::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+.st.ok{background:rgba(95,185,138,.12);color:var(--c-ok)}.st.warn{background:rgba(217,165,74,.12);color:var(--c-warn)}.st.bad{background:rgba(224,122,110,.12);color:var(--c-bad)}
+.warn-box{margin-top:10px;font-size:12px;border:1px solid rgba(217,165,74,.4);background:rgba(217,165,74,.10);border-radius:8px;padding:8px 10px;color:var(--c-ink)}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* top bar */
+.app{height:100vh;display:flex;flex-direction:column}
+.topbar{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--c-line);background:var(--c-bg);flex-wrap:wrap}
+.kit-fields{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1;min-width:0}
+.kit-fields .title{font-weight:650;font-size:16px;margin-right:4px;white-space:nowrap}
+.field-inline{display:flex;align-items:center;gap:8px;background:var(--c-surface-2);border:1px solid var(--c-line-2);border-radius:8px;height:36px;padding:0 4px 0 10px;color:var(--c-muted);font-weight:500;font-size:12.5px}
+.field-inline input{border:0;background:transparent;min-height:0;height:32px;padding:0 6px;width:170px;color:var(--c-ink);box-shadow:none!important}
+.field-inline.code input{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;width:150px}
+.edit-badge{font-size:11px;font-weight:650;color:var(--c-accent-text);background:var(--c-accent-soft);border:1px solid var(--c-accent-line);border-radius:99px;padding:2px 9px}
+.top-actions{display:flex;gap:6px;align-items:center}
+.top-actions .sep{width:1px;height:22px;background:var(--c-line-2);margin:0 4px}
+
+/* editor */
+.editor{flex:1;display:grid;grid-template-columns:300px minmax(0,1fr) 300px;min-height:0}
+.pane{background:var(--c-surface);overflow:auto;min-height:0}
+.pane.left{border-right:1px solid var(--c-line)}
+.pane.right{border-left:1px solid var(--c-line)}
+.sec{padding:14px 16px;border-bottom:1px solid var(--c-line)}
+.sec h3{margin:0 0 10px;font-size:12px;font-weight:600;color:var(--c-muted);display:flex;justify-content:space-between;align-items:center}
+.sec h3 span{color:var(--c-ink-2);font-weight:500}
+.pane-tabs{display:flex;gap:2px;background:var(--c-surface-2);border:1px solid var(--c-line);border-radius:8px;padding:3px;margin:14px 16px 0}
+.pane-tabs button,.seg button{flex:1;border:0;background:none;padding:6px 4px;border-radius:6px;font-size:12.5px;color:var(--c-ink-2);font-weight:550}
+.pane-tabs button.on,.seg button.on{background:var(--c-surface-3);color:var(--c-ink);box-shadow:0 0 0 1px var(--c-line-2)}
+.seg{display:flex;gap:2px;background:var(--c-surface-2);border:1px solid var(--c-line);border-radius:8px;padding:3px;margin-top:4px}
+.cat-list{margin-top:10px;display:grid;gap:6px;max-height:min(46vh,420px);overflow:auto;padding-right:2px}
+.cat-row{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:9px;align-items:center;padding:7px;border:1px solid var(--c-line);border-radius:8px;background:var(--c-surface-2)}
+.cat-thumb{width:40px;height:40px;border-radius:6px;background:var(--c-surface-3);display:grid;place-items:center;overflow:hidden}
+.cat-thumb img{width:100%;height:100%;object-fit:contain;background:#fff}
+.cat-info{min-width:0;display:flex;flex-direction:column;gap:2px}
+.cat-info b{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cat-info .st{align-self:flex-start}
+#addForm{display:grid;gap:10px;margin-top:12px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.row-code{display:grid;grid-template-columns:1fr 64px;gap:8px;align-items:end}
+.code-wrap{position:relative}
+.code-wrap .link{position:absolute;right:8px;bottom:10px;font-size:11px}
+.custom-size-row{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--c-muted)}
+.custom-size-row[hidden]{display:none}
+.custom-size-row input{width:70px}
+.drop{display:flex;align-items:center;justify-content:center;text-align:center;border:1px dashed var(--c-line-2);border-radius:8px;padding:12px;cursor:pointer;color:var(--c-muted);font-weight:500;background:var(--c-surface-2)}
+.drop.over,.drop:hover{border-color:var(--c-accent-line);background:var(--c-accent-soft);color:var(--c-ink)}
+.link-note{font-size:12px;color:var(--c-accent-text)}
+#tray{display:grid;gap:6px;min-height:46px;border-radius:8px}
+#tray.drag-over{outline:2px dashed var(--c-accent-line);outline-offset:4px}
+.tray-empty{color:var(--c-muted);font-size:12px;margin:0}
+.chip{display:grid;grid-template-columns:36px minmax(0,1fr) 24px;gap:9px;align-items:center;padding:7px;border:1px solid var(--c-line);border-radius:8px;background:var(--c-surface-2);cursor:grab}
+.chip.is-selected{border-color:var(--c-accent);background:var(--c-accent-soft)}
+.chip.dragging{opacity:.4}
+.chip-thumb{width:36px;height:44px;border-radius:4px;object-fit:contain;background:#fff}
+.chip-thumb.ph{display:grid;place-items:center;background:var(--c-surface-3)}
+.chip-text{min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:3px}
+.chip-name{font-weight:600;font-size:12.5px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip-sku{font-family:ui-monospace,Consolas,monospace;font-size:10.5px;color:var(--c-muted)}
+.chip-remove{width:24px;height:24px;border:0;border-radius:6px;background:none;color:var(--c-muted);font-size:15px}
+.chip-remove:hover{background:rgba(224,122,110,.15);color:var(--c-bad)}
+
+/* canvas */
+.canvas{position:relative;overflow:auto;display:flex;flex-direction:column;background:radial-gradient(circle at 50% 40%,#171B21,#0B0D10)}
+html[data-theme="light"] .canvas{background:radial-gradient(circle at 50% 40%,#FAFBFC,#E9ECF0)}
+.canvas::before{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1px);background-size:22px 22px;pointer-events:none}
+.ctool{position:sticky;top:14px;z-index:20;margin:14px auto 0;width:max-content;max-width:calc(100% - 20px);display:flex;flex-wrap:wrap;gap:4px;align-items:center;background:var(--c-surface);border:1px solid var(--c-line-2);border-radius:10px;padding:4px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.ctool i{width:1px;height:22px;background:var(--c-line-2);margin:0 4px}
+.tbtn{border:0;background:var(--c-accent-soft);color:var(--c-accent-text);border-radius:7px;padding:7px 12px;font-weight:600;font-size:13px}
+.tgl{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:7px;font-size:12.5px;color:var(--c-ink-2);font-weight:550;cursor:pointer;user-select:none}
+.tgl:hover{background:var(--c-surface-2)}
+.tgl input{margin:0}
+.stage{position:relative;padding:20px 28px 24px;min-width:min-content;flex:1}
+.canvas-foot{position:sticky;bottom:0;left:0;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;z-index:20;pointer-events:none}
+.canvas-foot>*{pointer-events:auto}
+.folder-scene{padding-top:26px}
+.folder{--open-w:calc(min(860px,100%) * var(--zoom,1));min-width:calc(360px * var(--zoom,1))}
+.zoom{display:flex;align-items:center;gap:2px;background:var(--c-surface);border:1px solid var(--c-line-2);border-radius:8px;padding:3px;font-size:12px;color:var(--c-ink-2)}
+.zoom button{border:0;background:none;width:28px;height:26px;border-radius:6px;color:var(--c-ink-2);font-size:15px}
+.zoom button:hover{background:var(--c-surface-2)}
+.zoom span{min-width:44px;text-align:center}
+.canvas-hint{font-size:11.5px;color:var(--c-muted)}
+
+/* right pane */
+.selection-preview-content{display:grid;grid-template-columns:72px 1fr;gap:12px;align-items:center}
+.preview-media{position:relative;width:72px;aspect-ratio:var(--preview-ratio,8.5/11);background:#fff;border-radius:4px;overflow:hidden;display:grid;place-items:center;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.preview-media img{width:100%;height:100%;object-fit:contain}
+.preview-placeholder{font-size:10px;color:#555;padding:6px;text-align:center}
+.preview-part{display:none}
+.preview-name{margin:0;font-weight:600}
+.preview-meta{margin:2px 0 0;color:var(--c-muted);font-size:12px}
+.preview-empty{color:var(--c-muted);font-size:12.5px;border:1px dashed var(--c-line-2);border-radius:8px;padding:16px;text-align:center}
+.sel-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.sel-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.stack-order{display:grid;gap:6px}
+.stack-order-empty{color:var(--c-muted);font-size:12px;margin:0}
+.stack-order-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;border:1px solid var(--c-line);border-radius:8px}
+.stack-order-row.is-selected{border-color:var(--c-accent);background:var(--c-accent-soft)}
+.stack-order-info{min-width:0;cursor:pointer;display:flex;flex-direction:column}
+.stack-order-name{font-weight:600;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stack-order-meta{font-size:11px;color:var(--c-muted)}
+.stack-order-buttons{display:flex;gap:4px}
+.stack-step-btn{border:1px solid var(--c-line-2);background:var(--c-surface-3);border-radius:6px;font-size:11px;padding:3px 7px;color:var(--c-ink-2)}
+.slots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.slot{position:relative}
+.slot .file-btn{aspect-ratio:3/4;border:1px dashed var(--c-line-2);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:11px;color:var(--c-muted);cursor:pointer;padding:6px;background:var(--c-surface-2)}
+.slot .file-btn:hover{border-color:var(--c-accent-line);color:var(--c-ink)}
+.slot .file-btn b{font-size:18px;font-weight:400;color:var(--c-ink-2)}
+.slot .icon-btn{position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;font-size:13px;padding:0}
+.cover-fit-controls{display:grid;gap:8px;margin-top:12px}
+.cover-fit-controls[hidden]{display:none}
+.cover-fit-field{display:grid;grid-template-columns:90px 1fr 38px;gap:8px;align-items:center;font-size:12px}
+.cover-fit-field select{grid-column:2/4}
+.cover-fit-field input[type=range]{min-height:0;padding:0;accent-color:var(--c-accent);background:none;border:0}
+.cover-fit-value{font-size:11px;color:var(--c-muted);text-align:right}
+.color-rows{display:grid;gap:8px;margin-top:12px}
+.color-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;color:var(--c-ink-2)}
+.color-row input[type=color]{width:34px;height:30px;min-height:0;padding:2px;border-radius:7px;cursor:pointer}
+
+/* modals + toast */
+.modal{position:fixed;inset:0;background:rgba(5,6,8,.7);display:flex;align-items:center;justify-content:center;padding:20px;z-index:100}
+.modal.hidden{display:none}
+.modal-card{width:min(640px,100%);max-height:calc(100vh - 40px);overflow:auto;background:var(--c-surface);border:1px solid var(--c-line-2);border-radius:14px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.modal-card h3{margin:0 0 12px;font-size:17px}
+#exportText{width:100%;min-height:260px;font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.kit-row{display:flex;gap:12px;justify-content:space-between;align-items:flex-start;padding:12px;border:1px solid var(--c-line);border-radius:10px;margin-bottom:8px}
+.kit-main{min-width:0}
+.kit-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.rename{display:inline-flex;gap:6px;align-items:center}
+.rename input{width:220px}
+.fb-toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,14px);background:var(--c-surface-3);border:1px solid var(--c-line-2);border-left:4px solid var(--c-accent);padding:10px 15px;border-radius:8px;font-size:13px;opacity:0;visibility:hidden;transition:.2s;z-index:200;max-width:min(560px,92vw);box-shadow:0 12px 30px rgba(0,0,0,.4)}
+.fb-toast.show{opacity:1;visibility:visible;transform:translate(-50%,0)}
+.fb-toast.err{border-left-color:var(--c-bad)}
+
+/* responsive: panels stack under the canvas */
+@media (max-width:1100px){.editor{grid-template-columns:260px minmax(0,1fr) 260px}.field-inline input{width:130px}}
+@media (max-width:900px){
+  body{overflow:auto}
+  .app{height:auto;min-height:100vh}
+  .editor{display:flex;flex-direction:column}
+  .canvas{order:-1;min-height:60vh}
+  .pane.left,.pane.right{border:0;border-top:1px solid var(--c-line)}
+  .canvas-hint{display:none}
+  .kit-fields .title{display:none}
+  .field-inline{flex:1 1 100%;white-space:nowrap}
+  .field-inline input{width:100%}
+  .top-actions{width:100%;flex-wrap:wrap}
+  .top-actions .btn.primary{flex:1}
+  .cat-list{max-height:none}
 }
-button,input{font:inherit}
-.app{max-width:1240px;margin:0 auto}
-header{margin-bottom:28px}
-.eyebrow{
-  margin:0 0 6px;
-  color:var(--kraft-light);
-  font-size:12px;
-  font-weight:600;
-  letter-spacing:.14em;
-  text-transform:uppercase;
-}
-h1{
-  margin:0 0 10px;
-  color:var(--paper);
-  font-family:'Arial Narrow',Arial,sans-serif;
-  font-size:clamp(28px,4vw,40px);
-  letter-spacing:.02em;
-}
-.instructions{
-  max-width:650px;
-  margin:0 0 16px;
-  color:rgba(247,241,222,.76);
-  font-size:14.5px;
-  line-height:1.5;
-}
-.kit-name-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.kit-name-row label{font-size:13px;color:rgba(247,241,222,.72)}
-.kit-name-row input,
-#addForm input{
-  border:1px solid rgba(247,241,222,.25);
-  border-radius:6px;
-  background:rgba(0,0,0,.2);
-  color:var(--paper);
-  padding:9px 10px;
-}
-.kit-name-row input{
-  min-width:240px;
-  font-family:'IBM Plex Mono',monospace;
-  font-size:13.5px;
-}
-input::placeholder{color:rgba(247,241,222,.4)}
-input:focus-visible,button:focus-visible,.file-btn:focus-visible{
-  outline:2px solid var(--tab-right);
-  outline-offset:2px;
-}
-main{
-  display:grid;
-  grid-template-columns:minmax(0,1.45fr) minmax(270px,.8fr);
-  gap:32px;
-  align-items:start;
-}
-@media(max-width:820px){main{grid-template-columns:1fr}}
-.stage{display:flex;flex-direction:column;align-items:center;gap:18px;min-width:0}
-.stage-layout{
-  width:100%;
-  display:grid;
-  grid-template-columns:210px minmax(0,1fr);
-  gap:18px;
-  align-items:start;
-}
-.selection-preview{
-  position:sticky;
-  top:18px;
-  min-height:290px;
-  margin-left:-26px;
-  padding:14px;
-  border:1px solid rgba(247,241,222,.18);
-  border-radius:0;
-  background:rgba(0,0,0,.18);
-  color:var(--paper);
-}
-.selection-preview h2{
-  margin:0 0 10px;
-  color:rgba(247,241,222,.66);
-  font-size:11px;
-  letter-spacing:.1em;
-  text-transform:uppercase;
-}
-.preview-empty{
-  display:grid;
-  place-items:center;
-  min-height:160px;
-  border:1px dashed rgba(247,241,222,.18);
-  color:rgba(247,241,222,.46);
-  font-size:12px;
-  line-height:1.4;
-  text-align:center;
-}
-.preview-media{
-  position:relative;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  width:100%;
-  max-height:255px;
-  aspect-ratio:var(--preview-ratio,8.5 / 11);
-  overflow:hidden;
-  border:1px solid rgba(247,241,222,.18);
-  background:rgba(255,255,255,.08);
-}
-.preview-media img{
-  width:100%;
-  height:100%;
-  object-fit:contain;
-}
-.preview-placeholder{
-  display:grid;
-  place-items:center;
-  width:100%;
-  height:100%;
-  min-height:120px;
-  padding:10px;
-  background:#fff;
-  color:var(--ink);
-  font-size:11px;
-  font-weight:600;
-  text-align:center;
-}
-.preview-part{
-  position:absolute;
-  left:4px;
-  top:4px;
-  z-index:2;
-  max-width:calc(100% - 8px);
-  overflow:hidden;
-  padding:2px 5px;
-  background:rgba(255,255,255,.92);
-  color:var(--ink);
-  font-family:'IBM Plex Mono',monospace;
-  font-size:8px;
-  font-weight:600;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-}
-.preview-name{
-  margin:10px 0 4px;
-  overflow:hidden;
-  color:var(--paper);
-  font-size:13px;
-  font-weight:600;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-}
-.preview-meta{
-  margin:0;
-  color:rgba(247,241,222,.58);
-  font-family:'IBM Plex Mono',monospace;
-  font-size:10.5px;
-  line-height:1.5;
-}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+
+/* ---- folder drawing (from the original builder) ---- */
 .folder-scene{
   width:100%;
   display:flex;
@@ -414,7 +425,7 @@ main{
   border-radius:0;
 }
 
-.workspace-controls{
+.workspace-controls-legacy{
   display:flex;
   flex-wrap:wrap;
   justify-content:center;
@@ -645,377 +656,67 @@ main{
 .floating-item.is-selected .floating-body{
   filter:drop-shadow(0 0 3px var(--tab-right));
 }
-.photo-controls{
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  gap:8px;
-  flex-wrap:wrap;
-}
-.cover-fit-controls{
-  display:grid;
-  grid-template-columns:repeat(2,minmax(150px,1fr));
-  gap:10px;
-  width:min(700px,100%);
-  padding:12px;
-  border:1px solid rgba(247,241,222,.18);
-  border-radius:0;
-  background:rgba(0,0,0,.16);
-}
-.cover-fit-controls[hidden]{display:none}
-.cover-fit-field{
-  display:flex;
-  flex-direction:column;
-  gap:5px;
-  min-width:0;
-  color:rgba(247,241,222,.72);
-  font-size:11px;
-}
-.cover-fit-field select,
-.cover-fit-field input[type="range"]{
-  width:100%;
-}
-.cover-fit-field select{
-  min-height:34px;
-  border:1px solid rgba(247,241,222,.25);
-  border-radius:0;
-  background:#263f39;
-  color:var(--paper);
-  padding:6px 8px;
-}
-.cover-fit-value{
-  color:rgba(247,241,222,.52);
-  font-family:'IBM Plex Mono',monospace;
-  font-size:9px;
-}
-.cover-fit-actions{
-  display:flex;
-  align-items:end;
-}
-.cover-fit-actions .btn{
-  width:100%;
-  border-radius:0;
-}
-.surface-controls{
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  gap:10px;
-  flex-wrap:wrap;
-  width:100%;
-}
-.color-control{
-  display:inline-flex;
-  align-items:center;
-  gap:10px;
-  padding:8px 12px;
-  border:1px solid rgba(247,241,222,.18);
-  border-radius:999px;
-  background:rgba(0,0,0,.16);
-  color:rgba(247,241,222,.84);
-  font-size:12.5px;
-}
-.color-control input[type="color"]{
-  width:34px;
-  height:34px;
-  padding:0;
-  border:1px solid rgba(247,241,222,.25);
-  border-radius:50%;
-  background:transparent;
-  cursor:pointer;
-}
-.color-control input[type="color"]::-webkit-color-swatch-wrapper{padding:2px}
-.color-control input[type="color"]::-webkit-color-swatch{
-  border:none;
-  border-radius:50%;
-}
-.color-control input[type="color"]::-moz-color-swatch{
-  border:none;
-  border-radius:50%;
-}
-.btn{
-  border:1px solid transparent;
-  border-radius:7px;
-  padding:10px 18px;
-  font-family:Inter,Arial,sans-serif;
-  font-size:14px;
-  font-weight:600;
-  cursor:pointer;
-  transition:transform .15s ease,filter .15s ease,background .15s ease;
-}
-.btn:active{transform:translateY(1px)}
-.btn.primary{background:var(--tab-left);color:#fff}
-.btn.solid{background:var(--tab-right);color:#fff}
-.btn.ghost{
-  border-color:rgba(247,241,222,.35);
-  background:transparent;
-  color:var(--paper);
-}
-.btn:hover{filter:brightness(1.08)}
-.btn.ghost:hover{background:rgba(247,241,222,.08)}
-.file-btn{display:inline-flex;align-items:center;gap:6px}
-.icon-btn{
-  width:26px;
-  height:26px;
-  padding:0;
-  border:0;
-  border-radius:50%;
-  background:rgba(247,241,222,.15);
-  color:var(--paper);
-  cursor:pointer;
-  font-size:15px;
-}
-.icon-btn:hover{background:rgba(247,241,222,.28)}
-.tray-panel{
-  padding:20px;
-  border:1px solid rgba(247,241,222,.12);
-  border-radius:var(--radius);
-  background:rgba(0,0,0,.18);
-}
-aside h2{
-  margin:0 0 12px;
-  color:rgba(247,241,222,.66);
-  font-size:13px;
-  letter-spacing:.1em;
-  text-transform:uppercase;
-}
-#addForm{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
-#addForm input,#addForm select{font-size:13.5px}
-#addForm select{
-  border:1px solid rgba(247,241,222,.25);
-  border-radius:6px;
-  background:#263f39;
-  color:var(--paper);
-  padding:9px 10px;
-}
-#itemName{flex:1 1 145px}
-#itemSku{flex:0 1 110px;font-family:'IBM Plex Mono',monospace}
-#itemSizePreset{flex:1 1 190px}
-.custom-size-row{
-  flex:1 0 100%;
-  display:flex;
-  align-items:center;
-  gap:7px;
-  padding:9px 10px;
-  border:1px solid rgba(247,241,222,.16);
-  border-radius:7px;
-  background:rgba(0,0,0,.12);
-}
-.custom-size-row[hidden]{display:none}
-.custom-size-row label{
-  color:rgba(247,241,222,.72);
-  font-size:12px;
-}
-.custom-size-row input{
-  width:78px;
-  padding:7px 8px;
-  font-family:'IBM Plex Mono',monospace;
-}
-.size-separator,.size-unit{
-  color:rgba(247,241,222,.65);
-  font-size:12px;
-}
-#tray{
-  min-height:74px;
-  padding:8px;
-  border-radius:8px;
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-  transition:background .2s;
-}
-#tray.drag-over{background:rgba(247,241,222,.08)}
-.tray-empty{margin:0;color:rgba(247,241,222,.5);font-size:13px;line-height:1.5}
-.chip{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  padding:7px 8px 7px 10px;
-  border:1px solid var(--paper-shade);
-  border-left:4px solid var(--kraft-line);
-  border-radius:6px;
-  background:var(--paper);
-  color:var(--ink);
-  box-shadow:0 2px 6px -3px rgba(0,0,0,.3);
-  cursor:grab;
-  font-size:13px;
-  user-select:none;
-}
-.chip.is-selected{border-left-color:var(--tab-right);box-shadow:0 0 0 2px var(--tab-right)}
-.chip.dragging{opacity:.42}
-.chip-thumb{width:28px;height:28px;border-radius:4px;object-fit:contain;flex:0 0 auto;background:#fff}
-.chip-grip{color:var(--ink-soft);font-size:10px}
-.chip-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
-.chip-sku{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink-soft);white-space:nowrap}
-.chip-remove{border:0;background:transparent;color:var(--ink-soft);font-size:15px;cursor:pointer}
-.stack-order{
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-  min-height:52px;
-  margin-top:6px;
-}
-.stack-order-empty{
-  margin:0;
-  padding:10px 8px;
-  border:1px dashed rgba(247,241,222,.2);
-  color:rgba(247,241,222,.5);
-  font-size:12px;
-  line-height:1.4;
-}
-.stack-order-row{
-  display:grid;
-  grid-template-columns:minmax(0,1fr) auto;
-  gap:8px;
-  align-items:center;
-  padding:7px 8px;
-  border:1px solid rgba(247,241,222,.18);
-  border-radius:0;
-  background:rgba(0,0,0,.14);
-}
-.stack-order-row.is-selected{
-  border-color:var(--tab-right);
-  box-shadow:inset 3px 0 0 var(--tab-right);
-}
-.stack-order-info{
-  min-width:0;
-  cursor:pointer;
-}
-.stack-order-name{
-  display:block;
-  overflow:hidden;
-  color:var(--paper);
-  font-size:12px;
-  font-weight:600;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-}
-.stack-order-meta{
-  display:block;
-  margin-top:2px;
-  color:rgba(247,241,222,.55);
-  font-family:'IBM Plex Mono',monospace;
-  font-size:9.5px;
-}
-.stack-order-buttons{
-  display:flex;
-  gap:4px;
-}
-.stack-step-btn{
-  min-width:55px;
-  height:28px;
-  padding:0 7px;
-  border:1px solid rgba(247,241,222,.28);
-  border-radius:0;
-  background:rgba(247,241,222,.08);
-  color:var(--paper);
-  cursor:pointer;
-  font-size:10px;
-  font-weight:600;
-}
-.stack-step-btn:hover{background:rgba(247,241,222,.16)}
-.stack-step-btn:disabled{
-  cursor:not-allowed;
-  opacity:.32;
-}
-.stack-order-key{
-  display:flex;
-  justify-content:space-between;
-  margin:4px 0 7px;
-  color:rgba(247,241,222,.52);
-  font-size:10px;
-  text-transform:uppercase;
-  letter-spacing:.08em;
-}
-.actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
-.modal{
-  position:fixed;
-  inset:0;
-  z-index:30;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding:20px;
-  background:rgba(0,0,0,.58);
-}
-.modal.hidden{display:none}
-.modal-card{
-  width:100%;
-  max-width:460px;
-  padding:22px;
-  border-radius:var(--radius);
-  background:var(--paper);
-  color:var(--ink);
-  box-shadow:var(--shadow);
-}
-.modal-card h3{margin:0 0 12px;font-family:'Arial Narrow',Arial,sans-serif;font-size:18px}
-#exportText{
-  width:100%;
-  min-height:230px;
-  resize:vertical;
-  padding:10px;
-  border:1px solid var(--paper-shade);
-  border-radius:6px;
-  background:#fff;
-  color:var(--ink);
-  font-family:'IBM Plex Mono',monospace;
-  font-size:12.5px;
-}
-.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}
-.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
-@media(max-width:820px){
-  .stage-layout{grid-template-columns:1fr}
-  .selection-preview{
-    position:static;
-    width:100%;
-    min-height:0;
-    margin-left:0;
-  }
-  .selection-preview-content{
-    display:grid;
-    grid-template-columns:105px minmax(0,1fr);
-    gap:10px;
-    align-items:center;
-  }
-  .preview-media{max-height:135px}
-}
-@media(max-width:620px){
-  body{padding-left:12px;padding-right:12px}
-  .cover-fit-controls{grid-template-columns:1fr}
-  .folder{--open-w:min(100%,760px)}
-  .floating-item{max-width:44%}
-  .photo-controls .btn{padding:8px 10px;font-size:12px}
-}
-@media(prefers-reduced-motion:reduce){*{transition:none!important}}
-
-body{padding:18px 18px 44px;background:#1E2124;color:#E8E5DC}.app{max-width:1320px}.tray-panel,.selection-preview,.cover-fit-controls{border-color:#3D4349;background:#282C30}.btn.solid{background:#F2B705;color:#302500}.btn.primary{background:#E06248}.kit-name-row{padding:12px;border:1px solid #3D4349;background:#282C30}.kit-name-row input{background:#31363B;border-color:#3D4349}.folder-scene{filter:drop-shadow(0 22px 30px rgba(0,0,0,.32))}#itemQty{width:72px}@media(max-width:700px){body{padding:12px}.kit-name-row{align-items:stretch}.kit-name-row input,.kit-name-row button{width:100%}}
+/* 1.11 overrides that must win over the folder drawing rules */
+.folder{--open-w:calc(min(860px,100%) * var(--zoom,1))}
+.folder-scene{filter:drop-shadow(0 22px 30px rgba(0,0,0,.45))}
+.floating-item.is-selected .floating-body{filter:drop-shadow(0 0 3px var(--c-accent)) drop-shadow(0 0 1px var(--c-accent))}
+.drop-hint{color:rgba(91,86,66,.62)}
 </style>
 </head>
 <body>
 <div class="app">
-<header>
-  <p class="eyebrow">Literature · Kit Planning</p>
-  <h1>Pocket Folder Builder</h1>
-  <p class="instructions">Add literature with a photo, then drag it into the folder. Items default to standard 8.5 × 11 inch letter paper, or choose a custom width and height for boxes, cards, signs, and other shapes.</p>
-  <div class="kit-name-row">
-    <label for="kitName">Folder Kit name</label>
-    <input id="kitName" type="text" placeholder="e.g. Welcome Folder" autocomplete="off">
-    <label for="kitCode">Item / kit code</label>
-    <input id="kitCode" type="text" placeholder="e.g. FOLDER-WELCOME" autocomplete="off">
-    <button class="btn solid" id="saveKitBtn" type="button">Save as Folder Kit</button>
+<div class="topbar">
+  <div class="kit-fields">
+    <span class="title">Folder builder</span>
+    <label class="field-inline" for="kitName"><span>Kit name</span><input id="kitName" type="text" placeholder="e.g. Welcome Folder" autocomplete="off"></label>
+    <label class="field-inline code" for="kitCode"><span>Code</span><input id="kitCode" type="text" placeholder="FOLDER-WELCOME" autocomplete="off"></label>
+    <span class="edit-badge" id="editBadge" hidden></span>
   </div>
-</header>
-
-<main>
-<section class="stage">
-  <div class="stage-layout">
-    <aside class="selection-preview" aria-live="polite">
-      <h2>Selected item</h2>
-      <div id="selectedPreview">
-        <div class="preview-empty">Select an item to see a mini preview.</div>
+  <div class="top-actions">
+    <button class="btn ghost" id="undoBtn" type="button" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
+    <button class="btn ghost" id="redoBtn" type="button" title="Redo (Ctrl+Y)" disabled>↷ Redo</button>
+    <span class="sep"></span>
+    <button class="btn ghost" id="myKitsBtn" type="button">My kits</button>
+    <button class="btn ghost" id="resetBtn" type="button">Start over</button>
+    <button class="btn" id="exportBtn" type="button">Export list</button>
+    <button class="btn primary" id="saveKitBtn" type="button">Save as folder kit</button>
+  </div>
+</div>
+<main class="editor">
+  <aside class="pane left">
+    <div class="pane-tabs" role="tablist"><button class="on" data-pane="catalog" type="button">From catalog</button><button data-pane="new" type="button">New item</button></div>
+    <section class="sec" id="paneCatalog">
+      <input id="catalogSearch" type="search" placeholder="Search catalog by name or part #" autocomplete="off">
+      <div id="catalogList" class="cat-list"></div>
+    </section>
+    <section class="sec" id="paneNew" hidden>
+      <div id="linkNote" class="link-note" hidden></div>
+      <div id="addForm">
+        <label for="itemName">Name *<input id="itemName" placeholder="e.g. Product brochure" autocomplete="off" list="catalogItems"></label>
+        <datalist id="catalogItems"></datalist><datalist id="brandList"></datalist><datalist id="categoryList"></datalist>
+        <div class="row-code"><label for="itemSku" class="code-wrap">Part #<input id="itemSku" placeholder="LIT-001" autocomplete="off"><button class="link" type="button" id="suggestCodeBtn">Suggest</button></label>
+          <label for="itemQty">Qty<input id="itemQty" type="number" min="1" step="1" value="1"></label></div>
+        <div class="row2"><label for="newBrand">Brand<input id="newBrand" list="brandList" autocomplete="off"></label><label for="newCategory">Category<input id="newCategory" list="categoryList" autocomplete="off"></label></div>
+        <div><label>Size</label><div class="seg" id="sizeSeg"><button type="button" data-size="letter" class="on">Letter</button><button type="button" data-size="half-letter">Half</button><button type="button" data-size="business-card">Card</button><button type="button" data-size="custom">Custom</button></div>
+          <select id="itemSizePreset" hidden aria-hidden="true"><option value="letter" selected>Letter paper · 8.5 × 11 in</option><option value="half-letter">Half letter · 5.5 × 8.5 in</option><option value="business-card">Business card · 3.5 × 2 in</option><option value="custom">Custom size</option></select>
+          <div class="custom-size-row" id="customSizeRow" hidden style="margin-top:8px"><input id="itemWidth" type="number" min="0.25" max="40" step="0.25" value="8.5" aria-label="Width"><span>×</span><input id="itemHeight" type="number" min="0.25" max="40" step="0.25" value="11" aria-label="Height"><span>in</span></div></div>
+        <label for="newDesc">Description<textarea id="newDesc" placeholder="Optional"></textarea></label>
+        <label class="drop file-btn" id="photoDrop" tabindex="0"><span id="itemPhotoText">Drop a photo here or browse</span><input type="file" id="itemPhotoInput" accept="image/*" hidden></label>
+        <button type="button" class="btn primary block" id="submitNewBtn">Add to catalog & tray</button>
+        <p class="hint" style="margin:0">New items are hidden from ordering until an admin reviews them. You can still use them in this folder and save the kit.</p>
+        <button type="button" class="link" id="addBtn">Add to tray only (sketch — not saved to the catalog)</button>
       </div>
-    </aside>
-
+    </section>
+    <section class="sec"><h3>Tray <span id="trayCount"></span></h3><div id="tray" aria-label="Literature tray"></div><p class="hint">Drag onto the folder, or select an item and click inside the open folder.</p></section>
+  </aside>
+  <section class="canvas" id="canvas">
+    <div class="ctool">
+      <button class="tbtn" id="toggleBtn" type="button" aria-pressed="false">Open folder</button><i></i>
+      <label class="tgl"><input id="snapToggle" type="checkbox" checked> Snap</label>
+      <label class="tgl"><input id="realScaleToggle" type="checkbox" checked> Real scale</label>
+      <label class="tgl"><input id="pocketToggle" type="checkbox" checked> Pockets</label>
+    </div>
+    <div class="stage">
     <div class="folder-scene">
     <div class="folder" id="folder">
       <div class="spread" id="spread" aria-label="Open folder workspace">
@@ -1049,127 +750,34 @@ body{padding:18px 18px 44px;background:#1E2124;color:#E8E5DC}.app{max-width:1320
       </div>
     </div>
     </div>
-  </div>
-
-  <button class="btn primary" id="toggleBtn" type="button" aria-pressed="false">Open folder</button>
-
-  <div class="photo-controls">
-    <label class="btn ghost file-btn" tabindex="0">
-      <span id="frontPhotoText">Front cover photo</span>
-      <input type="file" id="frontPhotoInput" accept="image/*" hidden>
-    </label>
-    <button class="icon-btn" id="clearFrontBtn" type="button" hidden aria-label="Remove front cover photo">×</button>
-
-    <label class="btn ghost file-btn" tabindex="0">
-      <span id="backPhotoText">Back of cover photo</span>
-      <input type="file" id="backPhotoInput" accept="image/*" hidden>
-    </label>
-    <button class="icon-btn" id="clearBackBtn" type="button" hidden aria-label="Remove back of cover photo">×</button>
-
-    <label class="btn ghost file-btn" tabindex="0">
-      <span id="rightPhotoText">Inside right photo</span>
-      <input type="file" id="rightPhotoInput" accept="image/*" hidden>
-    </label>
-    <button class="icon-btn" id="clearRightBtn" type="button" hidden aria-label="Remove inside right photo">×</button>
-  </div>
-
-  <div class="cover-fit-controls" id="coverFitControls" hidden>
-    <label class="cover-fit-field" for="frontFitSelect">
-      <span>Front cover fit</span>
-      <select id="frontFitSelect">
-        <option value="cover">Fill and crop</option>
-        <option value="contain">Show full image</option>
-        <option value="fill">Stretch to cover</option>
-      </select>
-    </label>
-
-    <label class="cover-fit-field" for="frontZoomInput">
-      <span>Zoom</span>
-      <input id="frontZoomInput" type="range" min="50" max="200" step="1" value="100">
-      <span class="cover-fit-value" id="frontZoomValue">100%</span>
-    </label>
-
-    <label class="cover-fit-field" for="frontPosXInput">
-      <span>Move left / right</span>
-      <input id="frontPosXInput" type="range" min="0" max="100" step="1" value="50">
-      <span class="cover-fit-value" id="frontPosXValue">50%</span>
-    </label>
-
-    <label class="cover-fit-field" for="frontPosYInput">
-      <span>Move up / down</span>
-      <input id="frontPosYInput" type="range" min="0" max="100" step="1" value="50">
-      <span class="cover-fit-value" id="frontPosYValue">50%</span>
-    </label>
-
-    <div class="cover-fit-actions">
-      <button class="btn ghost" id="resetFrontFitBtn" type="button">Reset cover fit</button>
     </div>
-  </div>
-
-  <div class="surface-controls">
-    <label class="color-control" for="insideColorInput">
-      <span>Inside folder color</span>
-      <input type="color" id="insideColorInput" value="#f7f1de" aria-label="Inside folder color">
-    </label>
-    <button class="btn ghost" id="resetInsideColorBtn" type="button">Reset inside color</button>
-
-    <label class="color-control" for="pocketColorInput">
-      <span>Pocket color</span>
-      <input type="color" id="pocketColorInput" value="#f1e4c2" aria-label="Pocket color">
-    </label>
-    <button class="btn ghost" id="resetPocketColorBtn" type="button">Reset pocket color</button>
-  </div>
-
-  <div class="workspace-controls">
-    <label class="check-toggle"><input id="snapToggle" type="checkbox" checked> Snap standard sizes to guides</label>
-    <label class="check-toggle"><input id="realScaleToggle" type="checkbox" checked> Realistic size preview</label>
-    <label class="check-toggle"><input id="pocketToggle" type="checkbox" checked> Show pocket overlay</label>
-    <span class="realism-note">Custom-size items stay free-move.</span>
-  </div>
-</section>
-
-<aside class="tray-panel">
-  <h2>Add literature</h2>
-  <div id="addForm">
-    <input id="itemName" placeholder="Search catalog item" autocomplete="off" list="catalogItems">
-    <datalist id="catalogItems"></datalist>
-    <input id="itemSku" placeholder="Part #" autocomplete="off">
-    <input id="itemQty" type="number" min="1" step="1" value="1" placeholder="Qty">
-    <select id="itemSizePreset" aria-label="Item size">
-      <option value="letter" selected>Letter paper · 8.5 × 11 in</option>
-      <option value="half-letter">Half letter · 5.5 × 8.5 in</option>
-      <option value="business-card">Business card · 3.5 × 2 in</option>
-      <option value="custom">Custom size</option>
-    </select>
-    <div class="custom-size-row" id="customSizeRow" hidden>
-      <label for="itemWidth">Width</label>
-      <input id="itemWidth" type="number" min="0.25" max="40" step="0.25" value="8.5">
-      <span class="size-separator">×</span>
-      <label for="itemHeight">Height</label>
-      <input id="itemHeight" type="number" min="0.25" max="40" step="0.25" value="11">
-      <span class="size-unit">in</span>
-    </div>
-    <label class="btn ghost file-btn" tabindex="0">
-      <span id="itemPhotoText">+ Photo</span>
-      <input type="file" id="itemPhotoInput" accept="image/*" hidden>
-    </label>
-    <button type="button" class="btn solid" id="addBtn">Add</button>
-  </div>
-
-  <h2>Tray</h2>
-  <div id="tray" aria-label="Literature tray"></div>
-
-  <h2 style="margin-top:20px">Stack order</h2>
-  <div class="stack-order-key"><span>Front</span><span>Back</span></div>
-  <div id="stackOrder" class="stack-order" aria-label="Folder item stack order"></div>
-
-  <div class="actions">
-    <button class="btn ghost" id="resetBtn" type="button">Reset</button>
-    <button class="btn solid" id="exportBtn" type="button">Export list</button>
-  </div>
-</aside>
+    <div class="canvas-foot"><div class="canvas-hint">Drag to move · arrows nudge (Shift = bigger) · Delete returns to tray · Ctrl+Z undo</div>
+    <div class="zoom"><button type="button" id="zoomOut" aria-label="Zoom out">−</button><span id="zoomVal">100%</span><button type="button" id="zoomIn" aria-label="Zoom in">+</button><button type="button" id="zoomFit" aria-label="Reset zoom" title="Reset zoom">⤢</button></div></div>
+  </section>
+  <aside class="pane right">
+    <section class="sec"><h3>Selected</h3><div id="selectedPreview"><div class="preview-empty">Select an item to see it here.</div></div><div id="selectedTools"></div></section>
+    <section class="sec"><h3>Layers <span>front → back</span></h3><div id="stackOrder" class="stack-order" aria-label="Folder item stack order"></div></section>
+    <section class="sec"><h3>Folder</h3>
+      <div class="slots">
+        <div class="slot"><label class="file-btn" tabindex="0"><b>+</b><span id="frontPhotoText">Front cover photo</span><input type="file" id="frontPhotoInput" accept="image/*" hidden></label><button class="icon-btn" id="clearFrontBtn" type="button" hidden aria-label="Remove front cover photo">×</button></div>
+        <div class="slot"><label class="file-btn" tabindex="0"><b>+</b><span id="backPhotoText">Back of cover photo</span><input type="file" id="backPhotoInput" accept="image/*" hidden></label><button class="icon-btn" id="clearBackBtn" type="button" hidden aria-label="Remove back of cover photo">×</button></div>
+        <div class="slot"><label class="file-btn" tabindex="0"><b>+</b><span id="rightPhotoText">Inside right photo</span><input type="file" id="rightPhotoInput" accept="image/*" hidden></label><button class="icon-btn" id="clearRightBtn" type="button" hidden aria-label="Remove inside right photo">×</button></div>
+      </div>
+      <div class="cover-fit-controls" id="coverFitControls" hidden>
+        <label class="cover-fit-field" for="frontFitSelect"><span>Cover fit</span><select id="frontFitSelect"><option value="cover">Fill and crop</option><option value="contain">Show full image</option><option value="fill">Stretch</option></select></label>
+        <label class="cover-fit-field" for="frontZoomInput"><span>Zoom</span><input id="frontZoomInput" type="range" min="50" max="200" step="1" value="100"><span class="cover-fit-value" id="frontZoomValue">100%</span></label>
+        <label class="cover-fit-field" for="frontPosXInput"><span>Left / right</span><input id="frontPosXInput" type="range" min="0" max="100" step="1" value="50"><span class="cover-fit-value" id="frontPosXValue">50%</span></label>
+        <label class="cover-fit-field" for="frontPosYInput"><span>Up / down</span><input id="frontPosYInput" type="range" min="0" max="100" step="1" value="50"><span class="cover-fit-value" id="frontPosYValue">50%</span></label>
+        <button class="btn sm ghost" id="resetFrontFitBtn" type="button">Reset cover fit</button>
+      </div>
+      <div class="color-rows">
+        <div class="color-row"><span>Inside color</span><span><button class="link" id="resetInsideColorBtn" type="button">Reset</button> <input type="color" id="insideColorInput" value="#f7f1de" aria-label="Inside folder color"></span></div>
+        <div class="color-row"><span>Pocket color</span><span><button class="link" id="resetPocketColorBtn" type="button">Reset</button> <input type="color" id="pocketColorInput" value="#f1e4c2" aria-label="Pocket color"></span></div>
+      </div>
+    </section>
+    <section class="sec"><button class="btn block" id="addKitToOrderBtn" type="button" hidden>Add this kit to my order</button></section>
+  </aside>
 </main>
-
 <span id="liveRegion" class="sr-only" role="status" aria-live="polite"></span>
 </div>
 
@@ -1177,14 +785,19 @@ body{padding:18px 18px 44px;background:#1E2124;color:#E8E5DC}.app{max-width:1320
   <div class="modal-card">
     <h3>Kit contents</h3>
     <textarea id="exportText" readonly></textarea>
-    <div class="modal-actions">
-      <button class="btn ghost" id="closeModalBtn" type="button">Close</button>
-      <button class="btn primary" id="copyBtn" type="button">Copy</button>
-    </div>
+    <div class="modal-actions"><button class="btn ghost" id="closeModalBtn" type="button">Close</button><button class="btn primary" id="copyBtn" type="button">Copy</button></div>
   </div>
 </div>
-
+<div class="modal hidden" id="kitsModal">
+  <div class="modal-card" style="width:min(760px,100%)">
+    <h3>My folder kits</h3>
+    <div id="kitsBody"></div>
+    <div class="modal-actions"><button class="btn ghost" id="closeKitsBtn" type="button">Close</button></div>
+  </div>
+</div>
+<div class="fb-toast" id="fbToast" role="status"></div>
 <script>
+
 (function(){
 'use strict';
 
@@ -1326,6 +939,7 @@ function setOpen(open){
   state.isOpen=!!open;
   folderEl.classList.toggle('is-open',state.isOpen);
   toggleBtn.textContent=state.isOpen?'Close folder':'Open folder';
+  toggleBtn.classList.toggle('on',state.isOpen);
   toggleBtn.setAttribute('aria-pressed',String(state.isOpen));
 }
 
@@ -1510,7 +1124,7 @@ function addItem(){
   itemSkuInput.value='';
   itemQtyInput.value='1';
   itemPhotoInput.value='';
-  itemPhotoText.textContent='+ Photo';
+  itemPhotoText.textContent='Drop a photo here or browse';
   itemSizePreset.value='letter';
   itemWidthInput.value='8.5';
   itemHeightInput.value='11';
@@ -1586,7 +1200,7 @@ function deleteItem(id){
   saveState();
 }
 
-function chipHtml(item){
+function chipHtmlLegacy(item){
   return '<div class="chip'+(item.id===state.selectedId?' is-selected':'')+'" draggable="true" data-id="'+item.id+'" tabindex="0" role="button" aria-label="'+escapeAttr(item.name)+'. Drag or select to place in folder.">'+
     (item.img?'<img class="chip-thumb" src="'+item.img+'" alt="">':'<span class="chip-grip" aria-hidden="true">::</span>')+
     '<span class="chip-name">'+escapeHtml(item.name)+'</span>'+
@@ -1626,7 +1240,7 @@ function stackOrderHtml(items){
 function renderSelectedPreview(){
   var item=findItem(state.selectedId);
   if(!item){
-    selectedPreviewEl.innerHTML='<div class="preview-empty">Select an item to see a mini preview.</div>';
+    selectedPreviewEl.innerHTML='<div class="preview-empty">Select an item to see it here.</div>';
     return;
   }
 
@@ -1684,7 +1298,7 @@ function render(){
 
   trayEl.innerHTML=trayItems.length
     ?trayItems.map(chipHtml).join('')
-    :'<p class="tray-empty">Add literature above, or return an item here from the folder.</p>';
+    :'<p class="tray-empty">Add items from the catalog above. Items you return from the folder land here.</p>';
 
   stackOrderEl.innerHTML=stackOrderHtml(placedItems);
   renderSelectedPreview();
@@ -2116,7 +1730,7 @@ resetBtn.addEventListener('click',function(){
   kitNameInput.value='';
   kitCodeInput.value='';
   itemPhotoInput.value='';
-  itemPhotoText.textContent='+ Photo';
+  itemPhotoText.textContent='Drop a photo here or browse';
   itemSizePreset.value='letter';
   itemWidthInput.value='8.5';
   itemHeightInput.value='11';
@@ -2196,7 +1810,8 @@ function saveState(immediate){
         pocketColor:state.pocketColor,
         snapEnabled:state.snapEnabled,
         realisticScale:state.realisticScale,
-        showPockets:state.showPockets
+        showPockets:state.showPockets,
+        editingKitId:state.editingKitId||null
       }));
     }catch(err){
       announce('The browser could not save more image data.');
@@ -2252,30 +1867,480 @@ function loadState(){
   }catch(err){}
 }
 
-function refreshCatalogList(){
-  catalogItemsEl.innerHTML=catalog.map(function(item){return '<option value="'+escapeAttr(item.name)+'">'+escapeHtml(item.code||'')+'</option>';}).join('');
+
+/* ===================================================================
+   Otiwarehouse 1.11 additions: catalog picker, new-item submissions,
+   item status in the tray, selected-item tools, undo/redo, keyboard
+   nudging, zoom, saving straight to the API, and "My kits".
+   =================================================================== */
+var api={base:'',token:''};
+var catalogEls={
+  list:document.getElementById('catalogList'), search:document.getElementById('catalogSearch'),
+  trayCount:document.getElementById('trayCount'), selectedTools:document.getElementById('selectedTools'),
+  undo:document.getElementById('undoBtn'), redo:document.getElementById('redoBtn'),
+  zoomVal:document.getElementById('zoomVal'), editBadge:document.getElementById('editBadge'),
+  toast:document.getElementById('fbToast'), kitsModal:document.getElementById('kitsModal'), kitsBody:document.getElementById('kitsBody'),
+  newBrand:document.getElementById('newBrand'), newCategory:document.getElementById('newCategory'), newDesc:document.getElementById('newDesc'),
+  submitNew:document.getElementById('submitNewBtn'), addToOrder:document.getElementById('addKitToOrderBtn'),
+  brandList:document.getElementById('brandList'), categoryList:document.getElementById('categoryList'),
+  suggestBtn:document.getElementById('suggestCodeBtn')
+};
+var pendingSubmissions=[];   // the user's own items waiting for review
+var linkTargetId=null;       // tray item being turned into a catalog item
+var zoom=1;
+
+function toast(msg,isErr){
+  var el=catalogEls.toast; el.textContent=msg; el.className='fb-toast show'+(isErr?' err':'');
+  clearTimeout(toast._t); toast._t=setTimeout(function(){el.className='fb-toast';},4200);
 }
-function matchCatalogInput(){
-  var name=itemNameInput.value.trim().toLowerCase();
-  var sku=itemSkuInput.value.trim().toLowerCase();
-  var hit=catalog.find(function(x){return String(x.name||'').toLowerCase()===name||String(x.code||'').toLowerCase()===sku||String(x.code||'').toLowerCase()===name;});
-  if(hit){itemNameInput.value=hit.name;itemSkuInput.value=hit.code||'';if(!state.pendingItemImg && hit.image_ids && hit.image_ids.length && window.__otiApiBase){state.pendingItemImg=window.__otiApiBase+'/item-images/'+hit.image_ids[0]+'?access_token='+encodeURIComponent(window.__otiToken||'');itemPhotoText.textContent='Catalog photo';}}
+function parentPost(msg){ try{ if(window.parent && window.parent!==window) window.parent.postMessage(msg,location.origin); }catch(e){} }
+function apiCall(path,opts){
+  opts=opts||{};
+  var headers=Object.assign({},opts.headers||{});
+  if(opts.body && !(opts.body instanceof FormData)) headers['Content-Type']='application/json';
+  if(api.token) headers['Authorization']='Bearer '+api.token;
+  return fetch(api.base+path,Object.assign({},opts,{headers:headers})).then(function(res){
+    if(res.status===204) return null;
+    return res.json().catch(function(){return {};}).then(function(body){
+      if(!res.ok) throw new Error((body && (typeof body.detail==='string'?body.detail:JSON.stringify(body.detail)))||('Request failed ('+res.status+')'));
+      return body;
+    });
+  });
 }
-itemNameInput.addEventListener('change',matchCatalogInput);itemSkuInput.addEventListener('change',matchCatalogInput);
-window.addEventListener('message',function(e){if(!e.data||e.data.type!=='oti-folder-init')return;catalog=Array.isArray(e.data.catalog)?e.data.catalog:[];window.__otiToken=e.data.token||'';window.__otiApiBase=e.data.apiBase||'';refreshCatalogList();});
-saveKitBtn.addEventListener('click',function(){
-  var name=kitNameInput.value.trim(),code=kitCodeInput.value.trim();
-  if(!name){alert('Enter a Folder Kit name.');kitNameInput.focus();return;}
-  if(!code){alert('Enter an item / kit code.');kitCodeInput.focus();return;}
+function imageUrl(imageId){ return imageId?api.base+'/item-images/'+imageId+'?access_token='+encodeURIComponent(api.token)+'&v='+imageId:null; }
+function parseSize(measures){
+  var m=/(\d+(?:\.\d+)?)\s*(?:in|")?\s*[x×]\s*(\d+(?:\.\d+)?)/i.exec(String(measures||''));
+  if(!m) return null;
+  var w=parseFloat(m[1]), h=parseFloat(m[2]);
+  if(!(w>0&&h>0&&w<=40&&h<=40)) return null;
+  return {width:w,height:h};
+}
+function sizeLabelFor(w,h){
+  if(w===8.5&&h===11) return 'Letter paper';
+  if(w===5.5&&h===8.5) return 'Half letter';
+  if(w===3.5&&h===2) return 'Business card';
+  return 'Custom';
+}
+function catalogById(id){ return catalog.find(function(x){return Number(x.id)===Number(id);}) || pendingSubmissions.find(function(x){return Number(x.id)===Number(id);}) || null; }
+function itemStatus(item){
+  if(!item.item_id) return 'unlinked';
+  var c=catalogById(item.item_id);
+  if(c && (c.review_status||'live')!=='live') return c.review_status==='rejected'?'rejected':'pending';
+  if(item.pending && !c) return 'pending';
+  return 'live';
+}
+
+// ---- theme from the parent page ------------------------------------------------
+function applyThemeVars(vars){
+  if(!vars) return;
+  Object.keys(vars).forEach(function(k){ if(vars[k]) document.documentElement.style.setProperty('--c-'+k.replace(/^--/,''),vars[k]); });
+}
+window.addEventListener('message',function(e){
+  if(e.origin!==location.origin || !e.data) return;
+  if(e.data.type==='oti-theme'){ applyThemeVars(e.data.vars); document.documentElement.dataset.theme=e.data.theme||'warehouse-dark'; }
+  if(e.data.type==='oti-folder-init'){
+    api.base=e.data.apiBase||api.base; api.token=e.data.token||api.token;
+    if(Array.isArray(e.data.catalog)&&e.data.catalog.length){ catalog=e.data.catalog; renderCatalogList(); }
+    loadCatalogFromApi();
+  }
+});
+
+// ---- catalog picker ---------------------------------------------------------------
+function loadCatalogFromApi(){
+  if(!api.token) return Promise.resolve();
+  return Promise.all([apiCall('/catalog'),apiCall('/catalog/item-submissions/mine').catch(function(){return [];})]).then(function(r){
+    catalog=r[0]||[]; pendingSubmissions=(r[1]||[]).filter(function(i){return i.review_status==='pending_review';});
+    var brands={},cats={};
+    catalog.forEach(function(i){ if(i.brand)brands[i.brand]=1; if(i.category)cats[i.category]=1; });
+    catalogEls.brandList.innerHTML=Object.keys(brands).sort().map(function(b){return '<option value="'+escapeAttr(b)+'">';}).join('');
+    catalogEls.categoryList.innerHTML=Object.keys(cats).sort().map(function(b){return '<option value="'+escapeAttr(b)+'">';}).join('');
+    catalogItemsEl.innerHTML=catalog.map(function(item){return '<option value="'+escapeAttr(item.name)+'">'+escapeHtml(item.code||'')+'</option>';}).join('');
+    renderCatalogList(); render();
+  }).catch(function(err){ toast(err.message,true); });
+}
+function renderCatalogList(){
+  var q=(catalogEls.search.value||'').trim().toLowerCase();
+  var rows=pendingSubmissions.map(function(i){return Object.assign({_pending:true},i);}).concat(catalog);
+  rows=rows.filter(function(i){ return !q || (i.name+' '+i.code+' '+(i.category||'')+' '+(i.brand||'')).toLowerCase().indexOf(q)>-1; });
+  if(!api.token){ catalogEls.list.innerHTML='<p class="hint">Open the Folder builder from the Otiwarehouse site to pick catalog items.</p>'; return; }
+  if(!rows.length){ catalogEls.list.innerHTML='<p class="hint">No catalog items match. Use <b>New item</b> to add one.</p>'; return; }
+  catalogEls.list.innerHTML=rows.slice(0,120).map(function(i){
+    var img=imageUrl((i.image_ids||[])[0]);
+    var inTray=state.items.some(function(x){return Number(x.item_id)===Number(i.id);});
+    var stock=i._pending?'<span class="st warn">Waiting for review</span>':(i.qty_on_hand<=0?'<span class="st bad">Out of stock</span>':'<span class="st ok">'+(i.available_qty!=null?i.available_qty:i.qty_on_hand)+' available</span>');
+    var size=parseSize(i.measures);
+    return '<div class="cat-row">'+
+      '<div class="cat-thumb">'+(img?'<img src="'+img+'" alt="" loading="lazy">':'<span>📄</span>')+'</div>'+
+      '<div class="cat-info"><b>'+escapeHtml(i.name)+'</b><span class="mono">'+escapeHtml(i.code)+(size?' · '+formatDimension(size.width)+'×'+formatDimension(size.height)+' in':'')+'</span>'+stock+'</div>'+
+      '<button class="btn sm'+(inTray?'':' primary')+'" type="button" data-cat-add="'+i.id+'">'+(inTray?'Add again':'Add')+'</button></div>';
+  }).join('');
+}
+catalogEls.search.addEventListener('input',renderCatalogList);
+function addFromCatalog(id){
+  var c=catalogById(id); if(!c) return;
+  var size=parseSize(c.measures)||{width:8.5,height:11};
+  var label=sizeLabelFor(size.width,size.height);
+  var item={id:'i'+state.idCounter++,name:c.name,sku:c.code||'',item_id:c.id,quantity:1,img:imageUrl((c.image_ids||[])[0]),
+    widthIn:size.width,heightIn:size.height,sizeLabel:label,isCustomSize:label==='Custom',loc:'tray',x:.5,y:.5,scale:1,z:highestZ()+1,pending:(c.review_status||'live')!=='live'};
+  state.items.push(item);
+  state.selectedId=item.id;
+  render(); saveState();
+  toast(c.name+' added to the tray.');
+}
+
+// ---- pane tabs + size segment ------------------------------------------------------
+document.querySelectorAll('[data-pane]').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('[data-pane]').forEach(function(x){x.classList.toggle('on',x===b);});
+    document.getElementById('paneCatalog').hidden=b.dataset.pane!=='catalog';
+    document.getElementById('paneNew').hidden=b.dataset.pane!=='new';
+    if(b.dataset.pane==='new' && !itemSkuInput.value && api.token) suggestCode();
+  });
+});
+function showPane(name){ document.querySelector('[data-pane="'+name+'"]').click(); }
+document.querySelectorAll('#sizeSeg [data-size]').forEach(function(b){
+  b.addEventListener('click',function(){
+    itemSizePreset.value=b.dataset.size; itemSizePreset.dispatchEvent(new Event('change'));
+    syncSizeSeg();
+  });
+});
+function syncSizeSeg(){ document.querySelectorAll('#sizeSeg [data-size]').forEach(function(x){x.classList.toggle('on',x.dataset.size===itemSizePreset.value);}); }
+itemSizePreset.addEventListener('change',syncSizeSeg);
+function suggestCode(){
+  return apiCall('/catalog/suggest-code?prefix=LIT').then(function(r){ if(!itemSkuInput.value) itemSkuInput.value=r.code; }).catch(function(){});
+}
+catalogEls.suggestBtn.addEventListener('click',function(){ itemSkuInput.value=''; suggestCode(); });
+
+// drag a photo onto the drop zone
+var dropZone=document.getElementById('photoDrop');
+['dragover','dragenter'].forEach(function(ev){dropZone.addEventListener(ev,function(e){e.preventDefault();dropZone.classList.add('over');});});
+['dragleave','drop'].forEach(function(ev){dropZone.addEventListener(ev,function(e){e.preventDefault();dropZone.classList.remove('over');});});
+dropZone.addEventListener('drop',function(e){
+  var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; if(!f) return;
+  itemPhotoText.textContent='Loading…';
+  resizeImageFile(f,900,.85).then(function(url){state.pendingItemImg=url;itemPhotoText.textContent='Photo added ✓';}).catch(function(){itemPhotoText.textContent='Photo error';});
+});
+
+// ---- New item → catalog (pending review) --------------------------------------------
+function dataUrlToBlob(url){ return fetch(url).then(function(r){return r.blob();}); }
+catalogEls.submitNew.addEventListener('click',function(){
+  var name=itemNameInput.value.trim();
+  if(!name){ itemNameInput.focus(); toast('Enter a name for the new item.',true); return; }
+  if(!api.token){ toast('Open the Folder builder from the Otiwarehouse site to add catalog items.',true); return; }
+  var dims=currentItemDimensions();
+  var body={name:name,code:itemSkuInput.value.trim(),brand:catalogEls.newBrand.value.trim(),category:catalogEls.newCategory.value.trim(),
+    measures:formatDimension(dims.width)+' x '+formatDimension(dims.height)+' in',description:catalogEls.newDesc.value.trim()};
+  var btn=catalogEls.submitNew; btn.disabled=true; btn.textContent='Adding…';
+  var img=state.pendingItemImg;
+  apiCall('/catalog/item-submissions',{method:'POST',body:JSON.stringify(body)}).then(function(created){
+    var chain=Promise.resolve(created);
+    if(img){
+      chain=dataUrlToBlob(img).then(function(blob){
+        var fd=new FormData(); fd.append('file',blob,(blob.type==='image/png'?'photo.png':'photo.jpg'));
+        return apiCall('/catalog/item-submissions/'+created.id+'/image',{method:'POST',body:fd});
+      }).catch(function(err){ toast('Item added, but the photo failed: '+err.message,true); return created; });
+    }
+    return chain;
+  }).then(function(created){
+    pendingSubmissions.unshift(created);
+    var qty=Math.max(1,parseInt(itemQtyInput.value||'1',10)||1);
+    var target=linkTargetId?findItem(linkTargetId):null;
+    if(target){
+      target.item_id=created.id; target.sku=created.code; target.name=created.name; target.pending=true;
+      if(!target.img && created.image_ids && created.image_ids.length) target.img=imageUrl(created.image_ids[0]);
+    }else{
+      state.items.push({id:'i'+state.idCounter++,name:created.name,sku:created.code,item_id:created.id,quantity:qty,
+        img:img||imageUrl((created.image_ids||[])[0]),widthIn:dims.width,heightIn:dims.height,sizeLabel:dims.label,
+        isCustomSize:dims.label==='Custom',loc:'tray',x:.5,y:.5,scale:1,z:highestZ()+1,pending:true});
+    }
+    linkTargetId=null;
+    resetNewForm();
+    render(); saveState(); renderCatalogList();
+    toast(created.code+' added. It stays hidden from ordering until an admin reviews it.');
+    parentPost({type:'oti-catalog-changed'});
+  }).catch(function(err){ toast(err.message,true); }).then(function(){ btn.disabled=false; btn.textContent='Add to catalog & tray'; });
+});
+function resetNewForm(){
+  itemNameInput.value=''; itemSkuInput.value=''; itemQtyInput.value='1'; catalogEls.newDesc.value='';
+  itemPhotoInput.value=''; itemPhotoText.textContent='Drop a photo here or browse'; state.pendingItemImg=null;
+  itemSizePreset.value='letter'; itemSizePreset.dispatchEvent(new Event('change'));
+  document.getElementById('linkNote').hidden=true;
+}
+function startLinkFlow(id){
+  var item=findItem(id); if(!item) return;
+  linkTargetId=id; showPane('new');
+  itemNameInput.value=item.name; itemSkuInput.value=item.sku||''; itemQtyInput.value=String(item.quantity||1);
+  var preset=item.widthIn===8.5&&item.heightIn===11?'letter':item.widthIn===5.5&&item.heightIn===8.5?'half-letter':item.widthIn===3.5&&item.heightIn===2?'business-card':'custom';
+  itemSizePreset.value=preset; itemSizePreset.dispatchEvent(new Event('change'));
+  if(preset==='custom'){ itemWidthInput.value=String(item.widthIn); itemHeightInput.value=String(item.heightIn); }
+  if(item.img && item.img.indexOf('data:')===0){ state.pendingItemImg=item.img; itemPhotoText.textContent='Photo from the tray item ✓'; }
+  var note=document.getElementById('linkNote'); note.hidden=false; note.textContent='Adding "'+item.name+'" to the catalog. It stays in place in your folder.';
+  if(!itemSkuInput.value) suggestCode();
+  itemNameInput.focus();
+}
+
+// ---- tray chips with status ----------------------------------------------------------
+function chipHtml(item){
+  var st=itemStatus(item);
+  var badge=st==='live'?'<span class="st ok">In catalog</span>':st==='pending'?'<span class="st warn">Pending review</span>':st==='rejected'?'<span class="st bad">Rejected</span>':'<span class="st bad">Not in catalog</span>';
+  return '<div class="chip'+(item.id===state.selectedId?' is-selected':'')+'" draggable="true" data-id="'+item.id+'" tabindex="0" role="button" aria-label="'+escapeAttr(item.name)+'. Drag or select to place in folder.">'+
+    (item.img?'<img class="chip-thumb" src="'+item.img+'" alt="">':'<span class="chip-thumb ph">📄</span>')+
+    '<span class="chip-text"><span class="chip-name">'+escapeHtml(item.name)+'</span>'+
+    '<span class="chip-sku">'+(item.sku?escapeHtml(item.sku)+' · ':'')+formatDimension(item.widthIn||8.5)+'×'+formatDimension(item.heightIn||11)+' in'+(Number(item.quantity||1)>1?' · ×'+Number(item.quantity||1):'')+'</span>'+badge+
+    (st==='unlinked'?' <button class="link" type="button" data-link-id="'+item.id+'">Add to catalog</button>':'')+'</span>'+
+    '<button class="chip-remove" type="button" data-id="'+item.id+'" aria-label="Delete '+escapeAttr(item.name)+'">×</button>'+
+  '</div>';
+}
+
+// ---- selected item tools ----------------------------------------------------------------
+function renderSelectedTools(){
+  var item=findItem(state.selectedId);
+  if(!item){ catalogEls.selectedTools.innerHTML=''; return; }
+  var preset=item.widthIn===8.5&&item.heightIn===11?'letter':item.widthIn===5.5&&item.heightIn===8.5?'half-letter':item.widthIn===3.5&&item.heightIn===2?'business-card':'custom';
+  var st=itemStatus(item);
+  catalogEls.selectedTools.innerHTML=
+    '<div class="sel-grid"><label>Size<select data-sel="size"><option value="letter"'+(preset==='letter'?' selected':'')+'>Letter 8.5×11</option><option value="half-letter"'+(preset==='half-letter'?' selected':'')+'>Half 5.5×8.5</option><option value="business-card"'+(preset==='business-card'?' selected':'')+'>Card 3.5×2</option><option value="custom"'+(preset==='custom'?' selected':'')+'>Custom</option></select></label>'+
+    '<label>Qty per kit<input type="number" min="1" data-sel="qty" value="'+(item.quantity||1)+'"></label>'+
+    (preset==='custom'?'<label>Width (in)<input type="number" step="0.25" min="0.25" max="40" data-sel="w" value="'+item.widthIn+'"></label><label>Height (in)<input type="number" step="0.25" min="0.25" max="40" data-sel="h" value="'+item.heightIn+'"></label>':'')+
+    '</div><div class="sel-actions">'+
+    (item.loc==='folder'
+      ?'<button class="btn sm" data-sel-act="back">Send back</button><button class="btn sm" data-sel-act="front">Bring forward</button><button class="btn sm" data-sel-act="tray">Back to tray</button>'
+      :'<button class="btn sm primary" data-sel-act="place">Place in folder</button>')+
+    '<button class="btn sm ghost danger" data-sel-act="delete">Remove</button></div>'+
+    (st==='unlinked'?'<div class="warn-box">Not in the catalog yet. <button class="link" data-link-id="'+item.id+'">Add it to the catalog</button> so the kit can be saved.</div>':'')+
+    (st==='pending'?'<div class="warn-box">Waiting for admin review — the kit can be saved now and goes live once this item is approved.</div>':'');
+}
+document.addEventListener('change',function(e){
+  var el=e.target.closest('[data-sel]'); if(!el) return;
+  var item=findItem(state.selectedId); if(!item) return;
+  var k=el.dataset.sel;
+  if(k==='size'){
+    var map={'letter':[8.5,11],'half-letter':[5.5,8.5],'business-card':[3.5,2]};
+    if(map[el.value]){ item.widthIn=map[el.value][0]; item.heightIn=map[el.value][1]; item.isCustomSize=false; item.sizeLabel=sizeLabelFor(item.widthIn,item.heightIn); }
+    else { item.isCustomSize=true; item.sizeLabel='Custom'; }
+  }
+  if(k==='qty') item.quantity=Math.max(1,parseInt(el.value||'1',10)||1);
+  if(k==='w') item.widthIn=clamp(parseFloat(el.value)||item.widthIn,.25,40);
+  if(k==='h') item.heightIn=clamp(parseFloat(el.value)||item.heightIn,.25,40);
+  if(item.loc==='folder'){ var p=clampPlacement(item,item.x,item.y); item.x=p.x; item.y=p.y; }
+  render(); saveState();
+});
+document.addEventListener('click',function(e){
+  var add=e.target.closest('[data-cat-add]'); if(add){ e.stopPropagation(); addFromCatalog(Number(add.dataset.catAdd)); return; }
+  var link=e.target.closest('[data-link-id]'); if(link){ e.stopPropagation(); startLinkFlow(link.dataset.linkId); return; }
+  var act=e.target.closest('[data-sel-act]');
+  if(act){
+    var item=findItem(state.selectedId); if(!item) return;
+    var a=act.dataset.selAct;
+    if(a==='back') sendToBack(item.id);
+    else if(a==='front') bringToFront(item.id);
+    else if(a==='tray') moveToTray(item.id);
+    else if(a==='place') moveToFolder(item.id);
+    else if(a==='delete') deleteItem(item.id);
+  }
+},true);
+
+// ---- undo / redo -----------------------------------------------------------------------
+var undoHist={past:[],future:[],lastKey:null,restoring:false};
+function snapshot(){
+  return {kitName:kitNameInput.value,kitCode:kitCodeInput.value,items:state.items.map(function(i){return Object.assign({},i);}),idCounter:state.idCounter,
+    frontImg:state.frontImg,frontFit:state.frontFit,frontZoom:state.frontZoom,frontPosX:state.frontPosX,frontPosY:state.frontPosY,backImg:state.backImg,rightImg:state.rightImg,
+    insideColor:state.insideColor,pocketColor:state.pocketColor,snapEnabled:state.snapEnabled,realisticScale:state.realisticScale,showPockets:state.showPockets,editingKitId:state.editingKitId||null};
+}
+function snapKey(s){
+  return JSON.stringify(s,function(k,v){ return (typeof v==='string' && v.length>200)?(v.length+':'+v.slice(-24)):v; });
+}
+function recordHistory(){
+  if(undoHist.restoring) return;
+  var s=snapshot(), key=snapKey(s);
+  if(key===undoHist.lastKey) return;
+  if(undoHist.lastSnap) { undoHist.past.push(undoHist.lastSnap); if(undoHist.past.length>60) undoHist.past.shift(); undoHist.future=[]; }
+  undoHist.lastSnap=s; undoHist.lastKey=key;
+  updateUndoButtons();
+}
+function restore(s){
+  undoHist.restoring=true;
+  Object.keys(s).forEach(function(k){ if(k!=='kitName'&&k!=='kitCode') state[k]=k==='items'?s.items.map(function(i){return Object.assign({},i);}):s[k]; });
+  kitNameInput.value=s.kitName||''; kitCodeInput.value=s.kitCode||''; state.kitName=s.kitName; state.kitCode=s.kitCode;
+  snapToggle.checked=state.snapEnabled; realScaleToggle.checked=state.realisticScale; pocketToggle.checked=state.showPockets;
+  if(state.selectedId && !findItem(state.selectedId)) state.selectedId=null;
+  render(); _saveState(true);
+  undoHist.lastSnap=s; undoHist.lastKey=snapKey(s);
+  undoHist.restoring=false; updateUndoButtons();
+}
+function undo(){ if(!undoHist.past.length) return; undoHist.future.push(undoHist.lastSnap); restore(undoHist.past.pop()); announce('Undone.'); }
+function redo(){ if(!undoHist.future.length) return; undoHist.past.push(undoHist.lastSnap); restore(undoHist.future.pop()); announce('Redone.'); }
+function updateUndoButtons(){ catalogEls.undo.disabled=!undoHist.past.length; catalogEls.redo.disabled=!undoHist.future.length; }
+catalogEls.undo.addEventListener('click',undo);
+catalogEls.redo.addEventListener('click',redo);
+
+var _saveState=saveState;
+saveState=function(immediate){ _saveState(immediate); clearTimeout(saveState._h); saveState._h=setTimeout(recordHistory,immediate?0:220); };
+
+// ---- keyboard: undo/redo, nudge, delete ---------------------------------------------------
+document.addEventListener('keydown',function(e){
+  var typing=e.target.closest('input,textarea,select,[contenteditable]');
+  var mod=e.ctrlKey||e.metaKey;
+  if(mod && !typing && (e.key==='z'||e.key==='Z')){ e.preventDefault(); if(e.shiftKey) redo(); else undo(); return; }
+  if(mod && !typing && (e.key==='y'||e.key==='Y')){ e.preventDefault(); redo(); return; }
+  if(typing) return;
+  var item=findItem(state.selectedId); if(!item) return;
+  if(item.loc==='folder' && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].indexOf(e.key)>-1){
+    e.preventDefault();
+    var step=e.shiftKey?.02:.004;
+    var x=item.x+(e.key==='ArrowLeft'?-step:e.key==='ArrowRight'?step:0);
+    var y=item.y+(e.key==='ArrowUp'?-step:e.key==='ArrowDown'?step:0);
+    var p=clampPlacement(item,x,y); item.x=p.x; item.y=p.y;   // nudges bypass snapping on purpose
+    render(); saveState(); return;
+  }
+  if((e.key==='Delete'||e.key==='Backspace') && item.loc==='folder'){ e.preventDefault(); moveToTray(item.id); }
+});
+
+// ---- zoom -------------------------------------------------------------------------------------
+function applyZoom(){ folderEl.style.setProperty('--zoom',zoom); catalogEls.zoomVal.textContent=Math.round(zoom*100)+'%'; render(); }
+document.getElementById('zoomIn').addEventListener('click',function(){ zoom=Math.min(1.6,Math.round((zoom+.1)*10)/10); applyZoom(); });
+document.getElementById('zoomOut').addEventListener('click',function(){ zoom=Math.max(.5,Math.round((zoom-.1)*10)/10); applyZoom(); });
+document.getElementById('zoomFit').addEventListener('click',function(){ zoom=1; applyZoom(); });
+
+// ---- render extras ----------------------------------------------------------------------------------
+var _render=render;
+render=function(){
+  _render();
+  renderSelectedTools();
+  var tray=state.items.filter(function(i){return i.loc==='tray';}).length;
+  catalogEls.trayCount.textContent=tray?tray+' item'+(tray===1?'':'s'):'';
+  catalogEls.editBadge.hidden=!state.editingKitId;
+  catalogEls.editBadge.textContent=state.editingKitId?'Editing saved kit':'';
+  saveKitBtn.textContent=state.editingKitId?'Save changes':'Save as folder kit';
+  catalogEls.addToOrder.hidden=!state.editingKitId;
+  updateUndoButtons();
+};
+
+// ---- saving -------------------------------------------------------------------------------------
+function buildPayload(){
   var placed=state.items.filter(function(x){return x.loc==='folder';});
-  if(!placed.length){alert('Place at least one catalog item in the folder.');return;}
-  var missing=placed.filter(function(x){return !x.item_id;});
-  if(missing.length){alert('These entries are not linked to catalog part numbers: '+missing.map(function(x){return x.name;}).join(', '));return;}
   var components=placed.slice().sort(function(a,b){return (Number(a.z)||1)-(Number(b.z)||1);}).map(function(x,i){return {item_id:Number(x.item_id),quantity:Number(x.quantity||1),position:i};});
   var designItems=placed.map(function(x){return {item_id:Number(x.item_id),sku:x.sku||'',name:x.name,quantity:Number(x.quantity||1),x:x.x,y:x.y,z:x.z,layer:x.z,placement:x.x<.5?'Back of cover':'Inside right',widthIn:x.widthIn,heightIn:x.heightIn,scale:x.scale};});
-  var payload={name:name,code:code,brand:'',description:'Custom folder built in Folder Builder',active:true,custom:true,saved_for_reuse:true,kit_type:'folder',design_json:JSON.stringify({items:designItems,insideColor:state.insideColor,pocketColor:state.pocketColor,frontFit:state.frontFit,frontZoom:state.frontZoom,frontPosX:state.frontPosX,frontPosY:state.frontPosY}),components:components,preview_data_url:state.frontImg||null};
-  window.parent.postMessage({type:'oti-save-folder-kit',payload:payload},'*');
+  return {components:components,design_json:JSON.stringify({items:designItems,insideColor:state.insideColor,pocketColor:state.pocketColor,frontFit:state.frontFit,frontZoom:state.frontZoom,frontPosX:state.frontPosX,frontPosY:state.frontPosY})};
+}
+function uploadPreview(kitId){
+  if(!state.frontImg) return Promise.resolve();
+  return dataUrlToBlob(state.frontImg).then(function(blob){
+    var fd=new FormData(); fd.append('file',blob,'folder-kit.png');
+    return apiCall('/folder-kits/'+kitId+'/image',{method:'POST',body:fd});
+  }).catch(function(err){ toast('Kit saved, but the cover photo failed: '+err.message,true); });
+}
+saveKitBtn.addEventListener('click',function(){
+  var name=kitNameInput.value.trim(), code=kitCodeInput.value.trim();
+  if(!name){ kitNameInput.focus(); toast('Give the folder kit a name.',true); return; }
+  if(!code){ kitCodeInput.focus(); toast('Give the folder kit a code.',true); return; }
+  if(!api.token){ toast('Open the Folder builder from the Otiwarehouse site to save kits.',true); return; }
+  var placed=state.items.filter(function(x){return x.loc==='folder';});
+  if(!placed.length){ toast('Place at least one item in the folder first.',true); return; }
+  var unlinked=placed.filter(function(x){return !x.item_id;});
+  if(unlinked.length){
+    toast('Add these to the catalog first: '+unlinked.map(function(x){return x.name;}).join(', '),true);
+    state.selectedId=unlinked[0].id; render(); startLinkFlow(unlinked[0].id); return;
+  }
+  var p=buildPayload();
+  var anyPending=placed.some(function(x){return itemStatus(x)==='pending';});
+  saveKitBtn.disabled=true; saveKitBtn.textContent='Saving…';
+  var req=state.editingKitId
+    ?apiCall('/folder-kits/'+state.editingKitId,{method:'PUT',body:JSON.stringify({name:name,code:code,design_json:p.design_json,components:p.components})})
+    :apiCall('/folder-kits',{method:'POST',body:JSON.stringify({name:name,code:code,brand:'',description:'Custom folder built in Folder Builder',active:true,custom:true,saved_for_reuse:true,kit_type:'folder',design_json:p.design_json,components:p.components})});
+  req.then(function(kit){
+    state.editingKitId=kit.id; saveState(true);
+    return uploadPreview(kit.id).then(function(){ return kit; });
+  }).then(function(kit){
+    var msg=(kit.review_status||'live')==='live'||!anyPending?(kit.name+' saved — it’s in the catalog now.'):(kit.name+' saved. It shows in the catalog once its new items are approved.');
+    toast(msg);
+    parentPost({type:'oti-catalog-changed',toast:msg});
+    render();
+  }).catch(function(err){ toast(err.message,true); }).then(function(){ saveKitBtn.disabled=false; render(); });
 });
+catalogEls.addToOrder.addEventListener('click',function(){
+  if(!state.editingKitId) return;
+  parentPost({type:'oti-add-kit-to-order',kitId:state.editingKitId,qty:1});
+});
+
+// ---- My kits ---------------------------------------------------------------------------------------
+function openKits(){
+  catalogEls.kitsModal.classList.remove('hidden');
+  catalogEls.kitsBody.innerHTML='<p class="hint">Loading…</p>';
+  apiCall('/folder-kits/mine').then(function(kits){
+    if(!kits.length){ catalogEls.kitsBody.innerHTML='<p class="hint">No saved folder kits yet. Build one and press <b>Save as folder kit</b>.</p>'; return; }
+    catalogEls.kitsBody.innerHTML=kits.map(function(k){
+      return '<div class="kit-row" data-kit="'+k.id+'">'+
+        '<div class="kit-main"><b class="kit-name">'+escapeHtml(k.name)+'</b> <span class="mono">'+escapeHtml(k.code)+'</span>'+
+        (k.review_status!=='live'?' <span class="st warn">Waiting for review</span>':' <span class="st ok">Live</span>')+
+        '<div class="hint">'+k.components.length+' item'+(k.components.length===1?'':'s')+' · updated '+(k.updated_at?new Date(k.updated_at).toLocaleDateString():'')+'</div>'+
+        (k.warnings.length?'<div class="warn-box">'+k.warnings.map(escapeHtml).join('<br>')+'</div>':'')+'</div>'+
+        '<div class="kit-actions"><button class="btn sm primary" data-kit-act="open">Open</button><button class="btn sm" data-kit-act="rename">Rename</button><button class="btn sm" data-kit-act="dup">Duplicate</button><button class="btn sm ghost danger" data-kit-act="retire">Retire</button></div></div>';
+    }).join('');
+    catalogEls.kitsBody._kits=kits;
+  }).catch(function(err){ catalogEls.kitsBody.innerHTML='<p class="hint">'+escapeHtml(err.message)+'</p>'; });
+}
+document.getElementById('myKitsBtn').addEventListener('click',openKits);
+document.getElementById('closeKitsBtn').addEventListener('click',function(){catalogEls.kitsModal.classList.add('hidden');});
+catalogEls.kitsModal.addEventListener('click',function(e){ if(e.target===catalogEls.kitsModal) catalogEls.kitsModal.classList.add('hidden'); });
+catalogEls.kitsBody.addEventListener('click',function(e){
+  var b=e.target.closest('[data-kit-act]'); if(!b) return;
+  var row=b.closest('[data-kit]'), id=Number(row.dataset.kit), kit=(catalogEls.kitsBody._kits||[]).find(function(k){return k.id===id;});
+  var a=b.dataset.kitAct;
+  if(a==='open'){ loadKitIntoBuilder(kit); catalogEls.kitsModal.classList.add('hidden'); }
+  if(a==='rename'){
+    var nm=row.querySelector('.kit-name');
+    nm.outerHTML='<span class="rename"><input class="rename-in" value="'+escapeAttr(kit.name)+'"> <button class="btn sm primary" data-kit-act="rename-save">Save</button></span>';
+    row.querySelector('.rename-in').focus();
+  }
+  if(a==='rename-save'){
+    var v=row.querySelector('.rename-in').value.trim(); if(!v) return;
+    apiCall('/folder-kits/'+id,{method:'PUT',body:JSON.stringify({name:v})}).then(function(){ toast('Renamed.'); if(state.editingKitId===id){kitNameInput.value=v;state.kitName=v;saveState();} parentPost({type:'oti-catalog-changed'}); openKits(); }).catch(function(err){toast(err.message,true);});
+  }
+  if(a==='dup'){ apiCall('/folder-kits/'+id+'/duplicate',{method:'POST'}).then(function(k){ toast('Duplicated as '+k.code+'.'); parentPost({type:'oti-catalog-changed'}); openKits(); }).catch(function(err){toast(err.message,true);}); }
+  if(a==='retire'){
+    if(!confirm('Retire "'+kit.name+'"? It disappears from the catalog. Past orders keep their copy.')) return;
+    apiCall('/folder-kits/'+id,{method:'DELETE'}).then(function(){ toast('Retired.'); if(state.editingKitId===id){state.editingKitId=null;render();saveState();} parentPost({type:'oti-catalog-changed'}); openKits(); }).catch(function(err){toast(err.message,true);});
+  }
+});
+function loadKitIntoBuilder(kit){
+  var design={}; try{ design=JSON.parse(kit.design_json||'{}'); }catch(e){}
+  var byItem={}; (design.items||[]).forEach(function(d){ byItem[String(d.item_id)]=d; });
+  state.items=kit.components.map(function(c,i){
+    var d=byItem[String(c.item_id)]||{};
+    var cat=catalogById(c.item_id);
+    var w=Number(d.widthIn)||((parseSize(cat&&cat.measures)||{}).width)||8.5, h=Number(d.heightIn)||((parseSize(cat&&cat.measures)||{}).height)||11;
+    return {id:'i'+(state.idCounter++),name:c.item_name,sku:c.item_code,item_id:c.item_id,quantity:c.quantity||1,img:imageUrl(c.image_id),
+      widthIn:w,heightIn:h,sizeLabel:sizeLabelFor(w,h),isCustomSize:sizeLabelFor(w,h)==='Custom',loc:'folder',
+      x:typeof d.x==='number'?d.x:(i%2?.72:.28),y:typeof d.y==='number'?d.y:.5,scale:Number(d.scale)||1,z:Number(d.z)||i+1,pending:c.review_status!=='live'};
+  });
+  normalizeZIndices();
+  ['insideColor','pocketColor','frontFit','frontZoom','frontPosX','frontPosY'].forEach(function(k){ if(design[k]!=null) state[k]=design[k]; });
+  state.frontImg=null;
+  if(kit.image_available && kit.review_status==='live'){
+    fetch(api.base+'/kit-images/'+kit.id+'?access_token='+encodeURIComponent(api.token)).then(function(r){return r.ok?r.blob():null;}).then(function(b){
+      if(!b) return; var fr=new FileReader(); fr.onload=function(){ state.frontImg=fr.result; applyPhotos(); saveState(); }; fr.readAsDataURL(b);
+    }).catch(function(){});
+  }
+  kitNameInput.value=kit.name; kitCodeInput.value=kit.code; state.kitName=kit.name; state.kitCode=kit.code;
+  state.editingKitId=kit.id; state.selectedId=null;
+  setOpen(true); render(); saveState(true);
+  toast('Opened '+kit.name+'. Changes save to the same kit.');
+}
+
+// "Start over" also forgets which saved kit was being edited
+resetBtn.addEventListener('click',function(){ state.editingKitId=null; linkTargetId=null; render(); });
+
+// ---- boot: token from the parent page or this tab's session ----------------------------------------
+(function(){
+  api.base=location.origin;
+  try{ api.token=sessionStorage.getItem('oti_token')||''; var b=sessionStorage.getItem('oti_api_base'); if(b) api.base=b; }catch(e){}
+  try{ var saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); state.editingKitId=saved.editingKitId||null; }catch(e){}
+  parentPost({type:'oti-request-theme'});
+  if(api.token) loadCatalogFromApi(); else renderCatalogList();
+  syncSizeSeg();
+})();
+
 
 loadState();
 snapToggle.checked=state.snapEnabled;

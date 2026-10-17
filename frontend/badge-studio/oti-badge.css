@@ -1,0 +1,59 @@
+/* Otiwarehouse 1.11 — dark theme for Badge Studio (paper previews stay white). */
+html[data-oti-theme="dark"]{
+  --background:var(--c-bg,#0E1013);--foreground:var(--c-ink,#E3E6EA);--card:var(--c-surface,#161A1F);--card-foreground:var(--c-ink,#E3E6EA);
+  --popover:var(--c-surface-2,#1D2228);--popover-foreground:var(--c-ink,#E3E6EA);--primary:var(--c-accent,#A3277A);--primary-foreground:var(--c-accent-ink,#fff);
+  --secondary:var(--c-surface-2,#1D2228);--secondary-foreground:var(--c-ink,#E3E6EA);--muted:var(--c-surface-2,#1D2228);--muted-foreground:var(--c-muted,#7D8590);
+  --accent:var(--c-surface-3,#242A31);--accent-foreground:var(--c-ink,#E3E6EA);--destructive:#E07A6E;--border:var(--c-line,#262C33);--input:var(--c-line-2,#323A43);--ring:var(--c-accent,#A3277A);
+  color-scheme:dark;
+}
+html[data-oti-theme="dark"] body{background:var(--c-bg,#0E1013);color:var(--c-ink,#E3E6EA)}
+html[data-oti-theme="dark"] .topbar{background:var(--c-surface,#161A1F);border-bottom-color:var(--c-line,#262C33)}
+html[data-oti-theme="dark"] .brand-icon{background:var(--c-accent,#A3277A)}
+html[data-oti-theme="dark"] .brand-icon span{background:rgba(255,255,255,.85)}
+html[data-oti-theme="dark"] .solid-button,html[data-oti-theme="dark"] .solid-button:hover{color:var(--c-accent-ink,#fff);background:var(--c-accent,#A3277A)}
+html[data-oti-theme="dark"] .solid-button:hover{filter:brightness(1.1)}
+html[data-oti-theme="dark"] .notice{color:var(--c-ink,#E3E6EA);background:var(--c-accent-soft,rgba(163,39,122,.16));border-bottom-color:var(--c-accent-line,rgba(163,39,122,.45))}
+html[data-oti-theme="dark"] .attendees-panel{background:var(--c-surface,#161A1F);border-right-color:var(--c-line,#262C33)}
+html[data-oti-theme="dark"] .search-field input,html[data-oti-theme="dark"] .field input,html[data-oti-theme="dark"] .field select,html[data-oti-theme="dark"] .field textarea,html[data-oti-theme="dark"] .scope-row button{background:var(--c-surface-2,#1D2228);border-color:var(--c-line-2,#323A43);color:var(--c-ink,#E3E6EA)}
+html[data-oti-theme="dark"] input,html[data-oti-theme="dark"] select,html[data-oti-theme="dark"] textarea{color:var(--c-ink,#E3E6EA)}
+html[data-oti-theme="dark"] .imported-files{background:var(--c-surface-2,#1D2228);border-color:var(--c-line,#262C33)}
+html[data-oti-theme="dark"] .bulk-delete-row{color:#E7A99B;background:rgba(224,122,110,.10);border-bottom-color:rgba(224,122,110,.25)}
+html[data-oti-theme="dark"] .bulk-delete-row button{color:#E07A6E;border-color:rgba(224,122,110,.4);background:transparent}
+html[data-oti-theme="dark"] .list-heading{color:var(--c-muted,#7D8590);background:var(--c-surface-2,#1D2228);border-color:var(--c-line,#262C33)}
+html[data-oti-theme="dark"] .attendee-row.active{background:var(--c-accent-soft,rgba(163,39,122,.16));box-shadow:inset 3px 0 var(--c-accent,#A3277A)}
+html[data-oti-theme="dark"] .attendee-row:hover{background:var(--c-surface-2,#1D2228)}
+html[data-oti-theme="dark"] .avatar{color:var(--c-ink-2,#AEB4BD);background:var(--c-surface-3,#242A31)}
+html[data-oti-theme="dark"] .active .avatar{color:var(--c-accent-ink,#fff);background:var(--c-accent,#A3277A)}
+html[data-oti-theme="dark"] .issue-tag{color:#D9A54A;background:rgba(217,165,74,.14)}
+html[data-oti-theme="dark"] .stock-picker select{color:var(--c-ink,#E3E6EA);background:var(--c-surface-2,#1D2228);border-color:var(--c-line-2,#323A43)}
+html[data-oti-theme="dark"] .paper-pill,html[data-oti-theme="dark"] .dimension-pill{color:var(--c-ink-2,#AEB4BD);background:var(--c-surface-3,#242A31);border-color:var(--c-line-2,#323A43)}
+html[data-oti-theme="dark"] .edit-card,html[data-oti-theme="dark"] .preview-card,html[data-oti-theme="dark"] .settings-card,html[data-oti-theme="dark"] .print-guide{background:var(--c-surface,#161A1F);border-color:var(--c-line,#262C33);box-shadow:none}
+html[data-oti-theme="dark"] .meeting-form{background:var(--c-surface-2,#1D2228);border-color:var(--c-line,#262C33)}
+html[data-oti-theme="dark"] .blank-state h2{color:var(--c-ink,#E3E6EA)}
+html[data-oti-theme="dark"] .page-selector{background:var(--c-surface-2,#1D2228);border-color:var(--c-line-2,#323A43)}
+html[data-oti-theme="dark"] .helper-box,html[data-oti-theme="dark"] .back-name-note{color:var(--c-ink-2,#AEB4BD);background:var(--c-surface-2,#1D2228);border-color:var(--c-line,#262C33)}
+html[data-oti-theme="dark"] .sheet-stage,html[data-oti-theme="dark"] .paper-preview-panel,html[data-oti-theme="dark"] .design-preview{background:#0B0D10;border-color:var(--c-line,#262C33)}
+html[data-oti-theme="dark"] .guide-alert,html[data-oti-theme="dark"] .warning-inline{color:#E8C27E;background:rgba(217,165,74,.10);border-color:rgba(217,165,74,.35)}
+/* keep paper pieces paper-coloured with dark ink */
+html[data-oti-theme="dark"] .individual-badge,html[data-oti-theme="dark"] .sheet,html[data-oti-theme="dark"] .sheet-cell{color:#172b36}
+
+/* Otiwarehouse bar */
+#offline-bar{display:none!important}
+.oti-bar{display:flex;align-items:center;gap:10px;padding:8px 16px;background:var(--c-surface,#161A1F);border-bottom:1px solid var(--c-line,#262C33);font:13px Inter,system-ui,sans-serif;color:var(--c-ink-2,#AEB4BD);flex-wrap:wrap}
+html:not([data-oti-theme="dark"]) .oti-bar{background:#fff;border-bottom-color:#dce5e9;color:#486270}
+.oti-bar img{width:26px;height:26px;border-radius:6px}
+.oti-bar b{color:var(--c-ink,#E3E6EA)}
+html:not([data-oti-theme="dark"]) .oti-bar b{color:#172b36}
+.oti-bar select{background:var(--c-surface-2,#1D2228);color:inherit;border:1px solid var(--c-line-2,#323A43);border-radius:7px;height:30px;padding:0 8px;max-width:340px}
+.oti-bar .grow{flex:1}
+.oti-bar button{height:30px;padding:0 10px;border-radius:7px;border:1px solid var(--c-line-2,#323A43);background:var(--c-surface-3,#242A31);color:inherit;font-weight:600;font-size:12px;cursor:pointer}
+.oti-status{font-size:12px}
+.oti-status.ok{color:var(--c-ok,#5FB98A)}.oti-status.err{color:#E07A6E}
+.oti-embed .oti-full-only{display:none!important}
+.oti-signin{max-width:440px;margin:15vh auto;text-align:center;font:14px Inter,system-ui,sans-serif;color:var(--c-ink,#E3E6EA)}
+@media print{.oti-bar{display:none!important}}
+html[data-oti-theme="dark"] .tab-list{border-bottom-color:var(--c-line,#262C33)}
+html[data-oti-theme="dark"] .tab-list button{color:var(--c-muted,#7D8590)}
+html[data-oti-theme="dark"] .tab-list button[data-state=active]{color:var(--c-ink,#E3E6EA);box-shadow:inset 0 -2px var(--c-accent,#A3277A)}
+html[data-oti-theme="dark"] a{color:var(--c-accent-text,#E7A8D2)}
+html[data-oti-theme="dark"] .attendee-row{border-color:var(--c-line,#262C33)}

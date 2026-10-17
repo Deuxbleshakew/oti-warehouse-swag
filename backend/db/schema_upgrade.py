@@ -34,6 +34,7 @@ def _table_columns_for_dialect(dialect_name: str) -> dict[str, dict[str, str]]:
             "deleted_at": datetime_type,
             "theme": "VARCHAR(30) NOT NULL DEFAULT 'warehouse-dark'",
             "catalog_access_mode": "VARCHAR(20) NOT NULL DEFAULT 'all'",
+            "accent_color": "VARCHAR(20) NOT NULL DEFAULT ''",
         },
         "items": {
             "deleted_at": datetime_type,
@@ -42,6 +43,11 @@ def _table_columns_for_dialect(dialect_name: str) -> dict[str, dict[str, str]]:
             "inventory_counted": f"BOOLEAN NOT NULL DEFAULT {'TRUE' if is_postgres else '1'}",
             "nav_tracked": f"BOOLEAN NOT NULL DEFAULT {false_literal}",
             "nav_item_number": "VARCHAR(80) DEFAULT ''",
+            "review_status": "VARCHAR(20) NOT NULL DEFAULT 'live'",
+            "review_note": "VARCHAR(255) DEFAULT ''",
+            "created_by_user_id": "INTEGER",
+            "max_per_order": "INTEGER",
+            "substitute_item_id": "INTEGER",
         },
         "orders": {
             "order_number": "VARCHAR(30)",
@@ -74,6 +80,7 @@ def _table_columns_for_dialect(dialect_name: str) -> dict[str, dict[str, str]]:
             "brand": "VARCHAR(80) DEFAULT ''",
             "kit_type": "VARCHAR(30) NOT NULL DEFAULT 'standard'",
             "design_json": "TEXT DEFAULT ''",
+            "review_status": "VARCHAR(20) NOT NULL DEFAULT 'live'",
         },
     }
 
