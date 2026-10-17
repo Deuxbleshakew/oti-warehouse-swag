@@ -482,6 +482,50 @@
   }
   @media (max-width:380px){.grid{grid-template-columns:1fr}}
   @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+  /* ---- 1.11.2: frozen top, category chips, whole photos, fixed card bottom ---- */
+  :root{--top-h:var(--header-h)}
+  #app-top{position:sticky;top:0;z-index:60}
+  .top-shell{position:relative}
+  .filter-rail,.cart-rail{top:calc(var(--top-h) + 16px);max-height:calc(100vh - var(--top-h) - 32px)}
+  .filter-rail,.cart-rail{scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+  .filter-rail::-webkit-scrollbar,.cart-rail::-webkit-scrollbar{width:6px}
+  .filter-rail::-webkit-scrollbar-thumb,.cart-rail::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:6px}
+  .filter-rail::-webkit-scrollbar-track,.cart-rail::-webkit-scrollbar-track{background:transparent}
+  .catalog-top{position:sticky;top:var(--top-h);z-index:20;background:var(--bg);margin:-22px -8px 0;padding:18px 8px 2px}
+  .catalog-top::after{content:"";position:absolute;left:0;right:0;bottom:-12px;height:12px;background:linear-gradient(var(--bg),transparent);pointer-events:none}
+  .catalog-top .page-head{margin-bottom:12px}
+  .catalog-top .chips{margin-bottom:10px}
+  .cat-chips{display:flex;flex-wrap:wrap;gap:5px}
+  .cat-chip{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 8px;border:1px solid var(--line);border-radius:99px;background:none;color:var(--ink-2);font-size:12px;line-height:1;white-space:nowrap}
+  .cat-chip:hover{background:var(--surface-2);color:var(--ink);border-color:var(--line-2)}
+  .cat-chip .filter-n{font-size:11px}
+  .cat-chip.active{background:var(--accent-soft);border-color:var(--accent-line);color:var(--ink);font-weight:600}
+  .cat-chip.active .filter-n{color:var(--accent-text)}
+  .tag .photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:10px;box-sizing:border-box}
+  .tag .photo{background:var(--photo-bg)}
+  :root{--photo-bg:#1C2026}
+  html[data-theme="light"]{--photo-bg:#F1F2F4}
+  .tag .head{display:flex;flex-direction:column;gap:2px}
+  .tag .name{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .tag .meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card-foot{margin-top:auto;display:flex;flex-direction:column;gap:9px}
+  .buy-row{margin-top:0;min-width:0}
+  .stepper button{width:30px}
+  .stepper input,.qty{width:40px}
+  .add-cart{min-width:0;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  @media (max-width:980px){
+    .catalog-top{margin:-16px -6px 0;padding:12px 6px 2px}
+  }
+  @media (max-width:640px){
+    .catalog-top .page-head{margin-bottom:8px;flex-wrap:nowrap;align-items:center}
+    .catalog-top .page-head p{display:none}
+    .catalog-top .page-head h1{font-size:18px}
+    .catalog-top .page-head .btn-secondary{width:auto;height:32px;padding:0 10px;font-size:12px}
+    .catalog-top .toolbar{gap:6px;margin-bottom:8px}
+    .tag .card-foot{gap:7px}
+  }
+  @media (max-width:640px) and (max-height:700px){ .catalog-top{position:static} .catalog-top::after{display:none} }
   @media print{.top-shell,.mobile-cart-bar,.cart-rail,.filter-rail{display:none!important}}
 </style>
 </head>
@@ -494,7 +538,7 @@
 
 <script>
 /* ---------------------------------------------------------------------
-   Otiwarehouse — ordering frontend (build 1.11).
+   Otiwarehouse — ordering frontend (build 1.11.2).
    Static file, no build step — open it from the shared drive or host it
    next to the backend. Talks to the FastAPI backend over bearer-token
    auth (see backend/main.py for the CORS rationale).
@@ -506,7 +550,7 @@
 // typing a URL into a settings field is annoying. Opening the file
 // directly (file://) has no real origin to detect, so that case keeps
 // the old localhost default for local testing.
-const APP_VERSION = "1.11.1";
+const APP_VERSION = "1.11.2";
 const DEFAULT_API_BASE =
   (location.protocol === "file:" || !location.origin || location.origin === "null")
     ? "http://localhost:8000"
@@ -1678,9 +1722,10 @@ function renderTagCard(item) {
       ${photo ? `<img src="${esc(photo)}" alt="${esc(item.name)}" loading="lazy" data-item-image-id="${item.id}" data-lightbox-src="${esc(photo)}" data-gallery="${esc(itemImageUrls(item).join("|"))}" onerror="handleImageError(this)">` : `<span class="photo-fallback">📦</span>`}
     </div>
     <div class="body">
-      <div><div class="code">${esc(item.code)}</div><div class="name">${esc(item.name)}</div>
-      <div class="meta">${[item.category, item.location ? "Loc. " + item.location : "", item.measures].filter(Boolean).map(esc).join(" · ")}</div></div>
+      <div class="head"><div class="code">${esc(item.code)}</div><div class="name" title="${esc(item.name)}">${esc(item.name)}</div>
+      <div class="meta" title="${esc([item.category, item.location ? "Loc. " + item.location : "", item.measures].filter(Boolean).join(" · "))}">${[item.category, item.location ? "Loc. " + item.location : "", item.measures].filter(Boolean).map(esc).join(" · ")}</div></div>
       ${activeVariants(item).length ? `<div class="variant-picker"><label>Color</label><select data-variant-select="${item.id}">${activeVariants(item).map(v => `<option value="${v.id}" ${variant && v.id === variant.id ? "selected" : ""}>${esc(v.color_name || v.name)} · ${v.qty_on_hand} available</option>`).join("")}</select>${variant?.details ? `<div class="meta">${esc(variant.details)}</div>` : ""}</div>` : ""}
+      <div class="card-foot">
       <div class="stock-line">${pill}${limit ? `<span class="limit-note">Max ${limit} per order</span>` : ""}</div>
       ${pending > 0 ? `<div class="stock-sub">${Number(item.qty_on_hand || 0)} on hand · ${pending} held by pending orders</div>` : ""}
       <div class="location-badges"><span class="loc-badge ${loc["0"] === 0 ? "zero" : ""}"><b>0</b><span>${loc["0"]}</span></span><span class="loc-badge ${loc["2501"] === 0 ? "zero" : ""}"><b>2501</b><span>${loc["2501"]}</span></span></div>
@@ -1692,6 +1737,7 @@ function renderTagCard(item) {
         <button class="add-cart ${sameAsCart ? "in-cart" : ""}" type="button" data-add-cart="${item.id}" ${unavailable || !draftQty ? "disabled" : ""}>${buttonText}</button>
       </div>
       <div class="card-actions"><label class="estimated-mark"><input class="estimated-toggle" type="checkbox" data-estimated-id="${item.id}" ${draftEstimated ? "checked" : ""} ${!draftQty ? "disabled" : ""}> Estimate</label><button class="request-count" type="button" data-count-id="${item.id}" data-count-name="${esc(item.name)}">Request count</button></div>
+      </div>
     </div>
   </div>`;
 }
@@ -1714,9 +1760,9 @@ function renderFilterRail() {
     <div class="filter-group"><div class="filter-title">Brand</div>
       <button class="filter-option ${!state.brand ? "active" : ""}" data-brand-choice=""><span>All brands</span><span class="filter-n">${state.catalog.length + (state.kits || []).length}</span></button>
       ${brands.map(b => `<button class="filter-option ${state.brand === b ? "active" : ""}" data-brand-choice="${esc(b)}"><span>${esc(b)}</span><span class="filter-n">${catalogBrandCount(b)}</span></button>`).join("")}</div>
-    <div class="filter-group"><div class="filter-title">Category</div>
-      <button class="filter-option ${!state.category ? "active" : ""}" data-category-choice=""><span>All categories</span><span class="filter-n">${state.catalog.length}</span></button>
-      ${categories.map(c => `<button class="filter-option ${state.category === c ? "active" : ""}" data-category-choice="${esc(c)}"><span>${esc(c)}</span><span class="filter-n">${categoryCount(c)}</span></button>`).join("")}</div>
+    <div class="filter-group"><div class="filter-title">Category</div><div class="cat-chips">
+      <button class="cat-chip ${!state.category ? "active" : ""}" data-category-choice=""><span>All</span><span class="filter-n">${state.catalog.length}</span></button>
+      ${categories.map(c => `<button class="cat-chip ${state.category === c ? "active" : ""}" data-category-choice="${esc(c)}" title="${esc(c)}"><span>${esc(c)}</span><span class="filter-n">${categoryCount(c)}</span></button>`).join("")}</div></div>
     <div class="sheet-foot"><button class="btn-primary" id="filter-done" type="button">Show ${shown} result${shown === 1 ? "" : "s"}</button></div>
   </div>`;
 }
@@ -1741,7 +1787,7 @@ function renderCatalogTab() {
   }
   const chips = activeChips();
   const shown = (state.catalogType === "kits" ? 0 : items.length) + (state.catalogType === "items" ? 0 : visibleKits().length);
-  return `
+  return `<div class="catalog-top">
     <div class="page-head"><div><h1>Catalog</h1><p>Add items to your order, then fill in the delivery details.</p></div>
       <button class="btn-secondary" id="bulk-add-open" type="button">Bulk add by part #</button></div>
     <div class="toolbar">
@@ -1758,7 +1804,7 @@ function renderCatalogTab() {
     <div class="chips"><span class="result-count">${shown} result${shown === 1 ? "" : "s"}</span>
       ${chips.map(([k, label]) => `<span class="chip">${esc(label)}<button type="button" data-chip-clear="${k}" aria-label="Remove filter">×</button></span>`).join("")}
       ${chips.length > 1 ? `<button class="clear-filters" id="clear-filters" type="button">Clear all</button>` : ""}
-    </div>
+    </div></div>
     ${body}`;
 }
 
@@ -2206,6 +2252,7 @@ function render() {
   // When the same tool is already showing, only the header and drawer update.
   const frameKey = (state.tab === "folder" || state.tab === "badges") ? state.tab + ":" + (state.tab === "badges" ? state.badgeScope : "") : "";
   const bdy = document.getElementById("app-body");
+  const railScroll = (document.querySelector(".filter-rail") || {}).scrollTop || 0;
   const keepFrame = frameKey && app.dataset.frameKey === frameKey && bdy && bdy.querySelector("iframe");
   if (keepFrame) {
     document.getElementById("app-top").innerHTML = top;
@@ -2216,7 +2263,18 @@ function render() {
   app.dataset.frameKey = frameKey && document.querySelector("#app-body iframe") ? frameKey : "";
   wireApp(searchHadFocus, searchCursorPos);
   wireV111(Boolean(keepFrame));
+  const rail = document.querySelector(".filter-rail");
+  if (rail && railScroll) rail.scrollTop = railScroll;
+  syncTopHeight();
 }
+
+// The frozen catalog bar sits right under the header; the header's height
+// changes on phones (tab chips, announcement), so measure it.
+function syncTopHeight() {
+  const top = document.querySelector(".top-shell");
+  if (top) document.documentElement.style.setProperty("--top-h", top.offsetHeight + "px");
+}
+window.addEventListener("resize", syncTopHeight);
 
 function wireV111(frameKept) {
   const goSetup = () => { state.tab = "setup"; state.cartDrawerOpen = false; state.filterDrawerOpen = false; renderWithTransition(); window.scrollTo({ top: 0, behavior: "smooth" }); };

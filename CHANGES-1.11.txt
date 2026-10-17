@@ -1,6 +1,17 @@
 OTIWAREHOUSE 1.11 — WHAT CHANGED
 =================================
 
+1.11.2 — CATALOG LAYOUT (only frontend/order.html changed)
+- The header and the catalog top (title, search, product/sort dropdowns,
+  result count) stay frozen while you scroll. Filters and Your order panels
+  stay in place and scroll on their own with a thin scrollbar.
+- Categories are compact chips with counts (desktop rail and phone drawer).
+- Photos show the whole item (no cropping) on a soft neutral background.
+- Card bottoms are fixed: availability, location stock, quantity,
+  Add to order, Estimate and Request count line up across every row.
+  Long names stop at 2 lines (hover for the full name). Add to order no
+  longer gets cut off.
+
 1.11.1 — MEMORY CRASH FIX ("Ran out of memory (used over 512MB)")
 - Photos are shrunk to max 1600 px when uploaded. Existing full-size photos
   are shrunk once, the first time each one is viewed, and saved back
